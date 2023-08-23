@@ -10,7 +10,7 @@ import (
 )
 
 const NP_API_KEY = "np_apikey"
-const NP_API_URL = "np_api_url"
+const NP_API_HOST = "np_api_host"
 
 func Provider() *schema.Provider {
 	provider := &schema.Provider{
@@ -20,9 +20,9 @@ func Provider() *schema.Provider {
 				DefaultFunc: schema.EnvDefaultFunc("NP_API_KEY", nil),
 				Required:    true,
 			},
-			NP_API_URL: {
+			NP_API_HOST: {
 				Type:        schema.TypeString,
-				DefaultFunc: schema.EnvDefaultFunc("NP_API_URL", nil),
+				DefaultFunc: schema.EnvDefaultFunc("NP_API_HOST", nil),
 				Required:    true,
 			},
 		},
@@ -36,7 +36,7 @@ func Provider() *schema.Provider {
 	}
 
 	provider.ConfigureContextFunc = func(_ context.Context, d *schema.ResourceData) (any, diag.Diagnostics) {
-		apiUrl := strings.Trim(d.Get(NP_API_URL).(string), "\\")
+		apiUrl := strings.Trim(d.Get(NP_API_HOST).(string), "\\")
 		apiKey := d.Get(NP_API_KEY).(string)
 
 		c := &NullClient{
