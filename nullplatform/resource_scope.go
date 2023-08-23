@@ -1,11 +1,8 @@
 package nullplatform
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
 	"log"
-	"net/http"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -81,8 +78,7 @@ func resourceScope() *schema.Resource {
 }
 
 func ScopeCreate(d *schema.ResourceData, m any) error {
-	url := "https://api.nullplatform.com/scope" //Content-Type: application/json" -H"Authorization: Bearer $NULL_TOKEN" -d "$post_data"
-	accessToken := m.(string)
+	nullOps := m.(NullOps)
 
 	log.Print("\n\n--- CREATE Serverless scope ---\n\n")
 	log.Printf("\n\n>>> schema.ResourceData: %+v\n\n", d)
@@ -94,8 +90,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 	serverless_handler := d.Get("capabilities_serverless_handler_name").(string)
 	scopeType := "serverless"
 
-	// c := m.(*some.APIClient)// Create a HTTP post request
-	newScope := ScopeReq{
+	newScope := Scope{
 		Name:            scopeName,
 		ApplicationId:   applicationId,
 		Type:            scopeType,
@@ -118,42 +113,15 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 		},
 	}
 
-	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode(newScope)
+	s, err := nullOps.CreateScope(&newScope)
 
 	if err != nil {
 		return err
-	}
-
-	client := &http.Client{}
-	r, err := http.NewRequest("POST", url, &buf)
-	if err != nil {
-		return err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
-
-	res, err := client.Do(r)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-
-	rcsResp := &ScopeResponse{}
-	derr := json.NewDecoder(res.Body).Decode(rcsResp)
-
-	if derr != nil {
-		return derr
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("error creating resource, got %d", res.StatusCode)
 	}
 
 	log.Print("\n\n--- BEFORE patch NRN ---\n\n")
 
-	nrnErr := createNrnForScope(rcsResp.Nrn, accessToken, d, m)
+	nrnErr := createNrnForScope(s.Nrn, d, m)
 
 	if nrnErr != nil {
 		log.Print("\n\n--- AFTER patch NRN failed ******---\n\n")
@@ -162,13 +130,13 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 
 	log.Print("\n\n--- AFTER patch NRN success ---\n\n")
 
-	d.SetId(strconv.Itoa(rcsResp.Id))
+	d.SetId(strconv.Itoa(s.Id))
 
 	return ScopeRead(d, m)
 }
 
-func createNrnForScope(scopeNrn string, accessToken string, d *schema.ResourceData, _ any) error {
-	url := fmt.Sprintf("https://api.nullplatform.com/nrn/%s", scopeNrn)
+func createNrnForScope(scopeNrn string, d *schema.ResourceData, m any) error {
+	nullOps := m.(NullOps)
 
 	s3AssetsBucket := d.Get("s3_assets_bucket").(string)
 	scopeWorkflowRole := d.Get("scope_workflow_role").(string)
@@ -180,8 +148,7 @@ func createNrnForScope(scopeNrn string, accessToken string, d *schema.ResourceDa
 	logReaderRole := d.Get("log_reader_role").(string)
 	lambdaFunctionWarmAlias := d.Get("lambda_function_warm_alias").(string)
 
-	// c := m.(*some.APIClient)// Create a HTTP post request
-	patchResource := Resource{
+	nrnReq := &PatchNRN{
 		AWSS3AssestBucket:               s3AssetsBucket,
 		AWSScopeWorkflowRole:            scopeWorkflowRole,
 		AWSLogGroupName:                 logGroupName,
@@ -193,204 +160,113 @@ func createNrnForScope(scopeNrn string, accessToken string, d *schema.ResourceDa
 		AWSLambdaFunctionWarmAlias:      lambdaFunctionWarmAlias,
 	}
 
-	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode(patchResource)
-
-	if err != nil {
-		return err
-	}
-
-	client := &http.Client{}
-	r, err := http.NewRequest("PATCH", url, &buf)
-	if err != nil {
-		return err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
-
-	resp, err := client.Do(r)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error creating resource, got %d", resp.StatusCode)
-	}
-
-	return nil
+	return nullOps.PatchNRN(scopeNrn, nrnReq)
 }
 
 func ScopeRead(d *schema.ResourceData, m any) error {
-	resourceID := d.Id()
+	nullOps := m.(NullOps)
+	scopeID := d.Id()
 
-	url := fmt.Sprintf("https://api.nullplatform.com/scope/%s", resourceID)
-	accessToken := m.(string)
+	s, err := nullOps.GetScope(scopeID)
 
-	client := &http.Client{}
-	r, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
-
-	res, err := client.Do(r)
 	if err != nil {
 		d.SetId("")
 		return err
-	}
-	defer res.Body.Close()
-
-	rcsResp := &ScopeResponse{}
-	derr := json.NewDecoder(res.Body).Decode(rcsResp)
-
-	if derr != nil {
-		d.SetId("")
-		return derr
-	}
-
-	if res.StatusCode != http.StatusOK {
-		d.SetId("")
-		return fmt.Errorf("error getting resource, got %d for %s", res.StatusCode, resourceID)
 	}
 
 	log.Print("\n\n--- READ ---\n\n")
 	log.Printf("\n\n>>> schema.ResourceData: %+v\n\n", d)
 	log.Printf("\n\n>>> meta data: %+v\n\n", m)
 
-	// I want to set a computed value for the nested 'version' attribute, but to
-	// do that I have to iterate over each parent structure until I reach the
-	// relevant level of the data structure where I can then set a value on the
-	// 'version' attribute.
-	if err := d.Set("scope_name", rcsResp.Name); err != nil {
+	if err := d.Set("scope_name", s.Name); err != nil {
 		return err
 	}
-	if err := d.Set("null_application_id", rcsResp.ApplicationId); err != nil {
+	if err := d.Set("null_application_id", s.ApplicationId); err != nil {
 		return err
 	}
-	// I also make sure to update the computed 'last_update' attribute every time
-	// we update the terraform state.
+
 	d.Set("last_updated", time.Now().Format(time.RFC850))
 
 	return nil
 }
 
-func getNrnForScope(scopeNrn string, accessToken string, d *schema.ResourceData, _ any) error {
-	url := fmt.Sprintf("https://api.nullplatform.com/nrn/%s", scopeNrn)
-
-	s3AssetsBucket := d.Get("s3_assets_bucket").(string)
-	scopeWorkflowRole := d.Get("scope_workflow_role").(string)
-	logGroupName := d.Get("log_group_name").(string)
-	lambdaFunctinoName := d.Get("lambdaFunctionName").(string)
-	lambdaCurrentFunctionVersion := d.Get("lambdaCurrentFunctionVersion").(string)
-	lambdaFunctionRole := d.Get("lambdaFunctionRole").(string)
-	lambdaFunctionMainAlias := d.Get("lambdaFunctionMainAlias").(string)
-	logReaderRole := d.Get("log_reader_role").(string)
-	lambdaFunctionWarmAlias := d.Get("lambdaFunctionWarmAlias").(string)
-
-	// c := m.(*some.APIClient)// Create a HTTP post request
-	patchResource := Resource{
-		AWSS3AssestBucket:               s3AssetsBucket,
-		AWSScopeWorkflowRole:            scopeWorkflowRole,
-		AWSLogGroupName:                 logGroupName,
-		AWSLambdaFunctionName:           lambdaFunctinoName,
-		AWSLambdaCurrentFunctionVersion: lambdaCurrentFunctionVersion,
-		AWSLambdaFunctionRole:           lambdaFunctionRole,
-		AWSLambdaFunctionMainAlias:      lambdaFunctionMainAlias,
-		AWSLogReaderLog:                 logReaderRole,
-		AWSLambdaFunctionWarmAlias:      lambdaFunctionWarmAlias,
-	}
-
-	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode(patchResource)
+func getNrnForScope(scopeNrn string, nullOps NullOps) (*NRN, error) {
+	nrn, err := nullOps.GetNRN(scopeNrn)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	client := &http.Client{}
-	r, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return err
+	return nrn, nil
+}
+
+func ScopeUpdate(d *schema.ResourceData, m any) error {
+	nullOps := m.(NullOps)
+
+	log.Print("\n\n--- UPDATE ---\n\n")
+	log.Printf("\n\n>>> schema.ResourceData: %+v\n\n", d)
+	log.Printf("\n\n>>> meta data: %+v\n\n", m)
+
+	scopeID := d.Id()
+
+	log.Println("scopeID:", scopeID)
+
+	ps := &Scope{}
+
+	if d.HasChange("scope_name") {
+		ps.Name = d.Get("scope_name").(string)
 	}
 
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	caps := Capability{}
 
-	resp, err := client.Do(r)
-	if err != nil {
-		return err
+	if d.HasChange("capabilities_serverless_runtime_id") {
+		caps.ServerlessRuntime = map[string]string{
+			"id": d.Get("capabilities_serverless_runtime_id").(string),
+		}
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error creating resource, got %d", resp.StatusCode)
+	if d.HasChange("capabilities_serverless_handler_name") {
+		caps.ServerlessHandler = map[string]string{
+			"name": d.Get("capabilities_serverless_handler_name").(string),
+		}
+	}
+
+	if !reflect.DeepEqual(caps, Capability{}) {
+		ps.Capabilities = caps
+	}
+
+	d.Set("last_updated", time.Now().Format(time.RFC850))
+
+	if !reflect.DeepEqual(*ps, Scope{}) {
+		err := nullOps.PatchScope(scopeID, ps)
+		if err != nil {
+			return nil
+		}
 	}
 
 	return nil
 }
 
-func ScopeUpdate(d *schema.ResourceData, m any) error {
-	log.Print("\n\n--- UPDATE ---\n\n")
-	log.Printf("\n\n>>> schema.ResourceData: %+v\n\n", d)
-	log.Printf("\n\n>>> meta data: %+v\n\n", m)
+func ScopeDelete(d *schema.ResourceData, m any) error {
+	nullOps := m.(NullOps)
 
-	// We get the ID we set into terraform state after we had initially created
-	// the resource.
-	resourceID := d.Id()
-	log.Println("resourceID:", resourceID)
+	scopeID := d.Id()
 
-	if d.HasChange("foo") {
-		foo := d.Get("foo").([]any)
-		log.Printf(">>> foo: %+v\n", foo)
-
-		// Imagine we made an API call to update the given resource.
-		//
-		// We'd do this by iterating over the foo we pulled out of our terraform
-		// state and coercing them into a type of map[string]any
-		//
-		// e.g.
-		//
-		// for _, f := range foo {
-		// 	i := f.(map[string]any)
-		//
-		// 	t := i["bar"].([]any)[0]
-		// 	bar := t.(map[string]any)
-		//
-		//  ...constructing data structure to pass to API...
-		//
-		//  We might assign values to the data structure like:
-		//
-		//  bar["id"].(int)).
-		// }
-
-		// TODO: update "version" to be 2
-
-		d.Set("last_updated", time.Now().Format(time.RFC850))
+	pScope := &Scope{
+		Status: "deleting",
 	}
 
-	// Again, we do a READ operation to be sure we get the latest state stored locally.
-	//
-	return ScopeRead(d, m)
-}
+	err := nullOps.PatchScope(scopeID, pScope)
+	if err != nil {
+		return err
+	}
 
-func ScopeDelete(d *schema.ResourceData, m any) error {
 	log.Print("\n\n--- DELETE ---\n\n")
 	log.Printf("\n\n>>> schema.ResourceData: %+v\n\n", d)
 	log.Printf("\n\n>>> meta data: %+v\n\n", m)
 
-	// We get the ID we set into terraform state after we had initially created
-	// the resource.
-	resourceID := d.Id()
-	log.Println(">>> resourceID:", resourceID)
+	log.Println(">>> scopeID:", scopeID)
 
-	// Imagine we use resourceID to issue a DELETE API call.
-
-	// d.SetId("") is automatically called assuming delete returns no errors, but
-	// it is added here for explicitness.
 	d.SetId("")
 
 	return nil

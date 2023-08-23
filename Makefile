@@ -2,7 +2,7 @@ HOSTNAME=hashicorp.com
 NAMESPACE=com
 NAME=nullplatform
 BINARY=terraform-provider-${NAME}
-VERSION=0.0.2
+VERSION=0.0.4
 OS_ARCH=linux_amd64
 
 default: install

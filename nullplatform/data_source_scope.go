@@ -1,67 +1,57 @@
 package nullplatform
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 func dataSourceScope() *schema.Resource {
 	return &schema.Resource{
-		Read: dataSourceScopeRead,
+		ReadContext: dataSourceScopeRead,
 		Schema: map[string]*schema.Schema{
-			"things": {
-				Type:     schema.TypeList,
+			"id": {
+				Type:     schema.TypeString,
+				Required: true,
+			},
+			"nrn": {
+				Type:     schema.TypeString,
 				Computed: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"id": {
-							Type:     schema.TypeInt,
-							Computed: true,
-						},
-						"nrn": {
-							Type:     schema.TypeString,
-							Computed: true,
-						},
-						"name": {
-							Type:     schema.TypeString,
-							Computed: true,
-						},
-					},
-				},
+			},
+			"name": {
+				Type:     schema.TypeString,
+				Computed: true,
 			},
 		},
 	}
 }
 
-func dataSourceScopeRead(d *schema.ResourceData, m any) error {
-	fmt.Printf("ResourceData: %+v\n", d)
+func dataSourceScopeRead(_ context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
+	nullOps := m.(NullOps)
 
-	// We'll create some stubbed data as if we had made an actual API call and
-	// got back a bunch of things.
-	const jsonStream = `
-		[
-			{"id": 1, "version": "a"},
-			{"id": 2, "version": "b"},
-			{"id": 3, "version": "c"},
-		]`
+	s, err := nullOps.GetScope(d.Get("id").(string))
 
-	// In order for us to store the returned data into terraform we need to
-	// marshal the data into a format that matches what the schema expects.
-	things := make([]map[string]any, 0)
-	err := json.NewDecoder(strings.NewReader(jsonStream)).Decode(&things)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	// We store our the data into terraform.
-	if err := d.Set("things", things); err != nil {
-		return err
+	err = d.Set("name", s.Name)
+
+	if err != nil {
+		return diag.FromErr(err)
 	}
+
+	err = d.Set("nrn", s.Nrn)
+
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	fmt.Printf("ResourceData: %+v\n", d)
 
 	// We don't have a unique ID for this data resource so we create one using a
 	// timestamp format. I've seen people use a hash of the returned API data as
