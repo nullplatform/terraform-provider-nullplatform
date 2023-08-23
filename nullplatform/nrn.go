@@ -39,7 +39,7 @@ func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
 		return err
 	}
 
-	r, err := http.NewRequest("PATCH", fmt.Sprintf("htpps://%s%s/%s", c.ApiURL, NRN_PATH, nrnId), &buf)
+	r, err := http.NewRequest("PATCH", fmt.Sprintf("https://%s%s/%s", c.ApiURL, NRN_PATH, nrnId), &buf)
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error creating resource, got %d", resp.StatusCode)
+		return fmt.Errorf("error patching nrn resource, got %d", resp.StatusCode)
 	}
 
 	return nil
@@ -80,7 +80,7 @@ func (c *NullClient) GetNRN(nrnId string) (*NRN, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error creating resource, got %d", res.StatusCode)
+		return nil, fmt.Errorf("error getting nrn resource, got %d", res.StatusCode)
 	}
 
 	s := &NRN{}

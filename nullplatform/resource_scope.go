@@ -90,7 +90,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 	serverless_handler := d.Get("capabilities_serverless_handler_name").(string)
 	scopeType := "serverless"
 
-	newScope := Scope{
+	newScope := &Scope{
 		Name:            scopeName,
 		ApplicationId:   applicationId,
 		Type:            scopeType,
@@ -113,7 +113,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 		},
 	}
 
-	s, err := nullOps.CreateScope(&newScope)
+	s, err := nullOps.CreateScope(newScope)
 
 	if err != nil {
 		return err

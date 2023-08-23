@@ -4,50 +4,56 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 )
 
 const SCOPE_PATH = "/scope"
 
 type Capability struct {
-	Visibility                 map[string]string `json:"visibility"`
-	ServerlessRuntime          map[string]string `json:"serverless_runtime"`
-	ServerlessHandler          map[string]string `json:"serverless_handler"`
-	ServerlessTimeout          map[string]int    `json:"serverless_timeout"`
-	ServerlessEphemeralStorage map[string]int    `json:"serverless_ephemeral_storage"`
-	ServerlessMemory           map[string]int    `json:"serverless_memory"`
+	Visibility                 map[string]string `json:"visibility,omitempty"`
+	ServerlessRuntime          map[string]string `json:"serverless_runtime,omitempty"`
+	ServerlessHandler          map[string]string `json:"serverless_handler,omitempty"`
+	ServerlessTimeout          map[string]int    `json:"serverless_timeout,omitempty"`
+	ServerlessEphemeralStorage map[string]int    `json:"serverless_ephemeral_storage,omitempty"`
+	ServerlessMemory           map[string]int    `json:"serverless_memory,omitempty"`
 }
 
 type RequestSpec struct {
-	MemoryInGb   float32 `json:"memory_in_gb"`
-	CpuProfile   string  `json:"cpu_profile"`
-	LocalStorage int     `json:"local_storage"`
+	MemoryInGb   float32 `json:"memory_in_gb,omitempty"`
+	CpuProfile   string  `json:"cpu_profile,omitempty"`
+	LocalStorage int     `json:"local_storage,omitempty"`
 }
 
 type Scope struct {
-	Id               int         `json:"id"`
-	Status           string      `json:"status"`
-	Slug             string      `json:"slug"`
-	Domain           string      `json:"domain"`
-	ActiveDeployment int         `json:"active_deployment"`
-	Nrn              string      `json:"nrn"`
-	Name             string      `json:"name"`
-	ApplicationId    int         `json:"application_id"`
-	Type             string      `json:"type"`
-	ExternalCreated  bool        `json:"external_created"`
-	RequestedSpec    RequestSpec `json:"requested_spec"`
-	Capabilities     Capability  `json:"capabilities"`
+	Id               int         `json:"id,omitempty"`
+	Status           string      `json:"status,omitempty"`
+	Slug             string      `json:"slug,omitempty"`
+	Domain           string      `json:"domain,omitempty"`
+	ActiveDeployment int         `json:"active_deployment,omitempty"`
+	Nrn              string      `json:"nrn,omitempty"`
+	Name             string      `json:"name,omitempty"`
+	ApplicationId    int         `json:"application_id,omitempty"`
+	Type             string      `json:"type,omitempty"`
+	ExternalCreated  bool        `json:"external_created,omitempty"`
+	RequestedSpec    RequestSpec `json:"requested_spec,omitempty"`
+	Capabilities     Capability  `json:"capabilities,omitempty"`
 }
 
 func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
+	url := fmt.Sprintf("https://%s%s", c.ApiURL, SCOPE_PATH)
+
+	log.Printf("\n\n--- *** La URL es %s ---\n\n", url)
+	log.Printf("\n\n--- *** El payload es %v ---\n\n", *s)
+
 	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode((*s))
+	err := json.NewEncoder(&buf).Encode(*s)
 
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := http.NewRequest("POST", fmt.Sprintf("https://%s%s", c.ApiURL, SCOPE_PATH), &buf)
+	r, err := http.NewRequest("POST", url, &buf)
 	if err != nil {
 		return nil, err
 	}
@@ -61,6 +67,10 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 	}
 	defer res.Body.Close()
 
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("error creating scope resource, got %d", res.StatusCode)
+	}
+
 	sRes := &Scope{}
 	derr := json.NewDecoder(res.Body).Decode(sRes)
 
@@ -68,15 +78,13 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 		return nil, derr
 	}
 
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error creating resource, got %d", res.StatusCode)
-	}
-
 	return sRes, nil
 }
 
 func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, SCOPE_PATH, scopeId)
+
+	log.Printf("\n\n--- *** La URL es %s ---\n\n", url)
 
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode((*s))
@@ -100,7 +108,7 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("error creating resource, got %d", res.StatusCode)
+		return fmt.Errorf("error patching scope resource, got %d", res.StatusCode)
 	}
 
 	return nil
@@ -131,7 +139,7 @@ func (c *NullClient) GetScope(scopeId string) (*Scope, error) {
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error getting resource, got %d for %s", res.StatusCode, scopeId)
+		return nil, fmt.Errorf("error getting scope resource, got %d for %s", res.StatusCode, scopeId)
 	}
 
 	return s, nil
