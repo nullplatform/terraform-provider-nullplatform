@@ -1,4 +1,4 @@
-# terraform-provider-mock
+# terraform-provider-nullplatform
 
 This is an empty boilerplate repository for creating a terraform provider. 
 
@@ -23,7 +23,7 @@ This is quite literally a _skeleton_ repo. It's intentionally designed that way.
 
 When there is no terraform state file, then terraform won't execute any CRUD functions.
 
-On the initial `terraform apply` you'll find CREATE is called first but what happens from there depends on how your provider works. For example, fastly and aws both call UPDATE at the end of the CREATE, where in this mock provider I call READ instead.
+On the initial `terraform apply` you'll find CREATE is called first but what happens from there depends on how your provider works. For example, fastly and aws both call UPDATE at the end of the CREATE, where in this nullplatform provider I call READ instead.
 
 Once a terraform state file has been created, and you make a change to your terraform configuration file, you'll find the first operation called when running `terraform plan` is READ. This is because terraform wants to get the latest version of your infrastructure to compare against what you have defined locally in your configuration.
 
@@ -42,15 +42,15 @@ You'll also want to tag a commit to be used as the release version, which you'd 
 ```tf
 terraform {
   required_providers {
-    mock = {
-      source = "integralist/mock"
+    nullplatform = {
+      source = "integralist/nullplatform"
       version = "<tag_version_here>"
     }
   }
 }
 ```
 
-> NOTE: when developing your own provider, remember not just to update the `source` value but also the parent key (in this case `mock`). I've forgotten to do this in the past and had it confuse me for hours because it's such a subtle thing to miss. 
+> NOTE: when developing your own provider, remember not just to update the `source` value but also the parent key (in this case `nullplatform`). I've forgotten to do this in the past and had it confuse me for hours because it's such a subtle thing to miss. 
 
 ## Linting a Provider
 
@@ -66,7 +66,7 @@ go install github.com/bflad/tfproviderlint/cmd/tfproviderlintx@latest
 
 To consume this provider without it being published to the terraform registry, follow these steps:
 
-- Clone this repo and build the `terraform-provider-mock` binary:  
+- Clone this repo and build the `terraform-provider-nullplatform` binary:  
   ```bash
   make build
   ```
@@ -76,7 +76,7 @@ To consume this provider without it being published to the terraform registry, f
   ```tf
   provider_installation {
     dev_overrides {
-      "integralist/mock" = "../terraform-provider-mock" // the directory where the binary was built.
+      "integralist/nullplatform" = "../terraform-provider-nullplatform" // the directory where the binary was built.
     }
     direct {}
   }
@@ -88,7 +88,7 @@ To consume this provider without it being published to the terraform registry, f
 - Initialize your terraform project and then execute a plan.
   - e.g. `terraform init && terraform plan` 
 
-> **NOTE**: every time you make a change to the terraform provider code, you'll need to rebuild the binary and then go to your consuming terraform project and reinitialize (i.e. `terraform init`) so it picks up the latest version of the `terraform-provider-mock` binary.
+> **NOTE**: every time you make a change to the terraform provider code, you'll need to rebuild the binary and then go to your consuming terraform project and reinitialize (i.e. `terraform init`) so it picks up the latest version of the `terraform-provider-nullplatform` binary.
 
 ## Local Development
 
@@ -106,7 +106,7 @@ The first is a message highlighting the fact that a provider 'override' is in pl
 Warning: Provider development overrides are in effect
 
 The following provider development overrides are set in the CLI configuration:
- - integralist/mock in /Users/integralist/Code/terraform/terraform-provider-mock
+ - integralist/nullplatform in /Users/integralist/Code/terraform/terraform-provider-nullplatform
 
 The behavior may therefore not match any released version of the provider and
 applying changes may cause the state to become incompatible with published
@@ -121,8 +121,8 @@ The other thing you'll notice is an error:
 Error: Failed to query available provider packages
 
 Could not retrieve the list of available versions for provider
-integralist/mock: provider registry registry.terraform.io does not have a
-provider named registry.terraform.io/integralist/mock
+integralist/nullplatform: provider registry registry.terraform.io does not have a
+provider named registry.terraform.io/integralist/nullplatform
 
 If you have just upgraded directly from Terraform v0.12 to Terraform v0.14
 then please upgrade to Terraform v0.13 first and follow the upgrade guide for
@@ -154,13 +154,13 @@ Here is the `service.tf` contents:
 ```tf
 terraform {
   required_providers {
-    mock = {
-      source = "integralist/mock"
+    nullplatform = {
+      source = "integralist/nullplatform"
     }
   }
 }
 
-provider "mock" {
+provider "nullplatform" {
   foo = "example_value"
   #
   # if 'foo' wasn't set here by us, then the value would default to the value 
@@ -168,7 +168,7 @@ provider "mock" {
   # if the environment variable wasn't set.
 }
 
-resource "mock_example" "testing" {
+resource "nullplatform_example" "testing" {
   not_computed_required = "some value"
 
   dynamic "foo" {
@@ -229,7 +229,7 @@ Here is the `outputs.tf` contents:
 
 ```tf
 output "last_updated" {
-  value = mock_example.testing.last_updated
+  value = nullplatform_example.testing.last_updated
 }
 ```
 
@@ -246,8 +246,8 @@ Resource actions are indicated with the following symbols:
 
 Terraform will perform the following actions:
 
-  # mock_example.testing will be created
-  + resource "mock_example" "testing" {
+  # nullplatform_example.testing will be created
+  + resource "nullplatform_example" "testing" {
       + id                    = (known after apply)
       + last_updated          = (known after apply)
       + not_computed_required = "some value"
@@ -309,7 +309,7 @@ $ terraform apply
 Warning: Provider development overrides are in effect
 
 The following provider development overrides are set in the CLI configuration:
- - integralist/mock in /Users/integralist/Code/terraform/terraform-provider-mock
+ - integralist/nullplatform in /Users/integralist/Code/terraform/terraform-provider-nullplatform
 
 The behavior may therefore not match any released version of the provider and
 applying changes may cause the state to become incompatible with published
@@ -322,8 +322,8 @@ Resource actions are indicated with the following symbols:
 
 Terraform will perform the following actions:
 
-  # mock_example.testing will be created
-  + resource "mock_example" "testing" {
+  # nullplatform_example.testing will be created
+  + resource "nullplatform_example" "testing" {
       + id                    = (known after apply)
       + last_updated          = (known after apply)
       + not_computed_required = "some value"
@@ -374,8 +374,8 @@ Do you want to perform these actions?
 
   Enter a value: yes
 
-mock_example.testing: Creating...
-mock_example.testing: Creation complete after 0s [id=123]
+nullplatform_example.testing: Creating...
+nullplatform_example.testing: Creation complete after 0s [id=123]
 
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 
@@ -391,8 +391,8 @@ If you were to now run `terraform show` you would see some state!
 ```bash
 $ terraform show
 
-# mock_example.testing:
-resource "mock_example" "testing" {
+# nullplatform_example.testing:
+resource "nullplatform_example" "testing" {
     id                    = "123"
     last_updated          = "Saturday, 20-Feb-21 13:33:11 GMT"
     not_computed_required = "some value"
