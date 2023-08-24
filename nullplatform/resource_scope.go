@@ -105,8 +105,8 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 				"reachability": "account",
 			},
 			ServerlessRuntime: map[string]string{
-				"serverless_runtime": "aws_lambda",
-				"id":                 serverless_runtime,
+				"provider": "aws_lambda",
+				"id":       serverless_runtime,
 			},
 			ServerlessHandler: map[string]string{
 				"name": serverless_handler,
