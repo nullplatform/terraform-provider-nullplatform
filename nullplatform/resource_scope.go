@@ -101,15 +101,25 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 			LocalStorage: 8,
 		},
 		Capabilities: &Capability{
-			Visibility: map[string]string{"reachability": "account"},
+			Visibility: map[string]string{
+				"reachability": "account",
+			},
 			ServerlessRuntime: map[string]string{
-				"serverless_runtime": "account",
+				"serverless_runtime": "aws_lambda",
 				"id":                 serverless_runtime,
 			},
-			ServerlessHandler:          map[string]string{"name": serverless_handler},
-			ServerlessTimeout:          map[string]int{"timeout_in_seconds": 3},
-			ServerlessEphemeralStorage: map[string]int{"memory_in_mb": 512},
-			ServerlessMemory:           map[string]int{"memory_in_mb": 128},
+			ServerlessHandler: map[string]string{
+				"name": serverless_handler,
+			},
+			ServerlessTimeout: map[string]int{
+				"timeout_in_seconds": 3,
+			},
+			ServerlessEphemeralStorage: map[string]int{
+				"memory_in_mb": 512,
+			},
+			ServerlessMemory: map[string]int{
+				"memory_in_mb": 128,
+			},
 		},
 	}
 
