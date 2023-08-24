@@ -53,7 +53,7 @@ func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if (resp.StatusCode != http.StatusOK) && (resp.StatusCode != http.StatusNoContent) {
 		return fmt.Errorf("error patching nrn resource, got %d", resp.StatusCode)
 	}
 

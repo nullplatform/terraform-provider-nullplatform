@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/motemen/go-loghttp"
 )
 
 const NP_API_KEY = "np_apikey"
@@ -40,7 +41,9 @@ func Provider() *schema.Provider {
 		apiKey := d.Get(NP_API_KEY).(string)
 
 		c := &NullClient{
-			Client: &http.Client{},
+			Client: &http.Client{
+				Transport: &loghttp.Transport{},
+			},
 			ApiKey: apiKey,
 			ApiURL: apiUrl,
 		}

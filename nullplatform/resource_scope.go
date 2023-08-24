@@ -95,12 +95,12 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 		ApplicationId:   applicationId,
 		Type:            scopeType,
 		ExternalCreated: true,
-		RequestedSpec: RequestSpec{
+		RequestedSpec: &RequestSpec{
 			MemoryInGb:   0.5,
 			CpuProfile:   "standard",
 			LocalStorage: 8,
 		},
-		Capabilities: Capability{
+		Capabilities: &Capability{
 			Visibility: map[string]string{"reachability": "account"},
 			ServerlessRuntime: map[string]string{
 				"serverless_runtime": "account",
@@ -217,7 +217,7 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 		ps.Name = d.Get("scope_name").(string)
 	}
 
-	caps := Capability{}
+	caps := &Capability{}
 
 	if d.HasChange("capabilities_serverless_runtime_id") {
 		caps.ServerlessRuntime = map[string]string{

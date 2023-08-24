@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 )
 
 const SCOPE_PATH = "/scope"
@@ -26,18 +28,18 @@ type RequestSpec struct {
 }
 
 type Scope struct {
-	Id               int         `json:"id,omitempty"`
-	Status           string      `json:"status,omitempty"`
-	Slug             string      `json:"slug,omitempty"`
-	Domain           string      `json:"domain,omitempty"`
-	ActiveDeployment int         `json:"active_deployment,omitempty"`
-	Nrn              string      `json:"nrn,omitempty"`
-	Name             string      `json:"name,omitempty"`
-	ApplicationId    int         `json:"application_id,omitempty"`
-	Type             string      `json:"type,omitempty"`
-	ExternalCreated  bool        `json:"external_created,omitempty"`
-	RequestedSpec    RequestSpec `json:"requested_spec,omitempty"`
-	Capabilities     Capability  `json:"capabilities,omitempty"`
+	Id               int          `json:"id,omitempty"`
+	Status           string       `json:"status,omitempty"`
+	Slug             string       `json:"slug,omitempty"`
+	Domain           string       `json:"domain,omitempty"`
+	ActiveDeployment int          `json:"active_deployment,omitempty"`
+	Nrn              string       `json:"nrn,omitempty"`
+	Name             string       `json:"name,omitempty"`
+	ApplicationId    int          `json:"application_id,omitempty"`
+	Type             string       `json:"type,omitempty"`
+	ExternalCreated  bool         `json:"external_created,omitempty"`
+	RequestedSpec    *RequestSpec `json:"requested_spec,omitempty"`
+	Capabilities     *Capability  `json:"capabilities,omitempty"`
 }
 
 func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
@@ -97,6 +99,7 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 	if err != nil {
 		return err
 	}
+	io.Copy(os.Stdout, bytes.NewReader(buf.Bytes()))
 
 	r.Header.Add("Content-Type", "application/json")
 	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
@@ -107,7 +110,8 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
+		io.Copy(os.Stdout, res.Body)
 		return fmt.Errorf("error patching scope resource, got %d", res.StatusCode)
 	}
 
