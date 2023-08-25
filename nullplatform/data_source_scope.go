@@ -3,6 +3,7 @@ package nullplatform
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -32,6 +33,8 @@ func dataSourceScope() *schema.Resource {
 
 func dataSourceScopeRead(_ context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nullOps := m.(NullOps)
+
+	log.Print("\n\n--- Terraform 'read data source Scope' operation begin ---\n\n")
 
 	s, err := nullOps.GetScope(d.Get("id").(string))
 
@@ -65,6 +68,8 @@ func dataSourceScopeRead(_ context.Context, d *schema.ResourceData, m any) diag.
 	// https://github.com/hashicorp/terraform-plugin-sdk/blob/master/internal/helper/hashcode/hashcode.go
 	//
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
+
+	log.Print("\n\n--- Terraform 'read data source Scope' operation ends ---\n\n")
 
 	return nil
 }
