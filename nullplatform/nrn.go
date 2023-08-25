@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 )
 
 const NRN_PATH = "/nrn"
@@ -44,17 +46,20 @@ func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
 		return err
 	}
 
+	io.Copy(os.Stdout, bytes.NewReader(buf.Bytes()))
+
 	r.Header.Add("Content-Type", "application/json")
 	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
 
-	resp, err := c.Client.Do(r)
+	res, err := c.Client.Do(r)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer res.Body.Close()
 
-	if (resp.StatusCode != http.StatusOK) && (resp.StatusCode != http.StatusNoContent) {
-		return fmt.Errorf("error patching nrn resource, got %d", resp.StatusCode)
+	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
+		io.Copy(os.Stdout, res.Body)
+		return fmt.Errorf("error patching nrn resource, got %d", res.StatusCode)
 	}
 
 	return nil
@@ -80,6 +85,7 @@ func (c *NullClient) GetNRN(nrnId string) (*NRN, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
+		io.Copy(os.Stdout, res.Body)
 		return nil, fmt.Errorf("error getting nrn resource, got %d", res.StatusCode)
 	}
 

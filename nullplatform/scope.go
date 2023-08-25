@@ -11,6 +11,12 @@ import (
 )
 
 const SCOPE_PATH = "/scope"
+const DUPLICATE_SCOPE_NAME_ERROR_STR = "There's already a scope with this name on this application"
+
+type NullErrors struct {
+	Message string `json:"message"`
+	Id      int    `json:"id"`
+}
 
 type Capability struct {
 	Visibility                 map[string]string `json:"visibility,omitempty"`
@@ -60,6 +66,8 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 		return nil, err
 	}
 
+	io.Copy(os.Stdout, bytes.NewReader(buf.Bytes()))
+
 	r.Header.Add("Content-Type", "application/json")
 	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
 
@@ -70,7 +78,23 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error creating scope resource, got %d", res.StatusCode)
+		if res.StatusCode == http.StatusBadRequest {
+			nErr := &NullErrors{}
+			dErr := json.NewDecoder(res.Body).Decode(nErr)
+			if dErr != nil {
+				fmt.Printf("El error es %s", dErr)
+			}
+			if (dErr == nil) && (nErr.Message == DUPLICATE_SCOPE_NAME_ERROR_STR) {
+				return nil, fmt.Errorf(
+					"error creating scope resource, duplicated scope name: %s found in null application id: %d",
+					s.Name,
+					s.ApplicationId,
+				)
+			}
+
+		}
+		io.Copy(os.Stdout, res.Body)
+		return nil, fmt.Errorf("error creating scope resource, got status code: %d", res.StatusCode)
 	}
 
 	sRes := &Scope{}
@@ -143,6 +167,7 @@ func (c *NullClient) GetScope(scopeId string) (*Scope, error) {
 	}
 
 	if res.StatusCode != http.StatusOK {
+		io.Copy(os.Stdout, res.Body)
 		return nil, fmt.Errorf("error getting scope resource, got %d for %s", res.StatusCode, scopeId)
 	}
 
