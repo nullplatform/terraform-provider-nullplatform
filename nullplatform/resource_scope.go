@@ -21,9 +21,18 @@ func resourceScope() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
+			"nrn": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
 			"scope_name": {
 				Type:     schema.TypeString,
 				Required: true,
+			},
+			"scope_type": {
+				Type:     schema.TypeString,
+				Default:  "serverless",
+				Optional: true,
 			},
 			"null_application_id": {
 				Type:     schema.TypeInt,
@@ -31,11 +40,11 @@ func resourceScope() *schema.Resource {
 			},
 			"s3_assets_bucket": {
 				Type:     schema.TypeString,
-				Required: true,
+				Optional: true,
 			},
 			"scope_workflow_role": {
 				Type:     schema.TypeString,
-				Required: true,
+				Optional: true,
 			},
 			"log_group_name": {
 				Type:     schema.TypeString,
@@ -59,19 +68,45 @@ func resourceScope() *schema.Resource {
 			},
 			"log_reader_role": {
 				Type:     schema.TypeString,
-				Required: true,
+				Optional: true,
 			},
 			"lambda_function_warm_alias": {
 				Type:     schema.TypeString,
-				Required: true,
+				Default:  "",
+				Optional: true,
 			},
 			"capabilities_serverless_handler_name": {
 				Type:     schema.TypeString,
 				Required: true,
 			},
+			"capabilities_serverless_timeout": {
+				Type:     schema.TypeInt,
+				Default:  10,
+				Optional: true,
+			},
 			"capabilities_serverless_runtime_id": {
 				Type:     schema.TypeString,
 				Required: true,
+			},
+			"capabilities_serverless_memory": {
+				Type:     schema.TypeInt,
+				Default:  128,
+				Optional: true,
+			},
+			"dimensions": {
+				Type:     schema.TypeMap,
+				ForceNew: true,
+				Optional: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
+			"runtime_configurations": {
+				Type:     schema.TypeList,
+				Computed: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeInt,
+				},
 			},
 		},
 	}
@@ -84,11 +119,20 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 	log.Printf(">>> schema.ResourceData: %+v", d)
 	log.Printf(">>> meta data: %+v", m)
 
-	scopeName := d.Get("scope_name").(string)
 	applicationId := d.Get("null_application_id").(int)
+	scopeName := d.Get("scope_name").(string)
+	scopeType := d.Get("scope_type").(string)
 	serverless_runtime := d.Get("capabilities_serverless_runtime_id").(string)
 	serverless_handler := d.Get("capabilities_serverless_handler_name").(string)
-	scopeType := "serverless"
+	serverless_timeout := d.Get("capabilities_serverless_timeout").(int)
+	serverless_memory := d.Get("capabilities_serverless_memory").(int)
+
+	dimensionsMap := d.Get("dimensions").(map[string]interface{})
+	// Convert the dimensions to a map[string]string
+	dimensions := make(map[string]string)
+	for key, value := range dimensionsMap {
+		dimensions[key] = value.(string)
+	}
 
 	newScope := &Scope{
 		Name:            scopeName,
@@ -112,15 +156,16 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 				"name": serverless_handler,
 			},
 			ServerlessTimeout: map[string]int{
-				"timeout_in_seconds": 3,
+				"timeout_in_seconds": serverless_timeout,
 			},
 			ServerlessEphemeralStorage: map[string]int{
 				"memory_in_mb": 512,
 			},
 			ServerlessMemory: map[string]int{
-				"memory_in_mb": 128,
+				"memory_in_mb": serverless_memory,
 			},
 		},
+		Dimensions: dimensions,
 	}
 
 	s, err := nullOps.CreateScope(newScope)
@@ -131,7 +176,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 
 	log.Print("--- BEFORE patch NRN ---")
 
-	nrnErr := createNrnForScope(s.Nrn, d, m)
+	nrnErr := patchNrnForScope(s.Nrn, d, m)
 
 	if nrnErr != nil {
 		log.Print("--- AFTER patch NRN failed ******---")
@@ -145,7 +190,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 	return ScopeRead(d, m)
 }
 
-func createNrnForScope(scopeNrn string, d *schema.ResourceData, m any) error {
+func patchNrnForScope(scopeNrn string, d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 
 	s3AssetsBucket := d.Get("s3_assets_bucket").(string)
@@ -191,9 +236,22 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 	if err := d.Set("scope_name", s.Name); err != nil {
 		return err
 	}
+
 	if err := d.Set("null_application_id", s.ApplicationId); err != nil {
 		return err
 	}
+
+	if err := d.Set("nrn", s.Nrn); err != nil {
+		return err
+	}
+
+	//if err := d.Set("runtime_configurations", s.RuntimeConfigurations); err != nil {
+	//	return err
+	//}
+
+	//if err := d.Set("dimensions", s.Dimensions); err != nil {
+	//	return err
+	//}
 
 	log.Print("--- Terraform 'read resource Scope' operation ends ---")
 
@@ -229,17 +287,42 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 		ps.Name = d.Get("scope_name").(string)
 	}
 
+	if d.HasChange("dimensions") {
+		dimensionsMap := d.Get("dimensions").(map[string]interface{})
+
+		// Convert the dimensions to a map[string]string
+		dimensions := make(map[string]string)
+		for key, value := range dimensionsMap {
+			dimensions[key] = value.(string)
+		}
+
+		ps.Dimensions = dimensions
+	}
+
 	caps := &Capability{}
 
 	if d.HasChange("capabilities_serverless_runtime_id") {
 		caps.ServerlessRuntime = map[string]string{
-			"id": d.Get("capabilities_serverless_runtime_id").(string),
+			"provider": "aws_lambda",
+			"id":       d.Get("capabilities_serverless_runtime_id").(string),
 		}
 	}
 
 	if d.HasChange("capabilities_serverless_handler_name") {
 		caps.ServerlessHandler = map[string]string{
 			"name": d.Get("capabilities_serverless_handler_name").(string),
+		}
+	}
+
+	if d.HasChange("capabilities_serverless_timeout") {
+		caps.ServerlessTimeout = map[string]int{
+			"timeout_in_seconds": d.Get("capabilities_serverless_timeout").(int),
+		}
+	}
+
+	if d.HasChange("capabilities_serverless_memory") {
+		caps.ServerlessMemory = map[string]int{
+			"memory_in_mb": d.Get("capabilities_serverless_memory").(int),
 		}
 	}
 
@@ -251,14 +334,14 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 	log.Printf(">>> schema.ResourceData: %+v", d)
 	log.Printf(">>> meta data: %+v", m)
 
-	d.Set("last_updated", time.Now().Format(time.RFC850))
-
 	if !reflect.DeepEqual(*ps, Scope{}) {
 		err := nullOps.PatchScope(scopeID, ps)
 		if err != nil {
-			return nil
+			return err
 		}
 	}
+
+	d.Set("last_updated", time.Now().Format(time.RFC850))
 
 	log.Print("--- Terraform 'update resource Scope' operation ends ---")
 

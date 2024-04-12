@@ -34,18 +34,20 @@ type RequestSpec struct {
 }
 
 type Scope struct {
-	Id               int          `json:"id,omitempty"`
-	Status           string       `json:"status,omitempty"`
-	Slug             string       `json:"slug,omitempty"`
-	Domain           string       `json:"domain,omitempty"`
-	ActiveDeployment int          `json:"active_deployment,omitempty"`
-	Nrn              string       `json:"nrn,omitempty"`
-	Name             string       `json:"name,omitempty"`
-	ApplicationId    int          `json:"application_id,omitempty"`
-	Type             string       `json:"type,omitempty"`
-	ExternalCreated  bool         `json:"external_created,omitempty"`
-	RequestedSpec    *RequestSpec `json:"requested_spec,omitempty"`
-	Capabilities     *Capability  `json:"capabilities,omitempty"`
+	Id                    int               `json:"id,omitempty"`
+	Status                string            `json:"status,omitempty"`
+	Slug                  string            `json:"slug,omitempty"`
+	Domain                string            `json:"domain,omitempty"`
+	ActiveDeployment      int               `json:"active_deployment,omitempty"`
+	Nrn                   string            `json:"nrn,omitempty"`
+	Name                  string            `json:"name,omitempty"`
+	ApplicationId         int               `json:"application_id,omitempty"`
+	Type                  string            `json:"type,omitempty"`
+	ExternalCreated       bool              `json:"external_created,omitempty"`
+	RequestedSpec         *RequestSpec      `json:"requested_spec,omitempty"`
+	Capabilities          *Capability       `json:"capabilities,omitempty"`
+	Dimensions            map[string]string `json:"dimensions,omitempty"`
+	RuntimeConfigurations []int             `json:"runtime_configurations,omitempty"`
 }
 
 func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
@@ -113,11 +115,13 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 	log.Printf("\n\n--- *** La URL es %s ---\n\n", url)
 
 	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode((*s))
+	err := json.NewEncoder(&buf).Encode(*s)
 
 	if err != nil {
 		return err
 	}
+
+	log.Printf("\n\n Scope Structure: %+v\n\n", s)
 
 	r, err := http.NewRequest("PATCH", url, &buf)
 	if err != nil {
@@ -127,6 +131,8 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 
 	r.Header.Add("Content-Type", "application/json")
 	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
+
+	log.Printf("\n\n HTTP Payload: %+v\n\n", r)
 
 	res, err := c.Client.Do(r)
 	if err != nil {

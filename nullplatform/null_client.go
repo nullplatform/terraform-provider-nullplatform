@@ -34,6 +34,7 @@ type NullOps interface {
 	GetScope(string) (*Scope, error)
 	PatchNRN(string, *PatchNRN) error
 	GetNRN(string) (*NRN, error)
+	GetRuntimeConfiguration(string) (*RuntimeConfiguration, error)
 }
 
 func (c *NullClient) GetToken() diag.Diagnostics {
