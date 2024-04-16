@@ -3,7 +3,10 @@ NAMESPACE=com
 NAME=nullplatform
 BINARY=terraform-provider-${NAME}
 VERSION=0.0.13
-OS_ARCH=darwin_arm64
+
+OS := $(shell uname -o | tr '[:upper:]' '[:lower:]')
+ARCH := $(shell uname -m)
+OS_ARCH := $(OS)_$(ARCH)
 
 default: install
 
