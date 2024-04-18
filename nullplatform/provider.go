@@ -20,11 +20,12 @@ func Provider() *schema.Provider {
 				Type:        schema.TypeString,
 				DefaultFunc: schema.EnvDefaultFunc("NP_API_KEY", nil),
 				Required:    true,
+				Sensitive:   true,
 			},
 			NP_API_HOST: {
 				Type:        schema.TypeString,
-				DefaultFunc: schema.EnvDefaultFunc("NP_API_HOST", nil),
-				Required:    true,
+				DefaultFunc: schema.EnvDefaultFunc("NP_API_HOST", "api.nullplatform.com"),
+				Optional:    true,
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
@@ -33,7 +34,6 @@ func Provider() *schema.Provider {
 		// DataSource is a subset of Resource.
 		DataSourcesMap: map[string]*schema.Resource{
 			"nullplatform_scope": dataSourceScope(),
-			"nullplatform_runtime_configuration": dataSourceRuntimeConfiguration(),
 		},
 	}
 

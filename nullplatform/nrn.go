@@ -7,30 +7,47 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 )
 
 const NRN_PATH = "/nrn"
 
+// PathNRN does not have the `omitempty` to be able to keep values empty
 type PatchNRN struct {
 	AWSS3AssestBucket               string `json:"aws.s3_assets_bucket"`
 	AWSScopeWorkflowRole            string `json:"aws.scope_workflow_role"`
 	AWSLogGroupName                 string `json:"aws.log_group_name"`
-	AWSLambdaFunctionName           string `json:"aws.lambdaFunctionName"`
-	AWSLambdaCurrentFunctionVersion string `json:"aws.lambdaCurrentFunctionVersion"`
-	AWSLambdaFunctionRole           string `json:"aws.lambdaFunctionRole"`
-	AWSLambdaFunctionMainAlias      string `json:"aws.lambdaFunctionMainAlias"`
+	AWSLambdaFunctionName           string `json:"aws.lambdaFunctionName,omitempty"`
+	AWSLambdaCurrentFunctionVersion string `json:"aws.lambdaCurrentFunctionVersion,omitempty"`
+	AWSLambdaFunctionRole           string `json:"aws.lambdaFunctionRole,omitempty"`
+	AWSLambdaFunctionMainAlias      string `json:"aws.lambdaFunctionMainAlias,omitempty"`
 	AWSLogReaderLog                 string `json:"aws.log_reader_role"`
 	AWSLambdaFunctionWarmAlias      string `json:"aws.lambdaFunctionWarmAlias"`
 }
 
-type Namespaces struct {
-	Aws    map[string]string `json:"aws"`
-	Github map[string]string `json:"github"`
-	Global map[string]string `json:"global"`
+// Same structure as PatchNRN but to read
+type NrnAwsNamespace struct {
+	AWSS3AssestBucket               string `json:"s3_assets_bucket,omitempty"`
+	AWSScopeWorkflowRole            string `json:"scope_workflow_role,omitempty"`
+	AWSLogGroupName                 string `json:"log_group_name,omitempty"`
+	AWSLambdaFunctionName           string `json:"lambdaFunctionName,omitempty"`
+	AWSLambdaCurrentFunctionVersion string `json:"lambdaCurrentFunctionVersion,omitempty"`
+	AWSLambdaFunctionRole           string `json:"lambdaFunctionRole,omitempty"`
+	AWSLambdaFunctionMainAlias      string `json:"lambdaFunctionMainAlias,omitempty"`
+	AWSLogReaderLog                 string `json:"log_reader_role,omitempty"`
+	AWSLambdaFunctionWarmAlias      string `json:"lambdaFunctionWarmAlias,omitempty"`
 }
+
+type Namespaces struct {
+	AWS    *NrnAwsNamespace  `json:"aws,omitempty"`
+	Github map[string]string `json:"github,omitempty"`
+	Global map[string]string `json:"global,omitempty"`
+}
+
 type NRN struct {
-	Nrn        string            `json:"nrn"`
-	Namespaces map[string]string `json:"namespaces"`
+	Nrn        string      `json:"nrn,omitempty"`
+	Namespaces *Namespaces `json:"namespaces,omitempty"`
+	//Profiles   map[string]map[string]string `json:"profiles,omitempty"`
 }
 
 func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
@@ -59,15 +76,24 @@ func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
 		io.Copy(os.Stdout, res.Body)
-		return fmt.Errorf("error patching nrn resource, got %d", res.StatusCode)
+		return fmt.Errorf("error patching nrn resource, got %d: %+v", res.StatusCode, res.Body)
 	}
 
 	return nil
 }
 
 func (c *NullClient) GetNRN(nrnId string) (*NRN, error) {
-	// It is not ideal to harcode ids=aws.* but for now will retrieve everything we need
-	url := fmt.Sprintf("https://%s%s/%s?ids=aws.*", c.ApiURL, NRN_PATH, nrnId)
+	namespaces := []string{
+		"aws.scope_workflow_role",
+		"aws.log_group_name",
+		"aws.lambdaFunctionName",
+		"aws.lambdaCurrentFunctionVersion",
+		"aws.lambdaFunctionRole",
+		"aws.lambdaFunctionMainAlias",
+		"aws.log_reader_role",
+		"aws.lambdaFunctionWarmAlias",
+	}
+	url := fmt.Sprintf("https://%s%s/%s?ids=%s", c.ApiURL, NRN_PATH, nrnId, strings.Join(namespaces, ","))
 
 	r, err := http.NewRequest("GET", url, nil)
 
@@ -86,7 +112,7 @@ func (c *NullClient) GetNRN(nrnId string) (*NRN, error) {
 
 	if res.StatusCode != http.StatusOK {
 		io.Copy(os.Stdout, res.Body)
-		return nil, fmt.Errorf("error getting nrn resource, got %d", res.StatusCode)
+		return nil, fmt.Errorf("error getting nrn resource, got %d: %+v", res.StatusCode, res.Body)
 	}
 
 	s := &NRN{}

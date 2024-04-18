@@ -1,10 +1,10 @@
 package nullplatform
 
 import (
+	"context"
 	"log"
 	"reflect"
 	"strconv"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -16,11 +16,18 @@ func resourceScope() *schema.Resource {
 		Update: ScopeUpdate,
 		Delete: ScopeDelete,
 
-		Schema: map[string]*schema.Schema{
-			"last_updated": {
-				Type:     schema.TypeString,
-				Computed: true,
+		Importer: &schema.ResourceImporter{
+			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+				d.Set("id", d.Id())
+				return []*schema.ResourceData{d}, nil
 			},
+		},
+
+		Schema: map[string]*schema.Schema{
+			//"last_updated": {
+			//	Type:     schema.TypeString,
+			//	Computed: true,
+			//},
 			"nrn": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -28,6 +35,7 @@ func resourceScope() *schema.Resource {
 			"scope_name": {
 				Type:     schema.TypeString,
 				Required: true,
+				ForceNew: true,
 			},
 			"scope_type": {
 				Type:     schema.TypeString,
@@ -40,10 +48,12 @@ func resourceScope() *schema.Resource {
 			},
 			"s3_assets_bucket": {
 				Type:     schema.TypeString,
+				Default:  "",
 				Optional: true,
 			},
 			"scope_workflow_role": {
 				Type:     schema.TypeString,
+				Default:  "",
 				Optional: true,
 			},
 			"log_group_name": {
@@ -68,6 +78,7 @@ func resourceScope() *schema.Resource {
 			},
 			"log_reader_role": {
 				Type:     schema.TypeString,
+				Default:  "",
 				Optional: true,
 			},
 			"lambda_function_warm_alias": {
@@ -215,7 +226,11 @@ func patchNrnForScope(scopeNrn string, d *schema.ResourceData, m any) error {
 		AWSLambdaFunctionWarmAlias:      lambdaFunctionWarmAlias,
 	}
 
-	return nullOps.PatchNRN(scopeNrn, nrnReq)
+	if !reflect.DeepEqual(nrnReq, PatchNRN{}) {
+		return nullOps.PatchNRN(scopeNrn, nrnReq)
+	}
+
+	return nil
 }
 
 func ScopeRead(d *schema.ResourceData, m any) error {
@@ -230,10 +245,24 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
+	n, err := nullOps.GetNRN(s.Nrn)
+	log.Printf("\n\n\n NRN: %s  %+v \n\n\n", s.Nrn, n)
+	if err != nil {
+		return err
+	}
+
 	log.Printf(">>> schema.ResourceData: %+v", d)
 	log.Printf(">>> meta data: %+v", m)
 
+	if err := d.Set("nrn", s.Nrn); err != nil {
+		return err
+	}
+
 	if err := d.Set("scope_name", s.Name); err != nil {
+		return err
+	}
+
+	if err := d.Set("scope_type", s.Type); err != nil {
 		return err
 	}
 
@@ -241,25 +270,74 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	if err := d.Set("nrn", s.Nrn); err != nil {
+	if err := d.Set("s3_assets_bucket", n.Namespaces.AWS.AWSS3AssestBucket); err != nil {
 		return err
 	}
 
-	//if err := d.Set("runtime_configurations", s.RuntimeConfigurations); err != nil {
-	//	return err
-	//}
+	if err := d.Set("scope_workflow_role", n.Namespaces.AWS.AWSScopeWorkflowRole); err != nil {
+		return err
+	}
 
-	//if err := d.Set("dimensions", s.Dimensions); err != nil {
-	//	return err
-	//}
+	if err := d.Set("log_group_name", n.Namespaces.AWS.AWSLogGroupName); err != nil {
+		return err
+	}
+
+	if err := d.Set("lambda_function_name", n.Namespaces.AWS.AWSLambdaFunctionName); err != nil {
+		return err
+	}
+
+	if err := d.Set("lambda_current_function_version", n.Namespaces.AWS.AWSLambdaCurrentFunctionVersion); err != nil {
+		return err
+	}
+
+	if err := d.Set("lambda_function_role", n.Namespaces.AWS.AWSLambdaFunctionRole); err != nil {
+		return err
+	}
+
+	if err := d.Set("lambda_function_main_alias", n.Namespaces.AWS.AWSLambdaFunctionMainAlias); err != nil {
+		return err
+	}
+
+	if err := d.Set("log_reader_role", n.Namespaces.AWS.AWSLogReaderLog); err != nil {
+		return err
+	}
+
+	if err := d.Set("lambda_function_warm_alias", n.Namespaces.AWS.AWSLambdaFunctionWarmAlias); err != nil {
+		return err
+	}
+
+	if err := d.Set("capabilities_serverless_handler_name", s.Capabilities.ServerlessHandler["name"]); err != nil {
+		return err
+	}
+
+	if err := d.Set("capabilities_serverless_timeout", s.Capabilities.ServerlessTimeout["timeout_in_seconds"]); err != nil {
+		return err
+	}
+
+	if err := d.Set("capabilities_serverless_runtime_id", s.Capabilities.ServerlessRuntime["id"]); err != nil {
+		return err
+	}
+
+	if err := d.Set("capabilities_serverless_memory", s.Capabilities.ServerlessMemory["memory_in_mb"]); err != nil {
+		return err
+	}
+
+	if err := d.Set("runtime_configurations", s.RuntimeConfigurations); err != nil {
+		return err
+	}
+
+	if err := d.Set("dimensions", s.Dimensions); err != nil {
+		return err
+	}
 
 	log.Print("--- Terraform 'read resource Scope' operation ends ---")
 
-	d.Set("last_updated", time.Now().Format(time.RFC850))
+	//d.Set("last_updated", time.Now().Format(time.RFC850))
 
 	return nil
 }
 
+/*
 func getNrnForScope(scopeNrn string, nullOps NullOps) (*NRN, error) {
 	nrn, err := nullOps.GetNRN(scopeNrn)
 
@@ -269,6 +347,7 @@ func getNrnForScope(scopeNrn string, nullOps NullOps) (*NRN, error) {
 
 	return nrn, nil
 }
+*/
 
 func ScopeUpdate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
@@ -285,6 +364,10 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 
 	if d.HasChange("scope_name") {
 		ps.Name = d.Get("scope_name").(string)
+	}
+
+	if d.HasChange("scope_type") {
+		ps.Type = d.Get("scope_type").(string)
 	}
 
 	if d.HasChange("dimensions") {
@@ -330,6 +413,18 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 		ps.Capabilities = caps
 	}
 
+	// Optional values can be updated as empty values
+	if d.HasChange("s3_assets_bucket") || d.HasChange("scope_workflow_role") || d.HasChange("log_group_name") ||
+		d.HasChange("lambda_function_name") || d.HasChange("lambda_current_function_version") || d.HasChange("lambda_function_role") ||
+		d.HasChange("lambda_function_main_alias") || d.HasChange("log_reader_role") || d.HasChange("lambda_function_warm_alias") {
+
+		nrnErr := patchNrnForScope(d.Get("nrn").(string), d, m)
+		if nrnErr != nil {
+			return nrnErr
+		}
+
+	}
+
 	log.Print("--- Scope updated ---")
 	log.Printf(">>> schema.ResourceData: %+v", d)
 	log.Printf(">>> meta data: %+v", m)
@@ -341,11 +436,11 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 		}
 	}
 
-	d.Set("last_updated", time.Now().Format(time.RFC850))
+	//d.Set("last_updated", time.Now().Format(time.RFC850))
 
 	log.Print("--- Terraform 'update resource Scope' operation ends ---")
 
-	return nil
+	return ScopeRead(d, m)
 }
 
 func ScopeDelete(d *schema.ResourceData, m any) error {
