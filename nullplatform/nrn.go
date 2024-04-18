@@ -12,7 +12,7 @@ import (
 
 const NRN_PATH = "/nrn"
 
-// PathNRN does not have the `omitempty` to be able to keep values empty
+// Vales with `omitempty` shoudn't be empty. The struct is used to PATH the NRN
 type PatchNRN struct {
 	AWSS3AssestBucket               string `json:"aws.s3_assets_bucket"`
 	AWSScopeWorkflowRole            string `json:"aws.scope_workflow_role"`
@@ -25,7 +25,7 @@ type PatchNRN struct {
 	AWSLambdaFunctionWarmAlias      string `json:"aws.lambdaFunctionWarmAlias"`
 }
 
-// Same structure as PatchNRN but to read
+// Similar structure to PatchNRN but without the `.aws`, used to read
 type NrnAwsNamespace struct {
 	AWSS3AssestBucket               string `json:"s3_assets_bucket,omitempty"`
 	AWSScopeWorkflowRole            string `json:"scope_workflow_role,omitempty"`
@@ -76,13 +76,14 @@ func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
 		io.Copy(os.Stdout, res.Body)
-		return fmt.Errorf("error patching nrn resource, got %d: %+v", res.StatusCode, res.Body)
+		return fmt.Errorf("error patching nrn resource, got %d", res.StatusCode)
 	}
 
 	return nil
 }
 
 func (c *NullClient) GetNRN(nrnId string) (*NRN, error) {
+	// Using `aws.*` returns an error
 	namespaces := []string{
 		"aws.scope_workflow_role",
 		"aws.log_group_name",
@@ -112,7 +113,7 @@ func (c *NullClient) GetNRN(nrnId string) (*NRN, error) {
 
 	if res.StatusCode != http.StatusOK {
 		io.Copy(os.Stdout, res.Body)
-		return nil, fmt.Errorf("error getting nrn resource, got %d: %+v", res.StatusCode, res.Body)
+		return nil, fmt.Errorf("error getting nrn resource, got %d", res.StatusCode)
 	}
 
 	s := &NRN{}

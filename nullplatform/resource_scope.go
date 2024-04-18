@@ -337,18 +337,6 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 	return nil
 }
 
-/*
-func getNrnForScope(scopeNrn string, nullOps NullOps) (*NRN, error) {
-	nrn, err := nullOps.GetNRN(scopeNrn)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return nrn, nil
-}
-*/
-
 func ScopeUpdate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 

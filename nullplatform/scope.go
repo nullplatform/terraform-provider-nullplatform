@@ -121,8 +121,6 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 		return err
 	}
 
-	log.Printf("\n\n Scope Structure: %+v\n\n", s)
-
 	r, err := http.NewRequest("PATCH", url, &buf)
 	if err != nil {
 		return err
@@ -131,8 +129,6 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 
 	r.Header.Add("Content-Type", "application/json")
 	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	log.Printf("\n\n HTTP Payload: %+v\n\n", r)
 
 	res, err := c.Client.Do(r)
 	if err != nil {
