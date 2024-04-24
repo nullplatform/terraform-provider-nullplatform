@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 )
 
@@ -83,16 +84,18 @@ func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
 }
 
 func (c *NullClient) GetNRN(nrnId string) (*NRN, error) {
-	// Using `aws.*` returns an error
-	namespaces := []string{
-		"aws.scope_workflow_role",
-		"aws.log_group_name",
-		"aws.lambdaFunctionName",
-		"aws.lambdaCurrentFunctionVersion",
-		"aws.lambdaFunctionRole",
-		"aws.lambdaFunctionMainAlias",
-		"aws.log_reader_role",
-		"aws.lambdaFunctionWarmAlias",
+
+	// Slice to store JSON attributes
+	var namespaces []string
+
+	// Using `aws.*` returns an error, so instead
+	// use reflection to obtain the JSON attributes for the struct
+	patchNRN := PatchNRN{}
+	t := reflect.TypeOf(patchNRN)
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		jsonTag := field.Tag.Get("json")
+		namespaces = append(namespaces, jsonTag)
 	}
 	url := fmt.Sprintf("https://%s%s/%s?ids=%s", c.ApiURL, NRN_PATH, nrnId, strings.Join(namespaces, ","))
 
