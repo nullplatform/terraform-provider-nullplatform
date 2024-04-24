@@ -99,6 +99,11 @@ func resourceScope() *schema.Resource {
 				Type:     schema.TypeString,
 				Required: true,
 			},
+			"capabilities_serverless_ephemeral_storage": {
+				Type:     schema.TypeInt,
+				Default:  512,
+				Optional: true,
+			},
 			"capabilities_serverless_memory": {
 				Type:     schema.TypeInt,
 				Default:  128,
@@ -136,6 +141,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 	serverless_runtime := d.Get("capabilities_serverless_runtime_id").(string)
 	serverless_handler := d.Get("capabilities_serverless_handler_name").(string)
 	serverless_timeout := d.Get("capabilities_serverless_timeout").(int)
+	serverless_ephemeral_storage := d.Get("capabilities_serverless_ephemeral_storage").(int)
 	serverless_memory := d.Get("capabilities_serverless_memory").(int)
 
 	dimensionsMap := d.Get("dimensions").(map[string]interface{})
@@ -170,7 +176,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 				"timeout_in_seconds": serverless_timeout,
 			},
 			ServerlessEphemeralStorage: map[string]int{
-				"memory_in_mb": 512,
+				"memory_in_mb": serverless_ephemeral_storage,
 			},
 			ServerlessMemory: map[string]int{
 				"memory_in_mb": serverless_memory,
@@ -318,6 +324,10 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
+	if err := d.Set("capabilities_serverless_ephemeral_storage", s.Capabilities.ServerlessEphemeralStorage["memory_in_mb"]); err != nil {
+		return err
+	}
+
 	if err := d.Set("capabilities_serverless_memory", s.Capabilities.ServerlessMemory["memory_in_mb"]); err != nil {
 		return err
 	}
@@ -388,6 +398,12 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 	if d.HasChange("capabilities_serverless_timeout") {
 		caps.ServerlessTimeout = map[string]int{
 			"timeout_in_seconds": d.Get("capabilities_serverless_timeout").(int),
+		}
+	}
+
+	if d.HasChange("capabilities_serverless_ephemeral_storage") {
+		caps.ServerlessEphemeralStorage = map[string]int{
+			"memory_in_mb": d.Get("capabilities_serverless_ephemeral_storage").(int),
 		}
 	}
 

@@ -13,7 +13,8 @@ import (
 
 const NRN_PATH = "/nrn"
 
-// Vales with `omitempty` shoudn't be empty. The struct is used to PATH the NRN
+// Vales with `omitempty` shoudn't be patched as empty values, the others can.
+// The struct is used to PATCH the NRN
 type PatchNRN struct {
 	AWSS3AssestBucket               string `json:"aws.s3_assets_bucket"`
 	AWSScopeWorkflowRole            string `json:"aws.scope_workflow_role"`
@@ -26,7 +27,8 @@ type PatchNRN struct {
 	AWSLambdaFunctionWarmAlias      string `json:"aws.lambdaFunctionWarmAlias"`
 }
 
-// Similar structure to PatchNRN but without the `.aws`, used to read
+// Similar structure to PatchNRN but without the `.aws`.
+// The struct is used to READ the NRN
 type NrnAwsNamespace struct {
 	AWSS3AssestBucket               string `json:"s3_assets_bucket,omitempty"`
 	AWSScopeWorkflowRole            string `json:"scope_workflow_role,omitempty"`
@@ -48,7 +50,6 @@ type Namespaces struct {
 type NRN struct {
 	Nrn        string      `json:"nrn,omitempty"`
 	Namespaces *Namespaces `json:"namespaces,omitempty"`
-	//Profiles   map[string]map[string]string `json:"profiles,omitempty"`
 }
 
 func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
@@ -84,7 +85,6 @@ func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
 }
 
 func (c *NullClient) GetNRN(nrnId string) (*NRN, error) {
-
 	// Slice to store JSON attributes
 	var namespaces []string
 
