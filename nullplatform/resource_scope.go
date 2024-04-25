@@ -24,10 +24,6 @@ func resourceScope() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
-			//"last_updated": {
-			//	Type:     schema.TypeString,
-			//	Computed: true,
-			//},
 			"nrn": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -131,10 +127,6 @@ func resourceScope() *schema.Resource {
 func ScopeCreate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 
-	log.Print("--- CREATE Serverless scope ---")
-	log.Printf(">>> schema.ResourceData: %+v", d)
-	log.Printf(">>> meta data: %+v", m)
-
 	applicationId := d.Get("null_application_id").(int)
 	scopeName := d.Get("scope_name").(string)
 	scopeType := d.Get("scope_type").(string)
@@ -191,20 +183,15 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	log.Print("--- BEFORE patch NRN ---")
-
 	nrnErr := patchNrnForScope(s.Nrn, d, m)
 
 	if nrnErr != nil {
-		log.Print("--- AFTER patch NRN failed ******---")
 		return nrnErr
 	}
 
-	log.Print("--- AFTER patch NRN success ---")
-
 	d.SetId(strconv.Itoa(s.Id))
 
-	return ScopeRead(d, m)
+	return nil //ScopeRead(d, m)
 }
 
 func patchNrnForScope(scopeNrn string, d *schema.ResourceData, m any) error {
@@ -243,7 +230,6 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 	scopeID := d.Id()
 
-	log.Print("--- Terraform 'read resource Scope' operation begin ---")
 	s, err := nullOps.GetScope(scopeID)
 
 	if err != nil {
@@ -252,13 +238,9 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 	}
 
 	n, err := nullOps.GetNRN(s.Nrn)
-	log.Printf("\n\n\n NRN: %s  %+v \n\n\n", s.Nrn, n)
 	if err != nil {
 		return err
 	}
-
-	log.Printf(">>> schema.ResourceData: %+v", d)
-	log.Printf(">>> meta data: %+v", m)
 
 	if err := d.Set("nrn", s.Nrn); err != nil {
 		return err
@@ -340,19 +322,11 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	log.Print("--- Terraform 'read resource Scope' operation ends ---")
-
-	//d.Set("last_updated", time.Now().Format(time.RFC850))
-
 	return nil
 }
 
 func ScopeUpdate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
-
-	log.Print("--- Terraform 'update resource Scope' operation begin  ---")
-	log.Printf(">>> schema.ResourceData: %+v", d)
-	log.Printf(">>> meta data: %+v", m)
 
 	scopeID := d.Id()
 
@@ -429,10 +403,6 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 
 	}
 
-	log.Print("--- Scope updated ---")
-	log.Printf(">>> schema.ResourceData: %+v", d)
-	log.Printf(">>> meta data: %+v", m)
-
 	if !reflect.DeepEqual(*ps, Scope{}) {
 		err := nullOps.PatchScope(scopeID, ps)
 		if err != nil {
@@ -440,11 +410,7 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 		}
 	}
 
-	//d.Set("last_updated", time.Now().Format(time.RFC850))
-
-	log.Print("--- Terraform 'update resource Scope' operation ends ---")
-
-	return ScopeRead(d, m)
+	return nil //ScopeRead(d, m)
 }
 
 func ScopeDelete(d *schema.ResourceData, m any) error {
@@ -452,15 +418,10 @@ func ScopeDelete(d *schema.ResourceData, m any) error {
 
 	scopeID := d.Id()
 
-	log.Print("--- Terraform 'delete resource Scope' operation begin ---")
-	log.Printf(">>> schema.ResourceData: %+v", d)
-	log.Printf(">>> meta data: %+v", m)
-
 	pScope := &Scope{
 		Status: "deleting",
 	}
 
-	log.Print("--- Scope on: 'deleting' ---")
 	err := nullOps.PatchScope(scopeID, pScope)
 	if err != nil {
 		return err
@@ -468,19 +429,10 @@ func ScopeDelete(d *schema.ResourceData, m any) error {
 
 	pScope.Status = "deleted"
 
-	log.Print("--- Scope on: 'deleted' ---")
-
 	err = nullOps.PatchScope(scopeID, pScope)
 	if err != nil {
 		return err
 	}
-
-	log.Printf(">>> schema.ResourceData: %+v", d)
-	log.Printf(">>> meta data: %+v", m)
-
-	log.Println(">>> scopeID:", scopeID)
-
-	log.Print("--- Terraform 'delete resource Scope' operation ends ---")
 
 	d.SetId("")
 

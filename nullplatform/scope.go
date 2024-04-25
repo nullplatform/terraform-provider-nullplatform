@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 )
@@ -53,9 +52,6 @@ type Scope struct {
 func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 	url := fmt.Sprintf("https://%s%s", c.ApiURL, SCOPE_PATH)
 
-	log.Printf("\n\n--- *** La URL es %s ---\n\n", url)
-	log.Printf("\n\n--- *** El payload es %v ---\n\n", *s)
-
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*s)
 
@@ -67,8 +63,6 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	io.Copy(os.Stdout, bytes.NewReader(buf.Bytes()))
 
 	r.Header.Add("Content-Type", "application/json")
 	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
@@ -84,7 +78,7 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 			nErr := &NullErrors{}
 			dErr := json.NewDecoder(res.Body).Decode(nErr)
 			if dErr != nil {
-				fmt.Printf("El error es %s", dErr)
+				return nil, fmt.Errorf("El error es %s", dErr)
 			}
 			if (dErr == nil) && (nErr.Message == DUPLICATE_SCOPE_NAME_ERROR_STR) {
 				return nil, fmt.Errorf(
@@ -95,7 +89,6 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 			}
 
 		}
-		io.Copy(os.Stdout, res.Body)
 		return nil, fmt.Errorf("error creating scope resource, got status code: %d", res.StatusCode)
 	}
 
@@ -112,8 +105,6 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, SCOPE_PATH, scopeId)
 
-	log.Printf("\n\n--- *** La URL es %s ---\n\n", url)
-
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*s)
 
@@ -125,7 +116,6 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 	if err != nil {
 		return err
 	}
-	io.Copy(os.Stdout, bytes.NewReader(buf.Bytes()))
 
 	r.Header.Add("Content-Type", "application/json")
 	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
