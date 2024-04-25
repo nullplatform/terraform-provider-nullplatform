@@ -14,7 +14,7 @@ resource "nullplatform_scope" "test" {
   log_group_name                       = "/aws/lambda/test-00"
 
   dimensions = {
-    "environment" = "dev",
+    "environment" = lower(var.environment),
     "country"     = "arg"
   }
 }
