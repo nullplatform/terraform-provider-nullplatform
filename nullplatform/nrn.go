@@ -7,30 +7,49 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
+	"strings"
 )
 
 const NRN_PATH = "/nrn"
 
+// Vales with `omitempty` shoudn't be patched as empty values, the others can.
+// The struct is used to PATCH the NRN
 type PatchNRN struct {
 	AWSS3AssestBucket               string `json:"aws.s3_assets_bucket"`
 	AWSScopeWorkflowRole            string `json:"aws.scope_workflow_role"`
 	AWSLogGroupName                 string `json:"aws.log_group_name"`
-	AWSLambdaFunctionName           string `json:"aws.lambdaFunctionName"`
-	AWSLambdaCurrentFunctionVersion string `json:"aws.lambdaCurrentFunctionVersion"`
-	AWSLambdaFunctionRole           string `json:"aws.lambdaFunctionRole"`
-	AWSLambdaFunctionMainAlias      string `json:"aws.lambdaFunctionMainAlias"`
+	AWSLambdaFunctionName           string `json:"aws.lambdaFunctionName,omitempty"`
+	AWSLambdaCurrentFunctionVersion string `json:"aws.lambdaCurrentFunctionVersion,omitempty"`
+	AWSLambdaFunctionRole           string `json:"aws.lambdaFunctionRole,omitempty"`
+	AWSLambdaFunctionMainAlias      string `json:"aws.lambdaFunctionMainAlias,omitempty"`
 	AWSLogReaderLog                 string `json:"aws.log_reader_role"`
 	AWSLambdaFunctionWarmAlias      string `json:"aws.lambdaFunctionWarmAlias"`
 }
 
-type Namespaces struct {
-	Aws    map[string]string `json:"aws"`
-	Github map[string]string `json:"github"`
-	Global map[string]string `json:"global"`
+// Similar structure to PatchNRN but without the `.aws`.
+// The struct is used to READ the NRN
+type NrnAwsNamespace struct {
+	AWSS3AssestBucket               string `json:"s3_assets_bucket,omitempty"`
+	AWSScopeWorkflowRole            string `json:"scope_workflow_role,omitempty"`
+	AWSLogGroupName                 string `json:"log_group_name,omitempty"`
+	AWSLambdaFunctionName           string `json:"lambdaFunctionName,omitempty"`
+	AWSLambdaCurrentFunctionVersion string `json:"lambdaCurrentFunctionVersion,omitempty"`
+	AWSLambdaFunctionRole           string `json:"lambdaFunctionRole,omitempty"`
+	AWSLambdaFunctionMainAlias      string `json:"lambdaFunctionMainAlias,omitempty"`
+	AWSLogReaderLog                 string `json:"log_reader_role,omitempty"`
+	AWSLambdaFunctionWarmAlias      string `json:"lambdaFunctionWarmAlias,omitempty"`
 }
+
+type Namespaces struct {
+	AWS    *NrnAwsNamespace  `json:"aws,omitempty"`
+	Github map[string]string `json:"github,omitempty"`
+	Global map[string]string `json:"global,omitempty"`
+}
+
 type NRN struct {
-	Nrn        string            `json:"nrn"`
-	Namespaces map[string]string `json:"namespaces"`
+	Nrn        string      `json:"nrn,omitempty"`
+	Namespaces *Namespaces `json:"namespaces,omitempty"`
 }
 
 func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
@@ -66,8 +85,19 @@ func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
 }
 
 func (c *NullClient) GetNRN(nrnId string) (*NRN, error) {
-	// It is not ideal to harcode ids=aws.* but for now will retrieve everything we need
-	url := fmt.Sprintf("https://%s%s/%s?ids=aws.*", c.ApiURL, NRN_PATH, nrnId)
+	// Slice to store JSON attributes
+	var namespaces []string
+
+	// Using `aws.*` returns an error, so instead
+	// use reflection to obtain the JSON attributes for the struct
+	patchNRN := PatchNRN{}
+	t := reflect.TypeOf(patchNRN)
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		jsonTag := field.Tag.Get("json")
+		namespaces = append(namespaces, jsonTag)
+	}
+	url := fmt.Sprintf("https://%s%s/%s?ids=%s", c.ApiURL, NRN_PATH, nrnId, strings.Join(namespaces, ","))
 
 	r, err := http.NewRequest("GET", url, nil)
 

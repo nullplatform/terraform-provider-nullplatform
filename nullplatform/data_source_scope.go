@@ -2,7 +2,6 @@ package nullplatform
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"strconv"
 	"time"
@@ -26,6 +25,20 @@ func dataSourceScope() *schema.Resource {
 			"name": {
 				Type:     schema.TypeString,
 				Computed: true,
+			},
+			"dimensions": {
+				Type:     schema.TypeMap,
+				Computed: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
+			"runtime_configurations": {
+				Type:     schema.TypeList,
+				Computed: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeInt,
+				},
 			},
 		},
 	}
@@ -54,7 +67,19 @@ func dataSourceScopeRead(_ context.Context, d *schema.ResourceData, m any) diag.
 		return diag.FromErr(err)
 	}
 
-	fmt.Printf("ResourceData: %+v\n", d)
+	err = d.Set("dimensions", s.Dimensions)
+
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	err = d.Set("runtime_configurations", s.RuntimeConfigurations)
+
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	//fmt.Printf("ResourceData: %+v\n", d)
 
 	// We don't have a unique ID for this data resource so we create one using a
 	// timestamp format. I've seen people use a hash of the returned API data as

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 )
@@ -34,25 +33,24 @@ type RequestSpec struct {
 }
 
 type Scope struct {
-	Id               int          `json:"id,omitempty"`
-	Status           string       `json:"status,omitempty"`
-	Slug             string       `json:"slug,omitempty"`
-	Domain           string       `json:"domain,omitempty"`
-	ActiveDeployment int          `json:"active_deployment,omitempty"`
-	Nrn              string       `json:"nrn,omitempty"`
-	Name             string       `json:"name,omitempty"`
-	ApplicationId    int          `json:"application_id,omitempty"`
-	Type             string       `json:"type,omitempty"`
-	ExternalCreated  bool         `json:"external_created,omitempty"`
-	RequestedSpec    *RequestSpec `json:"requested_spec,omitempty"`
-	Capabilities     *Capability  `json:"capabilities,omitempty"`
+	Id                    int               `json:"id,omitempty"`
+	Status                string            `json:"status,omitempty"`
+	Slug                  string            `json:"slug,omitempty"`
+	Domain                string            `json:"domain,omitempty"`
+	ActiveDeployment      int               `json:"active_deployment,omitempty"`
+	Nrn                   string            `json:"nrn,omitempty"`
+	Name                  string            `json:"name,omitempty"`
+	ApplicationId         int               `json:"application_id,omitempty"`
+	Type                  string            `json:"type,omitempty"`
+	ExternalCreated       bool              `json:"external_created,omitempty"`
+	RequestedSpec         *RequestSpec      `json:"requested_spec,omitempty"`
+	Capabilities          *Capability       `json:"capabilities,omitempty"`
+	Dimensions            map[string]string `json:"dimensions,omitempty"`
+	RuntimeConfigurations []int             `json:"runtime_configurations,omitempty"`
 }
 
 func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 	url := fmt.Sprintf("https://%s%s", c.ApiURL, SCOPE_PATH)
-
-	log.Printf("\n\n--- *** La URL es %s ---\n\n", url)
-	log.Printf("\n\n--- *** El payload es %v ---\n\n", *s)
 
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*s)
@@ -65,8 +63,6 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	io.Copy(os.Stdout, bytes.NewReader(buf.Bytes()))
 
 	r.Header.Add("Content-Type", "application/json")
 	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
@@ -82,7 +78,7 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 			nErr := &NullErrors{}
 			dErr := json.NewDecoder(res.Body).Decode(nErr)
 			if dErr != nil {
-				fmt.Printf("El error es %s", dErr)
+				return nil, fmt.Errorf("El error es %s", dErr)
 			}
 			if (dErr == nil) && (nErr.Message == DUPLICATE_SCOPE_NAME_ERROR_STR) {
 				return nil, fmt.Errorf(
@@ -93,7 +89,6 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 			}
 
 		}
-		io.Copy(os.Stdout, res.Body)
 		return nil, fmt.Errorf("error creating scope resource, got status code: %d", res.StatusCode)
 	}
 
@@ -110,10 +105,8 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, SCOPE_PATH, scopeId)
 
-	log.Printf("\n\n--- *** La URL es %s ---\n\n", url)
-
 	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode((*s))
+	err := json.NewEncoder(&buf).Encode(*s)
 
 	if err != nil {
 		return err
@@ -123,7 +116,6 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 	if err != nil {
 		return err
 	}
-	io.Copy(os.Stdout, bytes.NewReader(buf.Bytes()))
 
 	r.Header.Add("Content-Type", "application/json")
 	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
