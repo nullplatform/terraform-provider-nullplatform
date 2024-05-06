@@ -19,7 +19,8 @@ func resourceService() *schema.Resource {
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:     schema.TypeString,
-				Computed: true,
+				Required: true,
+				ForceNew: true
 			},
 			"specification_id": {
 				Type:     schema.TypeString,
