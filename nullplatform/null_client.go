@@ -34,6 +34,9 @@ type NullOps interface {
 	GetScope(string) (*Scope, error)
 	PatchNRN(string, *PatchNRN) error
 	GetNRN(string) (*NRN, error)
+	CreateService(*Service) (*Service, error)
+	GetService(string) (*Service, error)
+	PatchService(string, *Service) error
 }
 
 func (c *NullClient) GetToken() diag.Diagnostics {

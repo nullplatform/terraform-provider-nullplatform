@@ -12,30 +12,19 @@ import (
 const SERVICE_PATH = "/service"
 
 
-type Message struct {
-	Level            string `json:"level,omitempty"`
-	Message          string `json:"message"`
-}
-
-type Selector struct {
-	Imported    bool     `json:"imported,omitempty"`
-	Provider    string   `json:"provider,omitempty"`
-	Category    string   `json:"category,omitempty"`
-	SubCategory string   `json:"sub_category,omitempty"`
-}
-
 type Service struct {
-	Id                     int              `json:"id,omitempty"`
-	Name                   string           `json:"name,omitempty"`
-	SpecificationId        int              `json:"specification_id,omitempty"`
-	EntityNrn              string           `json:"entity_nrn,omitempty"`
-	LinkableTo             []string         `json:"linkable_to,omitempty"`
-	Status                 string           `json:"status,omitempty"`
-	Slug                   string           `json:"slug,omitempty"`
-	Messages              *Message          `json:"messages,omitempty"`
-	Selectors             *Selector         `json:"selectors,omitempty"`
-	Dimensions            map[string]string `json:"dimensions,omitempty"`
-	Attributes            map[string]string `json:"attributes,omitempty"`
+	Id                     int                  `json:"id,omitempty"`
+	Name                   string               `json:"name,omitempty"`
+	SpecificationId        string               `json:"specification_id,omitempty"`
+	DesiredSpecificationId string               `json:"specification_id,omitempty"`
+	EntityNrn              string               `json:"entity_nrn,omitempty"`
+	LinkableTo             []string             `json:"linkable_to,omitempty"`
+	Status                 string               `json:"status,omitempty"`
+	Slug                   string               `json:"slug,omitempty"`
+	Messages               map[string]string    `json:"messages,omitempty"`
+	Selectors              map[string]string    `json:"selectors,omitempty"`
+	Dimensions             map[string]string    `json:"dimensions,omitempty"`
+	Attributes             map[string]string    `json:"attributes,omitempty"`
 }
 
 func (c *NullClient) CreateService(s *Service) (*Service, error) {

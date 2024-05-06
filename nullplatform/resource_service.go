@@ -1,7 +1,6 @@
 package nullplatform
 
 import (
-	"context"
 	"log"
 	"reflect"
 	"strconv"
@@ -20,7 +19,7 @@ func resourceService() *schema.Resource {
 			"name": {
 				Type:     schema.TypeString,
 				Required: true,
-				ForceNew: true
+				ForceNew: true,
 			},
 			"specification_id": {
 				Type:     schema.TypeString,
@@ -29,7 +28,7 @@ func resourceService() *schema.Resource {
 			"entity_nrn": {
 				Type:     schema.TypeString,
 				Required: true,
-			}
+			},
 			"linkable_to": {
         Type:     schema.TypeList,
         Optional: true,
@@ -80,7 +79,7 @@ func resourceService() *schema.Resource {
 func ServiceCreate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 
-	name := d.Get("name").(int)
+	name := d.Get("name").(string)
 	specificationId := d.Get("specification_id").(string)
 	entityNrn := d.Get("entity_nrn").(string)
 	linkableTo := d.Get("linkable_to").([]string)
@@ -164,7 +163,7 @@ func ServiceRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	if err := d.Set("status", s.status); err != nil {
+	if err := d.Set("status", s.Status); err != nil {
 		return err
 	}
 
@@ -233,7 +232,7 @@ func ServiceUpdate(d *schema.ResourceData, m any) error {
 
 		attributes := make(map[string]string)
 		for key, value := range attributesMap {
-			dimensions[key] = value.(string)
+			attributes[key] = value.(string)
 		}
 
 		ps.Attributes = attributes
@@ -245,7 +244,7 @@ func ServiceUpdate(d *schema.ResourceData, m any) error {
 
 		selectors := make(map[string]string)
 		for key, value := range selectorsMap {
-			dimensions[key] = value.(string)
+			selectors[key] = value.(string)
 		}
 
 		ps.Selectors = selectors
@@ -257,15 +256,10 @@ func ServiceUpdate(d *schema.ResourceData, m any) error {
 
 		messages := make(map[string]string)
 		for key, value := range messagesMap {
-			dimensions[key] = value.(string)
+			messages[key] = value.(string)
 		}
 
 		ps.Messages = messages
-	}
-
-
-	if !reflect.DeepEqual(caps, Capability{}) {
-		ps.Capabilities = caps
 	}
 
 	if !reflect.DeepEqual(*ps, Service{}) {
