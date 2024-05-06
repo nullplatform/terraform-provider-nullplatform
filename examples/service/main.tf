@@ -11,7 +11,7 @@ resource "nullplatform_service" "test_service" {
     "sub_category"  = "Weather"
   }
   attributes = {
-    api_key         = var.api_key
+    api_key = var.api_key
   }
-  dimensions        = {}
+  dimensions = {}
 }

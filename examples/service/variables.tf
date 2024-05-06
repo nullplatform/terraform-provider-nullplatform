@@ -3,7 +3,7 @@ variable "null_application_id" {
   type        = number
 }
 
-variable "environment" {
-  description = "Environment name where the Scopes are deployed"
-  default     = "dev"
+variable "api_key" {
+  description = "API Key for consume Open Weather services"
+  default     = "123"
 }
