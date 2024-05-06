@@ -33,7 +33,7 @@ type Service struct {
 	Status                 string           `json:"status,omitempty"`
 	Slug                   string           `json:"slug,omitempty"`
 	Messages              *Message          `json:"messages,omitempty"`
-	Selectors             *Selector        `json:"selectors,omitempty"`
+	Selectors             *Selector         `json:"selectors,omitempty"`
 	Dimensions            map[string]string `json:"dimensions,omitempty"`
 	Attributes            map[string]string `json:"attributes,omitempty"`
 }

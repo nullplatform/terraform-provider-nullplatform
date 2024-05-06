@@ -18,3 +18,4 @@ resource "nullplatform_scope" "test" {
     "country"     = "arg"
   }
 }
+
