@@ -18,7 +18,7 @@ type Service struct {
 	SpecificationId        string               `json:"specification_id,omitempty"`
 	DesiredSpecificationId string               `json:"specification_id,omitempty"`
 	EntityNrn              string               `json:"entity_nrn,omitempty"`
-	LinkableTo             []string             `json:"linkable_to,omitempty"`
+	LinkableTo             []interface{}        `json:"linkable_to,omitempty"`
 	Status                 string               `json:"status,omitempty"`
 	Slug                   string               `json:"slug,omitempty"`
 	Messages               map[string]string    `json:"messages,omitempty"`
@@ -58,7 +58,6 @@ func (c *NullClient) CreateService(s *Service) (*Service, error) {
 			if dErr != nil {
 				return nil, fmt.Errorf("An error happened: %s", dErr)
 			}
-			
 		}
 		return nil, fmt.Errorf("error creating service resource, got status code: %d", res.StatusCode)
 	}

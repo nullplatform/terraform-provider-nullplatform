@@ -3,6 +3,7 @@ package nullplatform
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 	"fmt"
 	"net/http"
 
@@ -50,6 +51,8 @@ func (c *NullClient) GetToken() diag.Diagnostics {
 	if err != nil {
 		return diag.FromErr(err)
 	}
+
+	log.Print("\n\n--- Fetching access token... ---\n\n")
 
 	r, err := http.NewRequest("POST", fmt.Sprintf("https://%s%s", c.ApiURL, TOKEN_PATH), &buf)
 	if err != nil {

@@ -82,7 +82,7 @@ func ServiceCreate(d *schema.ResourceData, m any) error {
 	name := d.Get("name").(string)
 	specificationId := d.Get("specification_id").(string)
 	entityNrn := d.Get("entity_nrn").(string)
-	linkableTo := d.Get("linkable_to").([]string)
+	linkableTo := d.Get("linkable_to").([]interface{})
 	desiredSpecificationId := d.Get("desired_specification_id").(string)
 	status := d.Get("status").(string)
 	messagesMap := d.Get("messages").(map[string]interface{})
@@ -212,7 +212,7 @@ func ServiceUpdate(d *schema.ResourceData, m any) error {
 	}
 
 	if d.HasChange("linkable_to") {
-		ps.LinkableTo = d.Get("linkable_to").([]string)
+		ps.LinkableTo = d.Get("linkable_to").([]interface{})
 	}
 
 	if d.HasChange("dimensions") {
