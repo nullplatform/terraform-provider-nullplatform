@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-const SERVICE_ACTION_PATH = "/service/%s/action"
+const SERVICE_ACTION_PATH = "/service"
 
 type ActionService struct {
 	ServiceId              string                   `json:"service_id,omitempty"`
@@ -22,7 +22,7 @@ type ActionService struct {
 }
 
 func (c *NullClient) CreateServiceAction(sAction *ActionService, id string, action string) (*ActionService, error) {
-	url := fmt.Sprintf("https://%s%s", c.ApiURL, fmt.Sprintf(SERVICE_PATH, id))
+	url := fmt.Sprintf("https://%s%s/%s/action", c.ApiURL, SERVICE_ACTION_PATH, id)
 
 	sAction.Name = action + "-" + sAction.Name
 
@@ -70,7 +70,7 @@ func (c *NullClient) CreateServiceAction(sAction *ActionService, id string, acti
 
 
 func (c *NullClient) GetServiceAction(actionId string, serviceId string) (*ActionService, error) {
-	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, fmt.Sprintf(SERVICE_PATH, serviceId), actionId)
+	url := fmt.Sprintf("https://%s%s/%s/action/%s", c.ApiURL, SERVICE_ACTION_PATH, serviceId, actionId)
 
 	r, err := http.NewRequest("GET", url, nil)
 	if err != nil {
