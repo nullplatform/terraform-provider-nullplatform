@@ -3,7 +3,6 @@ package nullplatform
 import (
 	"log"
 	"reflect"
-	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -41,10 +40,13 @@ func resourceService() *schema.Resource {
 				Optional: true,
 			},
 			"messages": {
-				Type:     schema.TypeMap,
-				Optional: true,
+				Type:     schema.TypeList,
+				Computed: true,
 				Elem: &schema.Schema{
-					Type: schema.TypeString,
+					Type: schema.TypeMap,
+					Elem: &schema.Schema{
+						Type: schema.TypeString,
+					},
 				},
 			},
 			"attributes": {
@@ -71,6 +73,7 @@ func resourceService() *schema.Resource {
 			"status": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Default:  "active",
 			},
 		},
 	}
@@ -85,31 +88,10 @@ func ServiceCreate(d *schema.ResourceData, m any) error {
 	linkableTo := d.Get("linkable_to").([]interface{})
 	desiredSpecificationId := d.Get("desired_specification_id").(string)
 	status := d.Get("status").(string)
-	messagesMap := d.Get("messages").(map[string]interface{})
-	attributesMap := d.Get("attributes").(map[string]interface{})
-	dimensionsMap := d.Get("dimensions").(map[string]interface{})
-	selectorsMap := d.Get("selectors").(map[string]interface{})
-
-
-	dimensions := make(map[string]string)
-	for key, value := range dimensionsMap {
-		dimensions[key] = value.(string)
-	}
-
-	attributes := make(map[string]string)
-	for key, value := range attributesMap {
-		attributes[key] = value.(string)
-	}
-
-	selectors := make(map[string]string)
-	for key, value := range selectorsMap {
-		selectors[key] = value.(string)
-	}
-
-	messages := make(map[string]string)
-	for key, value := range messagesMap {
-		messages[key] = value.(string)
-	}
+	messages := d.Get("messages").([]interface{})
+	attributes := d.Get("attributes").(map[string]interface{})
+	dimensions := d.Get("dimensions").(map[string]interface{})
+	selectors := d.Get("selectors").(map[string]interface{})
 
 	newService := &Service{
 		Name:                    name,
@@ -130,7 +112,7 @@ func ServiceCreate(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	d.SetId(strconv.Itoa(s.Id))
+	d.SetId(s.Id)
 
 	return nil
 }
@@ -216,51 +198,23 @@ func ServiceUpdate(d *schema.ResourceData, m any) error {
 	}
 
 	if d.HasChange("dimensions") {
-		dimensionsMap := d.Get("dimensions").(map[string]interface{})
-
-		dimensions := make(map[string]string)
-		for key, value := range dimensionsMap {
-			dimensions[key] = value.(string)
-		}
+		dimensions := d.Get("dimensions").(map[string]interface{})
 
 		ps.Dimensions = dimensions
 	}
 
 	if d.HasChange("attributes") {
-		attributesMap := d.Get("attributes").(map[string]interface{})
-
-
-		attributes := make(map[string]string)
-		for key, value := range attributesMap {
-			attributes[key] = value.(string)
-		}
+		attributes := d.Get("attributes").(map[string]interface{})
 
 		ps.Attributes = attributes
 	}
 
 	if d.HasChange("selectors") {
-		selectorsMap := d.Get("selectors").(map[string]interface{})
-
-
-		selectors := make(map[string]string)
-		for key, value := range selectorsMap {
-			selectors[key] = value.(string)
-		}
+		selectors := d.Get("selectors").(map[string]interface{})
 
 		ps.Selectors = selectors
 	}
 
-	if d.HasChange("messages") {
-		messagesMap := d.Get("messages").(map[string]interface{})
-
-
-		messages := make(map[string]string)
-		for key, value := range messagesMap {
-			messages[key] = value.(string)
-		}
-
-		ps.Messages = messages
-	}
 
 	if !reflect.DeepEqual(*ps, Service{}) {
 		err := nullOps.PatchService(serviceID, ps)
