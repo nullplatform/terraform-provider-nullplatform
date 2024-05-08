@@ -104,6 +104,31 @@ func (c *NullClient) PatchService(serviceId string, s *Service) error {
 	return nil
 }
 
+func (c *NullClient) DeleteService(serviceId string) error {
+	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, SERVICE_PATH, serviceId)
+
+	r, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	r.Header.Add("Content-Type", "application/json")
+	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
+
+	res, err := c.Client.Do(r)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		io.Copy(os.Stdout, res.Body)
+		return fmt.Errorf("error deleting service resource, got %d for %s", res.StatusCode, serviceId)
+	}
+
+	return nil
+}
+
 func (c *NullClient) GetService(serviceId string) (*Service, error) {
 	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, SERVICE_PATH, serviceId)
 

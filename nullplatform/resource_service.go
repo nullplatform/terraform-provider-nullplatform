@@ -235,18 +235,7 @@ func ServiceDelete(d *schema.ResourceData, m any) error {
 
 	serviceID := d.Id()
 
-	pService := &Service{
-		Status: "deleting",
-	}
-
-	err := nullOps.PatchService(serviceID, pService)
-	if err != nil {
-		return err
-	}
-
-	pService.Status = "deleted"
-
-	err = nullOps.PatchService(serviceID, pService)
+	err := nullOps.DeleteService(serviceID, pService)
 	if err != nil {
 		return err
 	}
