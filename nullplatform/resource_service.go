@@ -235,7 +235,7 @@ func ServiceDelete(d *schema.ResourceData, m any) error {
 
 	serviceID := d.Id()
 
-	err := nullOps.DeleteService(serviceID, pService)
+	err := nullOps.DeleteService(serviceID)
 	if err != nil {
 		return err
 	}
