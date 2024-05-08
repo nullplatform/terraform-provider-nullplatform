@@ -29,11 +29,15 @@ type NullClient struct {
 
 type NullOps interface {
 	GetToken() diag.Diagnostics
+
 	CreateScope(*Scope) (*Scope, error)
 	PatchScope(string, *Scope) error
 	GetScope(string) (*Scope, error)
+
 	PatchNRN(string, *PatchNRN) error
 	GetNRN(string) (*NRN, error)
+
+	GetApplication(appId string) (*Application, error)
 }
 
 func (c *NullClient) GetToken() diag.Diagnostics {
