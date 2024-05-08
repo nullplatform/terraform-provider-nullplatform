@@ -23,6 +23,7 @@ func TestProvider_HasChildResources(t *testing.T) {
 func TestProvider_HasChildDataSources(t *testing.T) {
 	expectedDataSources := []string{
 		"nullplatform_scope",
+		"nullplatform_application",
 	}
 
 	dataSources := Provider().DataSourcesMap
