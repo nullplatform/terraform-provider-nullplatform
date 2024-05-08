@@ -137,6 +137,10 @@ func ServiceRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
+	if err := d.Set("desired_specification_id", s.DesiredSpecificationId); err != nil {
+		return err
+	}
+
 	if err := d.Set("entity_nrn", s.EntityNrn); err != nil {
 		return err
 	}
