@@ -3,9 +3,7 @@ package nullplatform
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 )
 
 const APPLICATION_PATH = "/application"
@@ -49,8 +47,7 @@ func (c *NullClient) GetApplication(appId string) (*Application, error) {
 	}
 
 	if res.StatusCode != http.StatusOK {
-		io.Copy(os.Stdout, res.Body)
-		return nil, fmt.Errorf("error getting application resource, got %d for %s", res.StatusCode, appId)
+		return nil, fmt.Errorf("Error getting application resource, got %d for %s", res.StatusCode, appId)
 	}
 
 	return app, nil
