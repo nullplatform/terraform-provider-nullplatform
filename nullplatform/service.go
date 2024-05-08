@@ -13,18 +13,18 @@ const SERVICE_PATH = "/service"
 
 
 type Service struct {
-	Id                     int                  `json:"id,omitempty"`
-	Name                   string               `json:"name,omitempty"`
-	SpecificationId        string               `json:"specification_id,omitempty"`
-	DesiredSpecificationId string               `json:"specification_id,omitempty"`
-	EntityNrn              string               `json:"entity_nrn,omitempty"`
-	LinkableTo             []interface{}        `json:"linkable_to,omitempty"`
-	Status                 string               `json:"status,omitempty"`
-	Slug                   string               `json:"slug,omitempty"`
-	Messages               map[string]string    `json:"messages,omitempty"`
-	Selectors              map[string]string    `json:"selectors,omitempty"`
-	Dimensions             map[string]string    `json:"dimensions,omitempty"`
-	Attributes             map[string]string    `json:"attributes,omitempty"`
+	Id                     string                  `json:"id,omitempty"`
+	Name                   string                  `json:"name,omitempty"`
+	SpecificationId        string                  `json:"specification_id,omitempty"`
+	DesiredSpecificationId string                  `json:"desired_specification_id,omitempty"`
+	EntityNrn              string                  `json:"entity_nrn,omitempty"`
+	LinkableTo             []interface{}           `json:"linkable_to,omitempty"`
+	Status                 string                  `json:"status,omitempty"`
+	Slug                   string                  `json:"slug,omitempty"`
+	Messages               []interface{}           `json:"messages,omitempty"`
+	Selectors              map[string]interface{}  `json:"selectors,omitempty"`
+	Dimensions             map[string]interface{}  `json:"dimensions,omitempty"`
+	Attributes             map[string]interface{}  `json:"attributes,omitempty"`
 }
 
 func (c *NullClient) CreateService(s *Service) (*Service, error) {
@@ -52,14 +52,14 @@ func (c *NullClient) CreateService(s *Service) (*Service, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
+		nErr := &NullErrors{}
+		dErr := json.NewDecoder(res.Body).Decode(nErr)
 		if res.StatusCode == http.StatusBadRequest {
-			nErr := &NullErrors{}
-			dErr := json.NewDecoder(res.Body).Decode(nErr)
 			if dErr != nil {
 				return nil, fmt.Errorf("An error happened: %s", dErr)
 			}
 		}
-		return nil, fmt.Errorf("error creating service resource, got status code: %d", res.StatusCode)
+		return nil, fmt.Errorf("error creating service resource, got status code: %d", nErr)
 	}
 
 	sRes := &Service{}
