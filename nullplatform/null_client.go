@@ -3,6 +3,7 @@ package nullplatform
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 	"fmt"
 	"net/http"
 
@@ -34,6 +35,16 @@ type NullOps interface {
 	GetScope(string) (*Scope, error)
 	PatchNRN(string, *PatchNRN) error
 	GetNRN(string) (*NRN, error)
+	CreateService(*Service) (*Service, error)
+	GetService(string) (*Service, error)
+	PatchService(string, *Service) error
+	DeleteService(string) error
+	CreateServiceAction(*ActionService, string) (*ActionService, error)
+	GetServiceAction(string, string) (*ActionService, error)
+	CreateLink(*Link) (*Link, error)
+	PatchLink(string, *Link) error
+	DeleteLink(string) error
+	GetLink(string) (*Link, error)
 }
 
 func (c *NullClient) GetToken() diag.Diagnostics {
@@ -47,6 +58,8 @@ func (c *NullClient) GetToken() diag.Diagnostics {
 	if err != nil {
 		return diag.FromErr(err)
 	}
+
+	log.Print("\n\n--- Fetching access token... ---\n\n")
 
 	r, err := http.NewRequest("POST", fmt.Sprintf("https://%s%s", c.ApiURL, TOKEN_PATH), &buf)
 	if err != nil {

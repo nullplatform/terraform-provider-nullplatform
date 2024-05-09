@@ -30,10 +30,14 @@ func Provider() *schema.Provider {
 		},
 		ResourcesMap: map[string]*schema.Resource{
 			"nullplatform_scope": resourceScope(),
+			"nullplatform_service": resourceService(),
+			"nullplatform_service_action": resourceActionService(),
+			"nullplatform_link": resourceLink(),
 		},
 		// DataSource is a subset of Resource.
 		DataSourcesMap: map[string]*schema.Resource{
 			"nullplatform_scope": dataSourceScope(),
+			"nullplatform_service": dataSourceService(),
 		},
 	}
 
