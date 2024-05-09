@@ -36,6 +36,7 @@ func Provider() *schema.Provider {
 		// DataSource is a subset of Resource.
 		DataSourcesMap: map[string]*schema.Resource{
 			"nullplatform_scope": dataSourceScope(),
+			"nullplatform_service": dataSourceService(),
 		},
 	}
 

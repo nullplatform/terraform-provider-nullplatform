@@ -73,7 +73,6 @@ func resourceService() *schema.Resource {
 			"status": {
 				Type:     schema.TypeString,
 				Optional: true,
-				Default:  "active",
 			},
 		},
 	}

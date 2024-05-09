@@ -54,7 +54,9 @@ func ActionServiceCreate(d *schema.ResourceData, m any) error {
 		Parameters:      parameters,
 	}
 
-	s, err := nullOps.CreateServiceAction(newAction, serviceId, "create")
+	newAction.Name = "create-" + newAction.Name
+
+	s, err := nullOps.CreateServiceAction(newAction, serviceId)
 
 	if err != nil {
 		return err

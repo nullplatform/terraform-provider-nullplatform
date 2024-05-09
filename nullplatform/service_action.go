@@ -21,10 +21,8 @@ type ActionService struct {
 	Results                map[string]interface{}   `json:"results,omitempty"`
 }
 
-func (c *NullClient) CreateServiceAction(sAction *ActionService, id string, action string) (*ActionService, error) {
+func (c *NullClient) CreateServiceAction(sAction *ActionService, id string) (*ActionService, error) {
 	url := fmt.Sprintf("https://%s%s/%s/action", c.ApiURL, SERVICE_ACTION_PATH, id)
-
-	sAction.Name = action + "-" + sAction.Name
 
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*sAction)
