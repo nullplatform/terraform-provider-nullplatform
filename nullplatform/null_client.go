@@ -41,6 +41,10 @@ type NullOps interface {
 	DeleteService(string) error
 	CreateServiceAction(*ActionService, string) (*ActionService, error)
 	GetServiceAction(string, string) (*ActionService, error)
+	CreateLink(*Link) (*Link, error)
+	PatchLink(string, *Link) error
+	DeleteLink(string) error
+	GetLink(string) (*Link, error)
 }
 
 func (c *NullClient) GetToken() diag.Diagnostics {
