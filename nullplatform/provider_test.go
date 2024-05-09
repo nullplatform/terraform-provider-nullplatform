@@ -9,6 +9,8 @@ import (
 func TestProvider_HasChildResources(t *testing.T) {
 	expectedResources := []string{
 		"nullplatform_scope",
+		"nullplatform_service",
+    "nullplatform_link",
 	}
 
 	resources := Provider().ResourcesMap
@@ -23,9 +25,6 @@ func TestProvider_HasChildResources(t *testing.T) {
 func TestProvider_HasChildDataSources(t *testing.T) {
 	expectedDataSources := []string{
 		"nullplatform_scope",
-		"nullplatform_service",
-    "nullplatform_service_action",
-    "nullplatform_link",
 	}
 
 	dataSources := Provider().DataSourcesMap
