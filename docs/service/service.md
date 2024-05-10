@@ -15,17 +15,37 @@ For more details about services, you can read following docs: [https://docs.null
 ## Example Usage
 
 ```terraform
-resource "nullplatform_service" "test_service" {
-  name              = "open weather"
-  specification_id  = var.specification_id
-  entity_nrn        = "organization=123456:account=12345"
-  linkable_to       = ["organization=123456:account=12345"]
-  status            = "creating"
+data "nullplatform_application" "app" {
+  id = var.null_application_id
+}
+
+resource "nullplatform_service" "redis_cache_test" {
+  name             =  "redis-cache"
+  specification_id = "4a4f6955-5ae0-40dc-a1de-e15e5cf41abb"
+  entity_nrn       = data.nullplatform_application.app.nrn
+  linkable_to      = [data.nullplatform_application.app.nrn]
+  dimensions = {}
   selectors = {
-    "category"      = "SaaS"
-    "imported"      = true
-    "provider"      = "OpenWeather"
-    "sub_category"  = "Weather"
+    imported = false,
+  }
+  attributes = {}
+}
+
+data "nullplatform_service" "service" {
+  id = nullplatform_service.redis_cache_test.id
+}
+
+resource "nullplatform_service" "open_weather_test" {
+  name              = "open-weather"
+  specification_id  = var.specification_id
+  entity_nrn        = data.nullplatform_application.app.nrn
+  linkable_to       = [data.nullplatform_application.app.nrn]
+  status            = "active"
+  selectors = {
+    category      = "SaaS",
+    imported      = true,
+    provider      = "OpenWeather",
+    sub_category  = "Weather",
   }
   attributes = {
     api_key = var.api_key
