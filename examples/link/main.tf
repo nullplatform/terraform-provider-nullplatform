@@ -20,7 +20,6 @@ data "nullplatform_service" "redis" {
 
 resource "nullplatform_link" "link_redis" {
   name             = "link_from_terraform_2"
-  status           = "active"
   service_id       = data.nullplatform_service.redis.id
   specification_id = "66919464-05e6-4d78-bb8c-902c57881ddd"
   entity_nrn       = data.nullplatform_application.app.nrn
