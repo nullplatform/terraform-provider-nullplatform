@@ -40,7 +40,6 @@ resource "nullplatform_service" "open_weather_test" {
   specification_id  = var.specification_id
   entity_nrn        = data.nullplatform_application.app.nrn
   linkable_to       = [data.nullplatform_application.app.nrn]
-  status            = "active"
   selectors = {
     category      = "SaaS",
     imported      = true,
