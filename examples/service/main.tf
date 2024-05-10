@@ -2,7 +2,6 @@ data "nullplatform_application" "app" {
   id = var.null_application_id
 }
 
-
 resource "nullplatform_service" "redis_cache_test" {
   name             =  "redis-cache"
   specification_id = "4a4f6955-5ae0-40dc-a1de-e15e5cf41abb"
@@ -24,7 +23,6 @@ resource "nullplatform_service" "open_weather_test" {
   specification_id  = var.specification_id
   entity_nrn        = data.nullplatform_application.app.nrn
   linkable_to       = [data.nullplatform_application.app.nrn]
-  status            = "active"
   selectors = {
     category      = "SaaS",
     imported      = true,

@@ -8,9 +8,6 @@ resource "nullplatform_service" "redis_cache_test" {
   entity_nrn       = data.nullplatform_application.app.nrn
   linkable_to      = [data.nullplatform_application.app.nrn]
   dimensions = {}
-  selectors = {
-    imported = false,
-  }
   attributes = {}
 }
 
@@ -24,9 +21,6 @@ resource "nullplatform_link" "link_redis" {
   specification_id = "66919464-05e6-4d78-bb8c-902c57881ddd"
   entity_nrn       = data.nullplatform_application.app.nrn
   linkable_to      = [data.nullplatform_application.app.nrn]
-  selectors = {
-    imported = false,
-  }
   dimensions = {
     environment = "development",
     country     = "argentina",
