@@ -26,3 +26,4 @@ resource "nullplatform_scope" "test" {
 
   dimensions = local.dimensions
 }
+
