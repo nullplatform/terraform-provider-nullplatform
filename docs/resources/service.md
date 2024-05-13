@@ -20,14 +20,12 @@ data "nullplatform_application" "app" {
 }
 
 resource "nullplatform_service" "redis_cache_test" {
-  name             =  "redis-cache"
+  name             = "redis-cache"
   specification_id = "4a4f6955-5ae0-40dc-a1de-e15e5cf41abb"
   entity_nrn       = data.nullplatform_application.app.nrn
   linkable_to      = [data.nullplatform_application.app.nrn]
   dimensions = {}
-  selectors = {
-    imported = false,
-  }
+  selectors = {}
   attributes = {}
 }
 
@@ -42,7 +40,6 @@ resource "nullplatform_service" "open_weather_test" {
   linkable_to       = [data.nullplatform_application.app.nrn]
   selectors = {
     category      = "SaaS",
-    imported      = true,
     provider      = "OpenWeather",
     sub_category  = "Weather",
   }
