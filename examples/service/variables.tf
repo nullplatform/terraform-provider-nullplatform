@@ -8,3 +8,8 @@ variable "api_key" {
   description = "API Key for consume Open Weather services"
   default     = "123456"
 }
+
+variable "specification_id" {
+  description = "Specification ID for the service to be imported"
+  type        = string
+}

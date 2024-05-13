@@ -1,8 +1,12 @@
+data "nullplatform_application" "app" {
+  id = var.null_application_id
+}
+
 resource "nullplatform_service" "redis_cache_test" {
   name             =  "redis-cache"
   specification_id = "4a4f6955-5ae0-40dc-a1de-e15e5cf41abb"
-  entity_nrn       = "organization=1255165411:account=95118862:namespace=249561561:application=1460930848"
-  linkable_to      = ["organization=1255165411:account=95118862:namespace=249561561:application=1460930848"]
+  entity_nrn       = data.nullplatform_application.app.nrn
+  linkable_to      = [data.nullplatform_application.app.nrn]
   dimensions = {}
   selectors = {
     imported = false,
@@ -17,9 +21,8 @@ data "nullplatform_service" "service" {
 resource "nullplatform_service" "open_weather_test" {
   name              = "open-weather"
   specification_id  = var.specification_id
-  entity_nrn        = "organization=1255165411:account=95118862"
-  linkable_to       = ["organization=1255165411:account=95118862"]
-  status            = "active"
+  entity_nrn        = data.nullplatform_application.app.nrn
+  linkable_to       = [data.nullplatform_application.app.nrn]
   selectors = {
     category      = "SaaS",
     imported      = true,
