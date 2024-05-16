@@ -9,15 +9,18 @@ import (
 
 func dataSourceService() *schema.Resource {
 	return &schema.Resource{
+		Description: "Provides information about the Service",
 		ReadContext: dataSourceServiceRead,
 		Schema: map[string]*schema.Schema{
 			"id": {
-				Type:     schema.TypeString,
-				Required: true,
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "A system-wide unique ID for the Service.",
 			},
 			"name": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The Service name.",
 			},
 		},
 	}

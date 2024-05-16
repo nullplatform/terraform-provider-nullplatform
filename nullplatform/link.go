@@ -11,20 +11,19 @@ import (
 
 const LINK_PATH = "/link"
 
-
 type Link struct {
-	Id                     string                  `json:"id,omitempty"`
-	Slug                   string                  `json:"slug,omitempty"`
-	Name                   string                  `json:"name,omitempty"`
-	ServiceId              string                  `json:"service_id,omitempty"`
-	SpecificationId        string                  `json:"specification_id,omitempty"`
-	DesiredSpecificationId string                  `json:"desired_specification_id,omitempty"`
-	EntityNrn              string                  `json:"entity_nrn,omitempty"`
-	LinkableTo             []interface{}           `json:"linkable_to,omitempty"`
-	Status                 string                  `json:"status,omitempty"`
-	Selectors              map[string]interface{}  `json:"selectors,omitempty"`
-	Dimensions             map[string]interface{}  `json:"dimensions,omitempty"`
-	Attributes             map[string]interface{}  `json:"attributes,omitempty"`
+	Id                     string                 `json:"id,omitempty"`
+	Slug                   string                 `json:"slug,omitempty"`
+	Name                   string                 `json:"name,omitempty"`
+	ServiceId              string                 `json:"service_id,omitempty"`
+	SpecificationId        string                 `json:"specification_id,omitempty"`
+	DesiredSpecificationId string                 `json:"desired_specification_id,omitempty"`
+	EntityNrn              string                 `json:"entity_nrn,omitempty"`
+	LinkableTo             []interface{}          `json:"linkable_to,omitempty"`
+	Status                 string                 `json:"status,omitempty"`
+	Selectors              map[string]interface{} `json:"selectors,omitempty"`
+	Dimensions             map[string]interface{} `json:"dimensions,omitempty"`
+	Attributes             map[string]interface{} `json:"attributes,omitempty"`
 }
 
 func (c *NullClient) CreateLink(link *Link) (*Link, error) {

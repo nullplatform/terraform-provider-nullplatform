@@ -8,6 +8,8 @@ import (
 
 func resourceLink() *schema.Resource {
 	return &schema.Resource{
+		Description: "The link resource allows you to configure a Nullplatform Link",
+
 		Create: LinkCreate,
 		Read:   LinkRead,
 		Update: LinkUpdate,
@@ -15,36 +17,43 @@ func resourceLink() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"name": {
-				Type:     schema.TypeString,
-				Required: true,
-				ForceNew: true,
+				Type:        schema.TypeString,
+				Required:    true,
+				ForceNew:    true,
+				Description: "Name of the entity. Must be a non-empty string and not equal to null.",
 			},
 			"slug": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "Slug of the entity. Automatically generated from `name`.",
 			},
 			"service_id": {
-				Type:     schema.TypeString,
-				Required: true,
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "Unique identifier for the entity represented as a UUID.",
 			},
 			"specification_id": {
-				Type:     schema.TypeString,
-				Required: true,
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "Unique identifier for the entity represented as a UUID.",
 			},
 			"entity_nrn": {
-				Type:     schema.TypeString,
-				Required: true,
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "NRN representing a hierarchical identifier for nullplatform resources. Value must match regular expression `^organization=[0-9]+(:account=[0-9]+)?(:namespace=[0-9]+)?(:application=[0-9]+)?(:scope=[0-9]+)?$`.",
 			},
 			"linkable_to": {
-        Type:     schema.TypeList,
-        Optional: true,
-        Elem: &schema.Schema{
-          Type: schema.TypeString,
-        },
-      },
+				Type:     schema.TypeList,
+				Optional: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+				Description: "A list of NRN representing the visibility settings for the entity. Specifies what/who can see this entity. Value must match regular expression `^organization=[0-9]+(:account=[0-9]+)?(:namespace=[0-9]+)?(:application=[0-9]+)?(:scope=[0-9]+)?$`.",
+			},
 			"desired_specification_id": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "Desired unique identifier for the associated specification.",
 			},
 			"attributes": {
 				Type:     schema.TypeMap,
@@ -52,6 +61,7 @@ func resourceLink() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				Description: "Attributes associated with the link, should be valid against the link specification attribute schema.",
 			},
 			"dimensions": {
 				Type:     schema.TypeMap,
@@ -59,6 +69,7 @@ func resourceLink() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				Description: "Object representing dimensions with key-value pairs.",
 			},
 			"selectors": {
 				Type:     schema.TypeMap,
@@ -66,10 +77,12 @@ func resourceLink() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				Description: "Key-value object representing instance selectors.",
 			},
 			"status": {
-				Type:     schema.TypeString,
-				Optional: true,
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Status of the link. Should be one of: [`pending_create`, `pending`, `creating`, `updating`, `deleting`, `active`, `deleted`, `failed`]",
 			},
 		},
 	}
@@ -89,15 +102,15 @@ func LinkCreate(d *schema.ResourceData, m any) error {
 	selectors := d.Get("selectors").(map[string]interface{})
 
 	newLink := &Link{
-		Name:                    name,
-		ServiceId:               serviceId,
-		SpecificationId:         specificationId,
-		EntityNrn:               entityNrn,
-		LinkableTo:              linkableTo,
-		Status:                  status,
-		Selectors:               selectors,
-		Attributes:              attributes,
-		Dimensions:              dimensions,
+		Name:            name,
+		ServiceId:       serviceId,
+		SpecificationId: specificationId,
+		EntityNrn:       entityNrn,
+		LinkableTo:      linkableTo,
+		Status:          status,
+		Selectors:       selectors,
+		Attributes:      attributes,
+		Dimensions:      dimensions,
 	}
 
 	l, err := nullOps.CreateLink(newLink)
@@ -110,7 +123,6 @@ func LinkCreate(d *schema.ResourceData, m any) error {
 
 	return nil
 }
-
 
 func LinkRead(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
@@ -226,7 +238,6 @@ func LinkUpdate(d *schema.ResourceData, m any) error {
 
 		l.Selectors = selectors
 	}
-
 
 	if !reflect.DeepEqual(*l, Link{}) {
 		err := nullOps.PatchLink(linkId, l)
