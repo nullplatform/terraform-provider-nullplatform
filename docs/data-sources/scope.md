@@ -13,7 +13,7 @@ Provides information about the Scope
 ## Example Usage
 
 ```terraform
-data "nullplaform_scope" "example" {
+data "nullplatform_scope" "example" {
   id = "123"
 }
 ```

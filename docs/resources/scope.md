@@ -16,7 +16,7 @@ The scope resource allows you to configure a Nullplatform Scope
 terraform {
   required_providers {
     nullplatform = {
-      source = "nullplatform/nullplatform"
+      source  = "nullplatform/nullplatform"
       version = "~> 0.0.14"
     }
   }
@@ -65,7 +65,7 @@ resource "nullplatform_scope" "example" {
 }
 
 output "scope" {
-  value = nullplatform_scope.test
+  value = nullplatform_scope.example
 }
 ```
 

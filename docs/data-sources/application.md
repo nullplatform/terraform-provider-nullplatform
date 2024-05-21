@@ -13,7 +13,7 @@ Provides information about the Application
 ## Example Usage
 
 ```terraform
-data "nullplaform_application" "example" {
+data "nullplatform_application" "example" {
   id = "123"
 }
 ```

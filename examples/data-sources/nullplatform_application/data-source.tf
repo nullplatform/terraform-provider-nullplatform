@@ -1,3 +1,3 @@
-data "nullplaform_application" "example" {
+data "nullplatform_application" "example" {
   id = "123"
 }

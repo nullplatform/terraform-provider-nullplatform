@@ -1,3 +1,3 @@
-data "nullplaform_scope" "example" {
+data "nullplatform_scope" "example" {
   id = "123"
 }
