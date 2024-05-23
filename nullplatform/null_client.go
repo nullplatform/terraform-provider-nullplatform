@@ -49,6 +49,15 @@ type NullOps interface {
 	PatchLink(string, *Link) error
 	DeleteLink(string) error
 	GetLink(string) (*Link, error)
+
+        CreateParameter(param *Parameter, importIfCreated bool) (*Parameter, error)
+        PatchParameter(parameterId string, param *Parameter) error
+        GetParameter(parameterId string) (*Parameter, error)
+        DeleteParameter(parameterId string) error
+        GetParameterList(nrn string) (*ParameterList, error)
+
+        CreateParameterValue(paramId int, paramValue *ParameterValue) (*ParameterValue, error)
+        DeleteParameterValue(parameterId string, parameterValueId string) error
 }
 
 func (c *NullClient) GetToken() diag.Diagnostics {
