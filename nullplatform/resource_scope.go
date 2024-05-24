@@ -158,7 +158,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 	serverless_ephemeral_storage := d.Get("capabilities_serverless_ephemeral_storage").(int)
 	serverless_memory := d.Get("capabilities_serverless_memory").(int)
 
-	dimensionsMap := d.Get("dimensions").(map[string]interface{})
+	dimensionsMap := d.Get("dimensions").(map[string]any)
 	// Convert the dimensions to a map[string]string
 	dimensions := make(map[string]string)
 	for key, value := range dimensionsMap {
@@ -213,7 +213,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 
 	d.SetId(strconv.Itoa(s.Id))
 
-	return nil //ScopeRead(d, m)
+	return ScopeRead(d, m)
 }
 
 func patchNrnForScope(scopeNrn string, d *schema.ResourceData, m any) error {
@@ -432,7 +432,7 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 		}
 	}
 
-	return nil //ScopeRead(d, m)
+	return ScopeRead(d, m)
 }
 
 func ScopeDelete(d *schema.ResourceData, m any) error {
