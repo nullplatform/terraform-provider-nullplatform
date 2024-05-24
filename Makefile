@@ -26,3 +26,6 @@ test:
 
 testacc: 
 	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 120m   
+
+update-docs:
+	tfplugindocs generate -provider-name nullplatform --rendered-provider-name "Null Platform"

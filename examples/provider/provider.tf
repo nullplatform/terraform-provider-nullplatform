@@ -1,8 +1,8 @@
 terraform {
   required_providers {
     nullplatform = {
-      version = "0.0.14"
-      source = "nullplatform/nullplatform"
+      source  = "nullplatform/nullplatform"
+      version = "~> 0.0.14"
     }
   }
 }

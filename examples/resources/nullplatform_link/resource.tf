@@ -1,14 +1,31 @@
+terraform {
+  required_providers {
+    nullplatform = {
+      version = "0.0.14"
+      source  = "nullplatform/nullplatform"
+    }
+  }
+}
+
+# Use the `NP_API_KEY` environment variable
+provider "nullplatform" {}
+
+variable "null_application_id" {
+  description = "Unique ID for the application"
+  type        = number
+}
+
 data "nullplatform_application" "app" {
   id = var.null_application_id
 }
 
 resource "nullplatform_service" "redis_cache_test" {
-  name             =  "redis-cache"
+  name             = "redis-cache"
   specification_id = "4a4f6955-5ae0-40dc-a1de-e15e5cf41abb"
   entity_nrn       = data.nullplatform_application.app.nrn
   linkable_to      = [data.nullplatform_application.app.nrn]
-  dimensions = {}
-  attributes = {}
+  dimensions       = {}
+  attributes       = {}
 }
 
 data "nullplatform_service" "redis" {
@@ -26,4 +43,8 @@ resource "nullplatform_link" "link_redis" {
     country     = "argentina",
   }
   attributes = {}
+}
+
+output "link" {
+  value = nullplatform_link.link_redis
 }

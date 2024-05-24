@@ -21,11 +21,13 @@ func Provider() *schema.Provider {
 				DefaultFunc: schema.EnvDefaultFunc("NP_API_KEY", nil),
 				Required:    true,
 				Sensitive:   true,
+				Description: "Null Platform API KEY. Can also be set with the `NP_API_KEY` environment variable.",
 			},
 			NP_API_HOST: {
 				Type:        schema.TypeString,
 				DefaultFunc: schema.EnvDefaultFunc("NP_API_HOST", "api.nullplatform.com"),
 				Optional:    true,
+				Description: "Null Platform API HOSTNAME. Can also be set with the `NP_API_HOST` environment variable. If omitted, the default value is `api.nullplatform.com`",
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{

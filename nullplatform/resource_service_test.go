@@ -8,6 +8,7 @@ import (
 )
 
 type MockNullOps struct{}
+
 func (m *MockNullOps) CreateService(service *Service) (*Service, error) {
 	return &Service{Id: "123"}, nil
 }

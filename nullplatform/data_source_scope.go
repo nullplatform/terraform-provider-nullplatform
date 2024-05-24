@@ -12,19 +12,23 @@ import (
 
 func dataSourceScope() *schema.Resource {
 	return &schema.Resource{
+		Description: "Provides information about the Scope",
 		ReadContext: dataSourceScopeRead,
 		Schema: map[string]*schema.Schema{
 			"id": {
-				Type:     schema.TypeString,
-				Required: true,
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "A system-wide unique ID for the Scope.",
 			},
 			"nrn": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "A system-wide unique ID representing the resource.",
 			},
 			"name": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The Scope name.",
 			},
 			"dimensions": {
 				Type:     schema.TypeMap,
@@ -32,6 +36,7 @@ func dataSourceScope() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				Description: "A key-value map with the runtime configuration dimensions that apply to this scope.",
 			},
 			"runtime_configurations": {
 				Type:     schema.TypeList,
@@ -39,6 +44,7 @@ func dataSourceScope() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeInt,
 				},
+				Description: "List of the runtime configurations that apply to this scope based on its dimensions and values.",
 			},
 		},
 	}

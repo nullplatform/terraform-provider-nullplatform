@@ -11,51 +11,64 @@ import (
 
 func dataSourceApplication() *schema.Resource {
 	return &schema.Resource{
+		Description: "Provides information about the Application",
+
 		ReadContext: dataSourceApplicationRead,
 		Schema: map[string]*schema.Schema{
 			"id": {
-				Type:     schema.TypeInt,
-				Required: true,
+				Type:        schema.TypeInt,
+				Required:    true,
+				Description: "A system-wide unique ID for the Application",
 			},
 			"name": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The Application name.",
 			},
 			"status": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "Possible values: [`pending`, `creating`, `updating`, `active`, `inactive`, `failed`].",
 			},
 			"namespace_id": {
-				Type:     schema.TypeInt,
-				Computed: true,
+				Type:        schema.TypeInt,
+				Computed:    true,
+				Description: "The ID of the namespace that owns this application.",
 			},
 			"repository_url": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The URL of the repository that holds this application.",
 			},
 			"slug": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "A namespace-wide unique slug for the application.",
 			},
 			"template_id": {
-				Type:     schema.TypeInt,
-				Computed: true,
+				Type:        schema.TypeInt,
+				Computed:    true,
+				Description: "The ID of the template that was used to create this application.",
 			},
 			"auto_deploy_on_creation": {
-				Type:     schema.TypeBool,
-				Computed: true,
+				Type:        schema.TypeBool,
+				Computed:    true,
+				Description: "`True` if the application must be deployed immediately after being created, `false` otherwise.",
 			},
 			"repository_app_path": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The folder where the application is located inside a monorepo.",
 			},
 			"is_mono_repo": {
-				Type:     schema.TypeBool,
-				Computed: true,
+				Type:        schema.TypeBool,
+				Computed:    true,
+				Description: "`True` if the application shares the repository with other apps, `false` otherwise.",
 			},
 			"nrn": {
-				Type:     schema.TypeString,
-				Computed: true,
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "A system-wide unique ID representing the resource.",
 			},
 		},
 	}

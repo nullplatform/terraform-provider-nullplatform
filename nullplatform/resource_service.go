@@ -9,6 +9,8 @@ import (
 
 func resourceService() *schema.Resource {
 	return &schema.Resource{
+		Description: "The service resource allows you to configure a Nullplatform Service",
+
 		Create: ServiceCreate,
 		Read:   ServiceRead,
 		Update: ServiceUpdate,
@@ -16,28 +18,33 @@ func resourceService() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"name": {
-				Type:     schema.TypeString,
-				Required: true,
-				ForceNew: true,
+				Type:        schema.TypeString,
+				Required:    true,
+				ForceNew:    true,
+				Description: "Name of the entity. Must be a non-empty string and not equal to null.",
 			},
 			"specification_id": {
-				Type:     schema.TypeString,
-				Required: true,
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "Unique identifier for the entity represented as a UUID.",
 			},
 			"entity_nrn": {
-				Type:     schema.TypeString,
-				Required: true,
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "NRN representing a hierarchical identifier for nullplatform resourcesValue must match regular expression `^organization=[0-9]+(:account=[0-9]+)?(:namespace=[0-9]+)?(:application=[0-9]+)?(:scope=[0-9]+)?$`.",
 			},
 			"linkable_to": {
-        Type:     schema.TypeList,
-        Optional: true,
-        Elem: &schema.Schema{
-          Type: schema.TypeString,
-        },
-      },
-			"desired_specification_id": {
-				Type:     schema.TypeString,
+				Type:     schema.TypeList,
 				Optional: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+				Description: "A list of NRN representing the visibility settings for the entity. Specifies what/who can see this entity. Value must match regular expression `^organization=[0-9]+(:account=[0-9]+)?(:namespace=[0-9]+)?(:application=[0-9]+)?(:scope=[0-9]+)?$`.",
+			},
+			"desired_specification_id": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Desired unique identifier for the associated specification.",
 			},
 			"messages": {
 				Type:     schema.TypeList,
@@ -48,6 +55,7 @@ func resourceService() *schema.Resource {
 						Type: schema.TypeString,
 					},
 				},
+				Description: "A message and its severity level",
 			},
 			"attributes": {
 				Type:     schema.TypeMap,
@@ -55,6 +63,7 @@ func resourceService() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				Description: "Attributes associated with the service, should be valid against the service specification attribute schema.",
 			},
 			"dimensions": {
 				Type:     schema.TypeMap,
@@ -62,6 +71,7 @@ func resourceService() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				Description: "Object representing dimensions with key-value pairs.",
 			},
 			"selectors": {
 				Type:     schema.TypeMap,
@@ -69,11 +79,13 @@ func resourceService() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				Description: "Key-value object representing instance selectors.",
 			},
 			"status": {
-				Type:     schema.TypeString,
-				Optional: true,
-				Default: "active",
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "active",
+				Description: "Status of the service. Should be one of: [`pending_create`, `pending`, `creating`, `updating`, `deleting`, `active`, `deleted`, `failed`]",
 			},
 		},
 	}
@@ -94,16 +106,16 @@ func ServiceCreate(d *schema.ResourceData, m any) error {
 	selectors := d.Get("selectors").(map[string]interface{})
 
 	newService := &Service{
-		Name:                    name,
-		SpecificationId:         specificationId,
-		DesiredSpecificationId:  desiredSpecificationId,
-		EntityNrn:               entityNrn,
-		LinkableTo:              linkableTo,
-		Status:                  status,
-		Messages:                messages,
-		Selectors:               selectors,
-		Attributes:              attributes,
-		Dimensions:              dimensions,
+		Name:                   name,
+		SpecificationId:        specificationId,
+		DesiredSpecificationId: desiredSpecificationId,
+		EntityNrn:              entityNrn,
+		LinkableTo:             linkableTo,
+		Status:                 status,
+		Messages:               messages,
+		Selectors:              selectors,
+		Attributes:             attributes,
+		Dimensions:             dimensions,
 	}
 
 	s, err := nullOps.CreateService(newService)
@@ -116,7 +128,6 @@ func ServiceCreate(d *schema.ResourceData, m any) error {
 
 	return nil
 }
-
 
 func ServiceRead(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
@@ -218,7 +229,6 @@ func ServiceUpdate(d *schema.ResourceData, m any) error {
 
 		ps.Selectors = selectors
 	}
-
 
 	if !reflect.DeepEqual(*ps, Service{}) {
 		err := nullOps.PatchService(serviceID, ps)
