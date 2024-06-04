@@ -11,7 +11,6 @@ import (
 )
 
 var testAccProviders map[string]*schema.Provider
-var testAccProvider *schema.Provider
 
 func provider() *schema.Provider {
 	return nullplatform.Provider()

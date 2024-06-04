@@ -7,10 +7,11 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/nullplatform/terraform-provider-nullplatform/nullplatform"
 )
 
 // TestResourceScope_basic tests the basic lifecycle of the Scope resource
-func TestResourceScope_basic(t *testing.T) {
+func TestResourceScope(t *testing.T) {
 	applicationID := os.Getenv("NULLPLATFORM_APPLICATION_ID")
 
 	resource.Test(t, resource.TestCase{
@@ -19,7 +20,7 @@ func TestResourceScope_basic(t *testing.T) {
 		CheckDestroy: testAccCheckResourceScopeDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccScopeConfigBasic(applicationID),
+				Config: testAccScopeConfig_basic(applicationID),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourceScopeExists("nullplatform_scope.test"),
 					resource.TestCheckResourceAttr("nullplatform_scope.test", "scope_name", "acc-test-scope"),
@@ -54,11 +55,26 @@ func testAccCheckResourceScopeExists(n string) resource.TestCheckFunc {
 }
 
 func testAccCheckResourceScopeDestroy(s *terraform.State) error {
-	// Check that the resource has been destroyed in the backend system
+	client := testAccProviders["nullplatform"].Meta().(nullplatform.NullOps)
+	if client == nil {
+		return fmt.Errorf("provider meta is nil, ensure the provider is properly configured and initialized")
+	}
+
+	for _, rs := range s.RootModule().Resources {
+		if rs.Type != "nullplatform_scope" {
+			continue
+		}
+
+		_, err := client.GetScope(rs.Primary.ID)
+		if err == nil {
+			return fmt.Errorf("Scope with ID %s still exists", rs.Primary.ID)
+		}
+	}
+
 	return nil
 }
 
-func testAccScopeConfigBasic(applicationID string) string {
+func testAccScopeConfig_basic(applicationID string) string {
 	return fmt.Sprintf(`
 resource "nullplatform_scope" "test" {
   null_application_id                       = %s

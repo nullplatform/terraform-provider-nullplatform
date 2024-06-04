@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 )
 
 const SCOPE_PATH = "/scope"
@@ -122,7 +120,6 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 	defer res.Body.Close()
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		io.Copy(os.Stdout, res.Body)
 		return fmt.Errorf("error patching scope resource, got %d", res.StatusCode)
 	}
 
@@ -153,8 +150,11 @@ func (c *NullClient) GetScope(scopeId string) (*Scope, error) {
 		return nil, derr
 	}
 
+	if s.Status == "deleted" || s.Status == "deleting" {
+		return nil, fmt.Errorf("error getting scope resource, the status is %s", s.Status)
+	}
+
 	if res.StatusCode != http.StatusOK {
-		io.Copy(os.Stdout, res.Body)
 		return nil, fmt.Errorf("error getting scope resource, got %d for %s", res.StatusCode, scopeId)
 	}
 
