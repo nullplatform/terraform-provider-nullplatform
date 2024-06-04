@@ -12,11 +12,6 @@ import (
 const SCOPE_PATH = "/scope"
 const DUPLICATE_SCOPE_NAME_ERROR_STR = "There's already a scope with this name on this application"
 
-type NullErrors struct {
-	Message string `json:"message"`
-	Id      int    `json:"id"`
-}
-
 type Capability struct {
 	Visibility                 map[string]string `json:"visibility,omitempty"`
 	ServerlessRuntime          map[string]string `json:"serverless_runtime,omitempty"`

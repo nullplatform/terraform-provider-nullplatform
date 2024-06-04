@@ -33,10 +33,10 @@ func resourceParameter() *schema.Resource {
 				Description: "Definition name of the variable.",
 			},
 			"nrn": {
-				Type:     schema.TypeString,
-				Required: true,
-				ForceNew: true,
-				Default:  "The NRN of the application to which the parameter belongs to.",
+				Type:        schema.TypeString,
+				Required:    true,
+				ForceNew:    true,
+				Description: "The NRN of the application to which the parameter belongs to.",
 			},
 			"type": {
 				Type:        schema.TypeString,

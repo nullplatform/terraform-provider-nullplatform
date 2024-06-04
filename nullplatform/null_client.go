@@ -28,6 +28,11 @@ type NullClient struct {
 	Token  Token
 }
 
+type NullErrors struct {
+	Message string `json:"message"`
+	Id      int    `json:"id"`
+}
+
 type NullOps interface {
 	GetToken() diag.Diagnostics
 
