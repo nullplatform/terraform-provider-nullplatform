@@ -36,6 +36,18 @@ func TestAccResourceParameter(t *testing.T) {
 					resource.TestCheckResourceAttr("nullplatform_parameter.parameter", "variable", "LOG_LEVEL_UPDATE"),
 				),
 			},
+			{
+				Config: testAccResourceParameterConfig_import_if_created(applicationID),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckParameterExists("nullplatform_parameter.parameter", &parameter),
+					resource.TestCheckResourceAttr("nullplatform_parameter.parameter", "name", "Log Level"),
+					resource.TestCheckResourceAttr("nullplatform_parameter.parameter", "variable", "LOG_LEVEL_UPDATE"),
+					resource.TestCheckResourceAttr("nullplatform_parameter.parameter_import_if_created", "name", "Log Level"),
+					resource.TestCheckResourceAttr("nullplatform_parameter.parameter_import_if_created", "variable", "LOG_LEVEL_UPDATE"),
+					resource.TestCheckResourceAttr("nullplatform_parameter.parameter_import_if_created_different_variable", "name", "Another Level"),
+					resource.TestCheckResourceAttr("nullplatform_parameter.parameter_import_if_created_different_variable", "variable", "ANOTHER_LEVEL"),
+				),
+			},
 		},
 	})
 }
@@ -82,9 +94,12 @@ func testAccCheckParameterDestroy(s *terraform.State) error {
 			continue
 		}
 
+		// when import_if_created=true resources won't be deleted
+		importIfCreated, _ := strconv.ParseBool(rs.Primary.Attributes["import_if_created"])
+
 		_, err := client.GetParameter(rs.Primary.ID)
-		if err == nil {
-			return fmt.Errorf("Parameter still exists")
+		if err == nil && !importIfCreated {
+			return fmt.Errorf("Parameter with ID %s still exists", rs.Primary.ID)
 		}
 	}
 
@@ -115,6 +130,45 @@ resource "nullplatform_parameter" "parameter" {
   nrn      = data.nullplatform_application.app.nrn
   name     = "Log Level"
   variable = "LOG_LEVEL_UPDATE"
+}
+`, applicationID)
+}
+
+func testAccResourceParameterConfig_import_if_created(applicationID string) string {
+	return fmt.Sprintf(`
+data "nullplatform_application" "app" {
+	id = %s
+}
+
+# Should create a new Parameter
+resource "nullplatform_parameter" "parameter" {
+	nrn      = data.nullplatform_application.app.nrn
+	name     = "Log Level"
+	variable = "LOG_LEVEL_UPDATE"
+}
+
+# Should avoid creating and import the ID
+resource "nullplatform_parameter" "parameter_import_if_created" {
+	nrn      = data.nullplatform_application.app.nrn
+	name     = "Log Level"
+	variable = "LOG_LEVEL_UPDATE"
+	import_if_created = true
+
+	depends_on = [
+		nullplatform_parameter.parameter
+	]
+}
+
+# Should create a new Parameter even though "import_if_created = true"
+resource "nullplatform_parameter" "parameter_import_if_created_different_variable" {
+	nrn      = data.nullplatform_application.app.nrn
+	name     = "Another Level"
+	variable = "ANOTHER_LEVEL"
+	import_if_created = true
+
+	depends_on = [
+		nullplatform_parameter.parameter
+	]
 }
 `, applicationID)
 }
