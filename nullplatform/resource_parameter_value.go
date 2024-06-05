@@ -103,44 +103,17 @@ func ParameterValueRead(d *schema.ResourceData, m any) error {
 	parameterId := strconv.Itoa(d.Get("parameter_id").(int))
 	parameterValueId := d.Id()
 
-	param, err := nullOps.GetParameter(parameterId)
+	parameterValue, err := nullOps.GetParameterValue(parameterId, parameterValueId)
+
 	if err != nil {
 		// FIXME: Validate if error == 404
 		if !d.IsNewResource() {
-			log.Printf("[WARN] Parameter ID %s not found, removing value from state", d.Id())
+			log.Printf("[WARN] Parameter Value ID %s not found, removing value from state", parameterValueId)
 			d.SetId("")
 			return nil
 		}
 		return err
 	}
-
-	for _, item := range param.Values {
-		if parameterValueId == generateParameterValueID(item) {
-			parameterValue = item
-
-			// -------- DEBUG
-			// Convert struct to JSON
-			jsonData, err := json.Marshal(item)
-			if err != nil {
-				return err
-			}
-			// Print JSON string
-			//log.Println(string(jsonData))
-			// -------- DEBUG
-			log.Printf("[DEBUG] Found Parameter Value ID: %s, %s", parameterValueId, string(jsonData))
-
-			break
-		}
-	}
-
-	if parameterValue == nil {
-		log.Printf("[WARN] Cannot fetch Parameter Value ID %s", parameterValueId)
-		return nil
-	}
-
-	/*if err := d.Set("origin_version", parameterValue.OriginVersion); err != nil {
-		return err
-	}*/
 
 	if err := d.Set("nrn", parameterValue.Nrn); err != nil {
 		return err

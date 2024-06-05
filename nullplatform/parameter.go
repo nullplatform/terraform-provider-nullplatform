@@ -23,6 +23,7 @@ type ParameterValue struct {
 	OriginVersion int               `json:"origin_version,omitempty"`
 	Dimensions    map[string]string `json:"dimensions,omitempty"`
 	CreatedAt     time.Time         `json:"created_at,omitempty"`
+	GeneratedId   string            `json:"generated_id,omitempty"`
 }
 
 type Parameter struct {
@@ -267,6 +268,39 @@ func (c *NullClient) DeleteParameterValue(parameterId string, parameterValueId s
 	}
 
 	return nil
+}
+
+func (c *NullClient) GetParameterValue(parameterId string, parameterValueId string) (*ParameterValue, error) {
+	var parameterValue *ParameterValue
+
+	param, err := c.GetParameter(parameterId)
+	if err != nil {
+		return nil, fmt.Errorf("Parameter ID %s not found", parameterId)
+	}
+
+	for _, item := range param.Values {
+		if parameterValueId == generateParameterValueID(item) {
+			parameterValue = item
+			parameterValue.GeneratedId = parameterValueId
+
+			// -------- DEBUG
+			// Convert struct to JSON
+			jsonData, err := json.Marshal(item)
+			if err != nil {
+				return nil, err
+			}
+			log.Printf("[DEBUG] Found Parameter Value ID: %s, %s", parameterValueId, string(jsonData))
+			// -------- DEBUG
+
+			break
+		}
+	}
+
+	if parameterValue == nil {
+		return nil, fmt.Errorf("Parameter Value ID %s not found", parameterValueId)
+	}
+
+	return parameterValue, nil
 }
 
 func generateParameterValueID(value *ParameterValue) string {
