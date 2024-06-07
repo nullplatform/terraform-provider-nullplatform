@@ -3,6 +3,7 @@ NAMESPACE=com
 NAME=nullplatform
 BINARY=terraform-provider-${NAME}
 VERSION=0.0.15
+TEST := ./...
 
 OS := $(shell uname -o | tr '[:upper:]' '[:lower:]')
 ARCH := $(shell uname -m)

@@ -11,20 +11,19 @@ import (
 
 const SERVICE_PATH = "/service"
 
-
 type Service struct {
-	Id                     string                  `json:"id,omitempty"`
-	Name                   string                  `json:"name,omitempty"`
-	SpecificationId        string                  `json:"specification_id,omitempty"`
-	DesiredSpecificationId string                  `json:"desired_specification_id,omitempty"`
-	EntityNrn              string                  `json:"entity_nrn,omitempty"`
-	LinkableTo             []interface{}           `json:"linkable_to,omitempty"`
-	Status                 string                  `json:"status,omitempty"`
-	Slug                   string                  `json:"slug,omitempty"`
-	Messages               []interface{}           `json:"messages,omitempty"`
-	Selectors              map[string]interface{}  `json:"selectors,omitempty"`
-	Dimensions             map[string]interface{}  `json:"dimensions,omitempty"`
-	Attributes             map[string]interface{}  `json:"attributes,omitempty"`
+	Id                     string                 `json:"id,omitempty"`
+	Name                   string                 `json:"name,omitempty"`
+	SpecificationId        string                 `json:"specification_id,omitempty"`
+	DesiredSpecificationId string                 `json:"desired_specification_id,omitempty"`
+	EntityNrn              string                 `json:"entity_nrn,omitempty"`
+	LinkableTo             []interface{}          `json:"linkable_to,omitempty"`
+	Status                 string                 `json:"status,omitempty"`
+	Slug                   string                 `json:"slug,omitempty"`
+	Messages               []interface{}          `json:"messages,omitempty"`
+	Selectors              map[string]interface{} `json:"selectors,omitempty"`
+	Dimensions             map[string]interface{} `json:"dimensions,omitempty"`
+	Attributes             map[string]interface{} `json:"attributes,omitempty"`
 }
 
 func (c *NullClient) CreateService(s *Service) (*Service, error) {
@@ -59,7 +58,7 @@ func (c *NullClient) CreateService(s *Service) (*Service, error) {
 				return nil, fmt.Errorf("An error happened: %s", dErr)
 			}
 		}
-		return nil, fmt.Errorf("error creating service resource, got status code: %d", nErr)
+		return nil, fmt.Errorf("error creating service resource, got status code: %d", nErr.Id)
 	}
 
 	sRes := &Service{}

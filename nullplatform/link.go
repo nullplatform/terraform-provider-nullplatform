@@ -58,7 +58,7 @@ func (c *NullClient) CreateLink(link *Link) (*Link, error) {
 				return nil, fmt.Errorf("An error happened: %s", dErr)
 			}
 		}
-		return nil, fmt.Errorf("error creating link resource, got status code: %d", nErr)
+		return nil, fmt.Errorf("error creating link resource, got status code: %d", nErr.Id)
 	}
 
 	linkRes := &Link{}

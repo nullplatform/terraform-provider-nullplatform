@@ -28,6 +28,11 @@ type NullClient struct {
 	Token  Token
 }
 
+type NullErrors struct {
+	Message string `json:"message"`
+	Id      int    `json:"id"`
+}
+
 type NullOps interface {
 	GetToken() diag.Diagnostics
 
@@ -57,6 +62,7 @@ type NullOps interface {
 	GetParameterList(nrn string) (*ParameterList, error)
 
 	CreateParameterValue(paramId int, paramValue *ParameterValue) (*ParameterValue, error)
+	GetParameterValue(parameterId string, parameterValueId string) (*ParameterValue, error)
 	DeleteParameterValue(parameterId string, parameterValueId string) error
 }
 
