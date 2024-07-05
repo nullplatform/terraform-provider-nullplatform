@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"reflect"
 	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -131,47 +130,33 @@ func ParameterValueRead(d *schema.ResourceData, m any) error {
 }
 
 func ParameterValueUpdate(d *schema.ResourceData, m any) error {
-	nullOps := m.(NullOps)
+	if d.HasChange("origin_version") || d.HasChange("value") {
+		nullOps := m.(NullOps)
 
-	// FIXME: This code is duplicated in Scope
-	dimensionsMap := d.Get("dimensions").(map[string]any)
-	// Convert the dimensions to a map[string]string
-	dimensions := make(map[string]string)
-	for key, value := range dimensionsMap {
-		dimensions[key] = value.(string)
-	}
+		// FIXME: This code is duplicated in Scope
+		dimensionsMap := d.Get("dimensions").(map[string]any)
+		// Convert the dimensions to a map[string]string
+		dimensions := make(map[string]string)
+		for key, value := range dimensionsMap {
+			dimensions[key] = value.(string)
+		}
 
-	parameterId := d.Get("parameter_id").(int)
+		parameterId := d.Get("parameter_id").(int)
 
-	newParameterValue := &ParameterValue{}
+		newParameterValue := &ParameterValue{
+			OriginVersion: d.Get("origin_version").(int),
+			Nrn:           d.Get("nrn").(string),
+			Value:         d.Get("value").(string),
+		}
 
-	if d.HasChange("origin_version") {
-		newParameterValue.OriginVersion = d.Get("origin_version").(int)
-	}
-
-	if d.HasChange("value") {
-		newParameterValue.Value = d.Get("value").(string)
-	}
-
-	// The ID of the Parameter Value will change if other value is updated
-	// Instead the NRN and Dimensions are composed to generate an ID
-	if !reflect.DeepEqual(*newParameterValue, ParameterValue{}) {
-		newParameterValue.Nrn = d.Get("nrn").(string)
-		// Update the value means creating a new version of it
+		// Updating the value means creating a new version of it
 		paramValue, err := nullOps.CreateParameterValue(parameterId, newParameterValue)
 		if err != nil {
 			return err
 		}
-		// -------- DEBUG
-		// Convert struct to JSON
-		jsonData, err := json.Marshal(paramValue)
-		if err != nil {
-			return err
-		}
-		// Print JSON string
-		log.Println("[DEBUG] Creating new Parameter Value version: ", string(jsonData))
-		// -------- DEBUG
-		//d.Set("new_id", paramValue.Id)
+
+		// The ID of the Parameter Value will change if other value is updated
+		// Instead the NRN and Dimensions are composed to generate an ID
 		paramValueId := generateParameterValueID(paramValue)
 		d.SetId(paramValueId)
 	}
