@@ -16,7 +16,7 @@ const PARAMETER_PATH = "/parameter"
 type ParameterValue struct {
 	Id            int               `json:"id,omitempty"`
 	Nrn           string            `json:"nrn,omitempty"`
-	Value         string            `json:"value,omitempty"`
+	Value         string            `json:"value"` // Can be an empty value
 	OriginVersion int               `json:"origin_version,omitempty"`
 	Dimensions    map[string]string `json:"dimensions,omitempty"`
 	CreatedAt     time.Time         `json:"created_at,omitempty"`

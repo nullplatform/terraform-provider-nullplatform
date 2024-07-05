@@ -33,6 +33,13 @@ func TestAccResourceParameterValue(t *testing.T) {
 					resource.TestCheckResourceAttr("nullplatform_parameter_value.parameter_value", "value", "INFO"),
 				),
 			},
+			{
+				Config: testAccResourceParameterValueConfig_emptyValue(applicationID),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckParameterValueExists("nullplatform_parameter_value.parameter_value", &parameterValue),
+					resource.TestCheckResourceAttr("nullplatform_parameter_value.parameter_value", "value", ""),
+				),
+			},
 		},
 	})
 }
@@ -156,4 +163,39 @@ resource "nullplatform_parameter_value" "parameter_value" {
   value        = "INFO"
 }
 `, applicationID, applicationID)
+}
+
+func testAccResourceParameterValueConfig_emptyValue(applicationID string) string {
+	return fmt.Sprintf(`
+data "nullplatform_application" "app" {
+  id = %s
+}
+
+resource "nullplatform_scope" "test" {
+	null_application_id                       = %s
+	scope_name                                = "acc-test-scope"
+	capabilities_serverless_runtime_id        = "provided.al2"
+	capabilities_serverless_handler_name      = "handler"
+	capabilities_serverless_timeout           = 10
+	capabilities_serverless_memory            = 1024
+	capabilities_serverless_ephemeral_storage = 512
+	log_group_name                            = "/aws/lambda/acc-test-lambda"
+	lambda_function_name                      = "acc-test-lambda"
+	lambda_current_function_version           = "1"
+	lambda_function_role                      = "arn:aws:iam::123456789012:role/lambda-role"
+	lambda_function_main_alias                = "DEV"
+  }
+  
+  resource "nullplatform_parameter" "parameter" {
+	nrn      = data.nullplatform_application.app.nrn
+	name     = "Log Level"
+	variable = "LOG_LEVEL"
+  }
+  
+  resource "nullplatform_parameter_value" "parameter_value" {
+	parameter_id = nullplatform_parameter.parameter.id
+	nrn          = nullplatform_scope.test.nrn
+	value        = ""
+  }
+  `, applicationID, applicationID)
 }
