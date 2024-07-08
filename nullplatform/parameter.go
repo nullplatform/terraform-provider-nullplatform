@@ -82,12 +82,16 @@ func (c *NullClient) CreateParameter(param *Parameter, importIfCreated bool) (*P
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
+		if res.StatusCode == http.StatusGatewayTimeout {
+			return nil, fmt.Errorf("error creating Parameter, status code: %d, message: Gateway Timeout", res.StatusCode)
+		}
+
 		nErr := &NullErrors{}
 		dErr := json.NewDecoder(res.Body).Decode(nErr)
 		if dErr != nil {
-			return nil, fmt.Errorf("Error creating Parameter, status code: %d, message: %s", res.StatusCode, dErr)
+			return nil, fmt.Errorf("error creating Parameter, status code: %d, message: %s", res.StatusCode, dErr)
 		}
-		return nil, fmt.Errorf("Error creating Parameter, status code: %d, message: %s", res.StatusCode, nErr.Message)
+		return nil, fmt.Errorf("error creating Parameter, status code: %d, message: %s", res.StatusCode, nErr.Message)
 	}
 
 	paramRes = &Parameter{}
@@ -125,7 +129,7 @@ func (c *NullClient) GetParameter(parameterId string) (*Parameter, error) {
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Error getting Parameter resource, got %d for %s", res.StatusCode, parameterId)
+		return nil, fmt.Errorf("error getting Parameter resource, got %d for %s", res.StatusCode, parameterId)
 	}
 
 	return param, nil
@@ -156,7 +160,7 @@ func (c *NullClient) PatchParameter(parameterId string, param *Parameter) error 
 	defer res.Body.Close()
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		return fmt.Errorf("Error patching Parameter resource, got %d", res.StatusCode)
+		return fmt.Errorf("error patching Parameter resource, got %d", res.StatusCode)
 	}
 
 	return nil
@@ -180,7 +184,7 @@ func (c *NullClient) DeleteParameter(parameterId string) error {
 	defer res.Body.Close()
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		return fmt.Errorf("Error deleting Parameter resource, got %d", res.StatusCode)
+		return fmt.Errorf("error deleting Parameter resource, got %d", res.StatusCode)
 	}
 
 	return nil
@@ -211,12 +215,15 @@ func (c *NullClient) CreateParameterValue(paramId int, paramValue *ParameterValu
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		nErr := &NullErrors{}
-		dErr := json.NewDecoder(res.Body).Decode(nErr)
-		if dErr != nil {
-			return nil, fmt.Errorf("Error creating Parameter Value, status code: %d, message: %s", res.StatusCode, dErr)
+		if res.StatusCode == http.StatusGatewayTimeout {
+			return nil, fmt.Errorf("error creating Parameter Value, status code: %d, message: Gateway Timeout", res.StatusCode)
 		}
-		return nil, fmt.Errorf("Error creating Parameter Value, status code: %d, message: %s", res.StatusCode, nErr.Message)
+
+		nErr := &NullErrors{}
+		if dErr := json.NewDecoder(res.Body).Decode(nErr); dErr != nil {
+			return nil, fmt.Errorf("error creating Parameter Value, status code: %d, message: %w", res.StatusCode, dErr)
+		}
+		return nil, fmt.Errorf("error creating Parameter Value, status code: %d, message: %s", res.StatusCode, nErr.Message)
 	}
 
 	paramRes := &ParameterValue{}
@@ -247,7 +254,7 @@ func (c *NullClient) DeleteParameterValue(parameterId string, parameterValueId s
 	defer res.Body.Close()
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		return fmt.Errorf("Error deleting Parameter resource, got %d", res.StatusCode)
+		return fmt.Errorf("error deleting Parameter resource, got %d", res.StatusCode)
 	}
 
 	return nil
@@ -270,7 +277,7 @@ func (c *NullClient) GetParameterValue(parameterId string, parameterValueId stri
 	}
 
 	if parameterValue == nil {
-		return nil, fmt.Errorf("Parameter Value ID %s not found", parameterValueId)
+		return nil, fmt.Errorf("parameter Value ID %s not found", parameterValueId)
 	}
 
 	return parameterValue, nil
@@ -323,7 +330,7 @@ func (c *NullClient) GetParameterList(nrn string) (*ParameterList, error) {
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Error getting Parameter List, got %d for %s", res.StatusCode, nrn)
+		return nil, fmt.Errorf("error getting Parameter List, got %d for %s", res.StatusCode, nrn)
 	}
 
 	return param, nil

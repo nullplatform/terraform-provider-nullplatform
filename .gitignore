@@ -7,3 +7,4 @@ terraform.tfvars
 dist/
 .git/
 .terraformrc
+.idea
