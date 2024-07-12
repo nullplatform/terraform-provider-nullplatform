@@ -38,6 +38,7 @@ type NullOps interface {
 	CreateScope(*Scope) (*Scope, error)
 	PatchScope(string, *Scope) error
 	GetScope(string) (*Scope, error)
+	DeleteScope(string) error
 
 	PatchNRN(string, *PatchNRN) error
 	GetNRN(string) (*NRN, error)

@@ -151,7 +151,7 @@ func (c *NullClient) GetScope(scopeId string) (*Scope, error) {
 	}
 
 	if s.Status == "deleted" || s.Status == "deleting" {
-		return nil, fmt.Errorf("error getting scope resource, the status is %s", s.Status)
+		return s, fmt.Errorf("error getting scope resource, the status is %s", s.Status)
 	}
 
 	if res.StatusCode != http.StatusOK {
@@ -159,4 +159,24 @@ func (c *NullClient) GetScope(scopeId string) (*Scope, error) {
 	}
 
 	return s, nil
+}
+
+func (c *NullClient) DeleteScope(scopeId string) error {
+	pScope := &Scope{
+		Status: "deleting",
+	}
+
+	err := c.PatchScope(scopeId, pScope)
+	if err != nil {
+		return err
+	}
+
+	pScope.Status = "deleted"
+
+	err = c.PatchScope(scopeId, pScope)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
