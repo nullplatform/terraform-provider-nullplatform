@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -77,8 +76,6 @@ func (c *NullClient) GetToken() diag.Diagnostics {
 	if err != nil {
 		return diag.FromErr(err)
 	}
-
-	log.Print("\n\n--- Fetching access token... ---\n\n")
 
 	r, err := http.NewRequest("POST", fmt.Sprintf("https://%s%s", c.ApiURL, TOKEN_PATH), &buf)
 	if err != nil {
