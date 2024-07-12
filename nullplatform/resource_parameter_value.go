@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -82,7 +85,19 @@ func ParameterValueCreate(d *schema.ResourceData, m any) error {
 		Dimensions:    dimensions,
 	}
 
-	paramValue, err := nullOps.CreateParameterValue(parameterId, newParameterValue)
+	var paramValue *ParameterValue
+	err := retry.RetryContext(context.Background(), 30*time.Second, func() *retry.RetryError {
+		var err error
+		paramValue, err = nullOps.CreateParameterValue(parameterId, newParameterValue)
+		if err != nil {
+			if isRetryableError(err) {
+				return retry.RetryableError(err)
+			}
+			return retry.NonRetryableError(err)
+		}
+		return nil
+	})
+
 	if err != nil {
 		return err
 	}
@@ -102,7 +117,17 @@ func ParameterValueRead(d *schema.ResourceData, m any) error {
 	parameterId := strconv.Itoa(d.Get("parameter_id").(int))
 	parameterValueId := d.Id()
 
-	parameterValue, err := nullOps.GetParameterValue(parameterId, parameterValueId)
+	err := retry.RetryContext(context.Background(), 30*time.Second, func() *retry.RetryError {
+		var err error
+		parameterValue, err = nullOps.GetParameterValue(parameterId, parameterValueId)
+		if err != nil {
+			if isRetryableError(err) {
+				return retry.RetryableError(err)
+			}
+			return retry.NonRetryableError(err)
+		}
+		return nil
+	})
 
 	if err != nil {
 		// FIXME: Validate if error == 404
@@ -150,7 +175,19 @@ func ParameterValueUpdate(d *schema.ResourceData, m any) error {
 		}
 
 		// Updating the value means creating a new version of it
-		paramValue, err := nullOps.CreateParameterValue(parameterId, newParameterValue)
+		var paramValue *ParameterValue
+		err := retry.RetryContext(context.Background(), 30*time.Second, func() *retry.RetryError {
+			var err error
+			paramValue, err = nullOps.CreateParameterValue(parameterId, newParameterValue)
+			if err != nil {
+				if isRetryableError(err) {
+					return retry.RetryableError(err)
+				}
+				return retry.NonRetryableError(err)
+			}
+			return nil
+		})
+
 		if err != nil {
 			return err
 		}
@@ -205,7 +242,18 @@ func ParameterValueDelete(d *schema.ResourceData, m any) error {
 		return nil
 	}
 
-	err = nullOps.DeleteParameterValue(parameterId, strconv.Itoa(parameterValue.Id))
+	err = retry.RetryContext(context.Background(), 1*time.Minute, func() *retry.RetryError {
+		var err error
+		err = nullOps.DeleteParameterValue(parameterId, strconv.Itoa(parameterValue.Id))
+		if err != nil {
+			if isRetryableError(err) {
+				return retry.RetryableError(err)
+			}
+			return retry.NonRetryableError(err)
+		}
+		return nil
+	})
+
 	if err != nil {
 		// FIXME: Validate if error == 404
 		log.Printf("[WARN] Parameter Value ID %s not found, removing from state", parameterValueId)
@@ -216,4 +264,14 @@ func ParameterValueDelete(d *schema.ResourceData, m any) error {
 	d.SetId("")
 
 	return nil
+}
+
+func isRetryableError(err error) bool {
+	if httpErr, ok := err.(interface{ StatusCode() int }); ok {
+		switch httpErr.StatusCode() {
+		case http.StatusRequestTimeout, http.StatusConflict, http.StatusTooManyRequests:
+			return true
+		}
+	}
+	return false
 }
