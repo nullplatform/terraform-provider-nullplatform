@@ -255,7 +255,10 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 	s, err := nullOps.GetScope(scopeID)
 
 	if err != nil {
-		d.SetId("")
+		if s.Status == "deleted" || s.Status == "deleting" {
+			d.SetId("")
+			return nil
+		}
 		return err
 	}
 
@@ -437,21 +440,9 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 
 func ScopeDelete(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
+	scopeId := d.Id()
 
-	scopeID := d.Id()
-
-	pScope := &Scope{
-		Status: "deleting",
-	}
-
-	err := nullOps.PatchScope(scopeID, pScope)
-	if err != nil {
-		return err
-	}
-
-	pScope.Status = "deleted"
-
-	err = nullOps.PatchScope(scopeID, pScope)
+	err := nullOps.DeleteScope(scopeId)
 	if err != nil {
 		return err
 	}

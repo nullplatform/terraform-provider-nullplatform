@@ -3,6 +3,7 @@ package nullplatform_test
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -10,8 +11,9 @@ import (
 	"github.com/nullplatform/terraform-provider-nullplatform/nullplatform"
 )
 
-// TestResourceScope_basic tests the basic lifecycle of the Scope resource
+// TestResourceScope tests the lifecycle of the Scope resource, including recreation after deletion
 func TestResourceScope(t *testing.T) {
+	var scopeID int
 	applicationID := os.Getenv("NULLPLATFORM_APPLICATION_ID")
 
 	resource.Test(t, resource.TestCase{
@@ -22,7 +24,7 @@ func TestResourceScope(t *testing.T) {
 			{
 				Config: testAccScopeConfig_basic(applicationID),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResourceScopeExists("nullplatform_scope.test"),
+					testAccCheckResourceScopeExists("nullplatform_scope.test", &scopeID),
 					resource.TestCheckResourceAttr("nullplatform_scope.test", "scope_name", "acc-test-scope"),
 					resource.TestCheckResourceAttr("nullplatform_scope.test", "capabilities_serverless_runtime_id", "provided.al2"),
 					resource.TestCheckResourceAttr("nullplatform_scope.test", "capabilities_serverless_handler_name", "handler"),
@@ -35,21 +37,43 @@ func TestResourceScope(t *testing.T) {
 					resource.TestCheckResourceAttr("nullplatform_scope.test", "null_application_id", applicationID),
 				),
 			},
+			{
+				// Step to delete the resource and ensure Terraform recreates it
+				PreConfig: func() {
+					client := testAccProviders["nullplatform"].Meta().(nullplatform.NullOps)
+					scopeIDStr := strconv.Itoa(scopeID)
+					err := client.DeleteScope(scopeIDStr)
+					if err != nil {
+						t.Fatalf("Error deleting scope: %s", err)
+					}
+				},
+				Config: testAccScopeConfig_basic(applicationID),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceScopeExists("nullplatform_scope.test", &scopeID),
+				),
+			},
 		},
 	})
 }
 
-func testAccCheckResourceScopeExists(n string) resource.TestCheckFunc {
+func testAccCheckResourceScopeExists(n string, scopeID *int) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[n]
 		if !ok {
-			return nil
+			return fmt.Errorf("Resource not found: %s", n)
 		}
 		if rs.Primary.ID == "" {
-			return nil
+			return fmt.Errorf("No ID is set for the resource")
 		}
 
-		// Additional checks can be added here to verify the resource's state in the backend system
+		client := testAccProviders["nullplatform"].Meta().(nullplatform.NullOps)
+		scope, err := client.GetScope(rs.Primary.ID)
+		if err != nil {
+			return fmt.Errorf("error fetching scope: %s", err)
+		}
+
+		*scopeID = scope.Id
+
 		return nil
 	}
 }
@@ -67,7 +91,7 @@ func testAccCheckResourceScopeDestroy(s *terraform.State) error {
 
 		_, err := client.GetScope(rs.Primary.ID)
 		if err == nil {
-			return fmt.Errorf("Scope with ID %s still exists", rs.Primary.ID)
+			return fmt.Errorf("scope with ID %s still exists", rs.Primary.ID)
 		}
 	}
 
