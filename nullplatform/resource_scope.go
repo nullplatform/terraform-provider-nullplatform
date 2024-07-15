@@ -113,6 +113,12 @@ func resourceScope() *schema.Resource {
 				Required:    true,
 				Description: "Identifier of the function's runtime. See [Runtimes](https://docs.aws.amazon.com/lambda/latest/api/API_CreateFunction.html#lambda-CreateFunction-request-Runtime) for valid values.",
 			},
+			"capabilities_serverless_runtime_platform": {
+				Type:        schema.TypeString,
+				Default:     "x86_64",
+				Optional:    true,
+				Description: "Instruction set architecture for your Lambda function. Valid values are `x86_64`, and `arm_64`.",
+			},
 			"capabilities_serverless_ephemeral_storage": {
 				Type:        schema.TypeInt,
 				Default:     512,
@@ -153,6 +159,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 	scopeName := d.Get("scope_name").(string)
 	scopeType := d.Get("scope_type").(string)
 	serverless_runtime := d.Get("capabilities_serverless_runtime_id").(string)
+	serverless_platform := d.Get("capabilities_serverless_runtime_platform").(string)
 	serverless_handler := d.Get("capabilities_serverless_handler_name").(string)
 	serverless_timeout := d.Get("capabilities_serverless_timeout").(int)
 	serverless_ephemeral_storage := d.Get("capabilities_serverless_ephemeral_storage").(int)
@@ -182,6 +189,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 			ServerlessRuntime: map[string]string{
 				"provider": "aws_lambda",
 				"id":       serverless_runtime,
+				"platform": serverless_platform,
 			},
 			ServerlessHandler: map[string]string{
 				"name": serverless_handler,
@@ -331,6 +339,10 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
+	if err := d.Set("capabilities_serverless_runtime_platform", s.Capabilities.ServerlessRuntime["platform"]); err != nil {
+		return err
+	}
+
 	if err := d.Set("capabilities_serverless_ephemeral_storage", s.Capabilities.ServerlessEphemeralStorage["memory_in_mb"]); err != nil {
 		return err
 	}
@@ -381,10 +393,11 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 
 	caps := &Capability{}
 
-	if d.HasChange("capabilities_serverless_runtime_id") {
+	if d.HasChange("capabilities_serverless_runtime_id") || d.HasChange("capabilities_serverless_runtime_platform") {
 		caps.ServerlessRuntime = map[string]string{
 			"provider": "aws_lambda",
 			"id":       d.Get("capabilities_serverless_runtime_id").(string),
+			"platform": d.Get("capabilities_serverless_runtime_platform").(string),
 		}
 	}
 

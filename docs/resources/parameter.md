@@ -44,7 +44,7 @@ resource "nullplatform_parameter" "parameter" {
 ### Required
 
 - `name` (String) Definition name of the variable.
-- `nrn` (String)
+- `nrn` (String) The NRN of the application to which the parameter belongs to.
 - `variable` (String) The name of the environment variable. Required when `type = environment`.
 
 ### Optional

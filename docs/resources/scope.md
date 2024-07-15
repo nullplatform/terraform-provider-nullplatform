@@ -88,6 +88,7 @@ output "scope" {
 
 - `capabilities_serverless_ephemeral_storage` (Number) The amount of Ephemeral storage (`/tmp`) to allocate for the Lambda Function in MB. This parameter is used to expand the total amount of Ephemeral storage available, beyond the default amount of `512MB`.
 - `capabilities_serverless_memory` (Number) Amount of memory in MB your Lambda Function can use at runtime. Defaults to `128`. See [Limits](https://docs.aws.amazon.com/lambda/latest/dg/limits.html)
+- `capabilities_serverless_runtime_platform` (String) Instruction set architecture for your Lambda function. Valid values are `x86_64`, and `arm_64`.
 - `capabilities_serverless_timeout` (Number) Amount of time your Lambda Function has to run in seconds. Defaults to `10`.
 - `dimensions` (Map of String) A key-value map with the runtime configuration dimensions that apply to this scope.
 - `lambda_function_warm_alias` (String) The Lambda function ALIAS name used to warmup the function (NRN key).

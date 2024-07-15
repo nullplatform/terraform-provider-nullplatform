@@ -27,6 +27,7 @@ func TestResourceScope(t *testing.T) {
 					testAccCheckResourceScopeExists("nullplatform_scope.test", &scopeID),
 					resource.TestCheckResourceAttr("nullplatform_scope.test", "scope_name", "acc-test-scope"),
 					resource.TestCheckResourceAttr("nullplatform_scope.test", "capabilities_serverless_runtime_id", "provided.al2"),
+					resource.TestCheckResourceAttr("nullplatform_scope.test", "capabilities_serverless_runtime_platform", "x86_64"),
 					resource.TestCheckResourceAttr("nullplatform_scope.test", "capabilities_serverless_handler_name", "handler"),
 					resource.TestCheckResourceAttr("nullplatform_scope.test", "capabilities_serverless_ephemeral_storage", "512"),
 					resource.TestCheckResourceAttr("nullplatform_scope.test", "log_group_name", "/aws/lambda/acc-test-lambda"),
@@ -50,6 +51,15 @@ func TestResourceScope(t *testing.T) {
 				Config: testAccScopeConfig_basic(applicationID),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckResourceScopeExists("nullplatform_scope.test", &scopeID),
+				),
+			},
+			{
+				Config: testAccScopeConfig_basicArm64(applicationID),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceScopeExists("nullplatform_scope.test", &scopeID),
+					resource.TestCheckResourceAttr("nullplatform_scope.test", "scope_name", "acc-test-scope"),
+					resource.TestCheckResourceAttr("nullplatform_scope.test", "capabilities_serverless_runtime_id", "provided.al2"),
+					resource.TestCheckResourceAttr("nullplatform_scope.test", "capabilities_serverless_runtime_platform", "arm_64"),
 				),
 			},
 		},
@@ -104,6 +114,26 @@ resource "nullplatform_scope" "test" {
   null_application_id                       = %s
   scope_name                                = "acc-test-scope"
   capabilities_serverless_runtime_id        = "provided.al2"
+  capabilities_serverless_handler_name      = "handler"
+  capabilities_serverless_timeout           = 10
+  capabilities_serverless_memory            = 1024
+  capabilities_serverless_ephemeral_storage = 512
+  log_group_name                            = "/aws/lambda/acc-test-lambda"
+  lambda_function_name                      = "acc-test-lambda"
+  lambda_current_function_version           = "1"
+  lambda_function_role                      = "arn:aws:iam::123456789012:role/lambda-role"
+  lambda_function_main_alias                = "DEV"
+}
+`, applicationID)
+}
+
+func testAccScopeConfig_basicArm64(applicationID string) string {
+	return fmt.Sprintf(`
+resource "nullplatform_scope" "test" {
+  null_application_id                       = %s
+  scope_name                                = "acc-test-scope"
+  capabilities_serverless_runtime_id        = "provided.al2"
+  capabilities_serverless_runtime_platform  = "arm_64"
   capabilities_serverless_handler_name      = "handler"
   capabilities_serverless_timeout           = 10
   capabilities_serverless_memory            = 1024
