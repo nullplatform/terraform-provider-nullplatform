@@ -269,7 +269,7 @@ func (c *NullClient) GetParameterValue(parameterId string, parameterValueId stri
 	}
 
 	for _, item := range param.Values {
-		if parameterValueId == generateParameterValueID(item) {
+		if parameterValueId == generateParameterValueID(item, param.Id) {
 			parameterValue = item
 			parameterValue.GeneratedId = parameterValueId
 			break
@@ -283,7 +283,7 @@ func (c *NullClient) GetParameterValue(parameterId string, parameterValueId stri
 	return parameterValue, nil
 }
 
-func generateParameterValueID(value *ParameterValue) string {
+func generateParameterValueID(value *ParameterValue, parameterId int) string {
 	var concatenatedString string
 
 	// Concatenate all key-value pairs from the map
@@ -292,6 +292,7 @@ func generateParameterValueID(value *ParameterValue) string {
 	}
 
 	concatenatedString += value.Nrn + ";"
+	concatenatedString += strconv.Itoa(parameterId) + ";"
 
 	// Hash the concatenated string using SHA-256
 	hash := sha256.New()
