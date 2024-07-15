@@ -233,7 +233,7 @@ func ParameterValueDelete(d *schema.ResourceData, m any) error {
 
 	err = retry.RetryContext(context.Background(), 1*time.Minute, func() *retry.RetryError {
 		var err error
-		err = nullOps.DeleteParameterValue(parameterId, strconv.Itoa(parameterValue.Id))
+		err = nullOps.DeleteParameterValue(parameterId, parameterValue.Id)
 		if err != nil {
 			if isRetryableError(err) {
 				return retry.RetryableError(err)

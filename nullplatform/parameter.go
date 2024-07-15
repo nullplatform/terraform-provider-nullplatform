@@ -14,7 +14,7 @@ import (
 const PARAMETER_PATH = "/parameter"
 
 type ParameterValue struct {
-	Id            int               `json:"id,omitempty"`
+	Id            string            `json:"id,omitempty"`
 	Nrn           string            `json:"nrn,omitempty"`
 	Value         string            `json:"value"` // Can be an empty value
 	OriginVersion int               `json:"origin_version,omitempty"`
