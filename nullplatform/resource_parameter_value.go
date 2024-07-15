@@ -2,7 +2,6 @@ package nullplatform
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -104,7 +103,7 @@ func ParameterValueCreate(d *schema.ResourceData, m any) error {
 
 	log.Printf("[DEBUG] Parameter Value Created with OriginID: %d", paramValue.Id)
 
-	paramValueId := generateParameterValueID(paramValue)
+	paramValueId := generateParameterValueID(paramValue, parameterId)
 	d.SetId(paramValueId)
 
 	return ParameterValueRead(d, m)
@@ -194,7 +193,7 @@ func ParameterValueUpdate(d *schema.ResourceData, m any) error {
 
 		// The ID of the Parameter Value will change if other value is updated
 		// Instead the NRN and Dimensions are composed to generate an ID
-		paramValueId := generateParameterValueID(paramValue)
+		paramValueId := generateParameterValueID(paramValue, parameterId)
 		d.SetId(paramValueId)
 	}
 
@@ -221,17 +220,7 @@ func ParameterValueDelete(d *schema.ResourceData, m any) error {
 	}
 
 	for _, item := range param.Values {
-		// -------- DEBUG
-		// Convert struct to JSON
-		jsonData, err := json.Marshal(item)
-		if err != nil {
-			return err
-		}
-		// Print JSON string
-		log.Println(string(jsonData))
-		// -------- DEBUG
-
-		if parameterValueId == generateParameterValueID(item) {
+		if parameterValueId == generateParameterValueID(item, param.Id) {
 			parameterValue = item
 			break
 		}
