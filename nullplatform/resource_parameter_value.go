@@ -85,7 +85,7 @@ func ParameterValueCreate(d *schema.ResourceData, m any) error {
 	}
 
 	var paramValue *ParameterValue
-	err := retry.RetryContext(context.Background(), 30*time.Second, func() *retry.RetryError {
+	err := retry.RetryContext(context.Background(), 1*time.Minute, func() *retry.RetryError {
 		var err error
 		paramValue, err = nullOps.CreateParameterValue(parameterId, newParameterValue)
 		if err != nil {
@@ -116,7 +116,7 @@ func ParameterValueRead(d *schema.ResourceData, m any) error {
 	parameterId := strconv.Itoa(d.Get("parameter_id").(int))
 	parameterValueId := d.Id()
 
-	err := retry.RetryContext(context.Background(), 30*time.Second, func() *retry.RetryError {
+	err := retry.RetryContext(context.Background(), 1*time.Minute, func() *retry.RetryError {
 		var err error
 		parameterValue, err = nullOps.GetParameterValue(parameterId, parameterValueId)
 		if err != nil {
@@ -175,7 +175,7 @@ func ParameterValueUpdate(d *schema.ResourceData, m any) error {
 
 		// Updating the value means creating a new version of it
 		var paramValue *ParameterValue
-		err := retry.RetryContext(context.Background(), 30*time.Second, func() *retry.RetryError {
+		err := retry.RetryContext(context.Background(), 1*time.Minute, func() *retry.RetryError {
 			var err error
 			paramValue, err = nullOps.CreateParameterValue(parameterId, newParameterValue)
 			if err != nil {
