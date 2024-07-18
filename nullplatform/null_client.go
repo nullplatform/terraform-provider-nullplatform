@@ -35,7 +35,6 @@ type NullErrors struct {
 }
 
 type NullOps interface {
-	//GetToken() diag.Diagnostics
 	MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error)
 
 	CreateScope(*Scope) (*Scope, error)
