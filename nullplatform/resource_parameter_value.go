@@ -102,7 +102,7 @@ func ParameterValueCreate(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	log.Printf("[DEBUG] Parameter Value Created with OriginID: %d", paramValue.Id)
+	log.Printf("[DEBUG] Parameter Value Created with OriginID: %s", paramValue.Id)
 
 	paramValueId := generateParameterValueID(paramValue, parameterId)
 	d.SetId(paramValueId)
