@@ -2,6 +2,7 @@ package nullplatform
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -260,6 +261,13 @@ func isRetryableError(err error) bool {
 		switch httpErr.StatusCode() {
 		case http.StatusRequestTimeout, http.StatusConflict, http.StatusTooManyRequests:
 			return true
+		case http.StatusBadRequest:
+			var nErr NullErrors
+			if jsonErr := json.Unmarshal([]byte(err.Error()), &nErr); jsonErr == nil {
+				if nErr.Message == "The parameter already exists" {
+					return true
+				}
+			}
 		}
 	}
 	return false
