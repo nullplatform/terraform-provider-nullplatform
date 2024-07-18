@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 )
@@ -21,10 +22,11 @@ type Token struct {
 }
 
 type NullClient struct {
-	Client *http.Client
-	ApiURL string
-	ApiKey string
-	Token  Token
+	Client     *http.Client
+	ApiURL     string
+	ApiKey     string
+	Token      Token
+	tokenMutex sync.Mutex
 }
 
 type NullErrors struct {
@@ -33,7 +35,8 @@ type NullErrors struct {
 }
 
 type NullOps interface {
-	GetToken() diag.Diagnostics
+	//GetToken() diag.Diagnostics
+	MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error)
 
 	CreateScope(*Scope) (*Scope, error)
 	PatchScope(string, *Scope) error
@@ -66,7 +69,46 @@ type NullOps interface {
 	DeleteParameterValue(parameterId string, parameterValueId string) error
 }
 
-func (c *NullClient) GetToken() diag.Diagnostics {
+func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {
+	if err := c.ensureValidToken(); err != nil {
+		return nil, err
+	}
+
+	var req *http.Request
+	var err error
+	url := fmt.Sprintf("https://%s%s", c.ApiURL, path)
+
+	if body != nil {
+		req, err = http.NewRequest(method, url, body)
+	} else {
+		req, err = http.NewRequest(method, url, nil)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
+
+	return c.Client.Do(req)
+}
+
+func (c *NullClient) ensureValidToken() error {
+	c.tokenMutex.Lock()
+	defer c.tokenMutex.Unlock()
+
+	if c.Token.AccessToken == "" {
+		diag := c.getToken()
+		if diag != nil {
+			return fmt.Errorf(diag[0].Summary)
+		}
+	}
+
+	return nil
+}
+
+func (c *NullClient) getToken() diag.Diagnostics {
 	treq := TokenRequest{
 		Apikey: c.ApiKey,
 	}
@@ -93,7 +135,7 @@ func (c *NullClient) GetToken() diag.Diagnostics {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return diag.FromErr(fmt.Errorf("error creating resource, got %d, api key was %s", res.StatusCode, c.ApiKey))
+		return diag.FromErr(fmt.Errorf("failed to get access token, got %d", res.StatusCode))
 	}
 
 	tRes := &Token{}

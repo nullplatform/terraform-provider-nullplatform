@@ -23,17 +23,9 @@ type Application struct {
 }
 
 func (c *NullClient) GetApplication(appId string) (*Application, error) {
-	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, APPLICATION_PATH, appId)
+	path := fmt.Sprintf("%s/%s", APPLICATION_PATH, appId)
 
-	r, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
 		return nil, err
 	}

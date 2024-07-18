@@ -59,9 +59,7 @@ func Provider() *schema.Provider {
 			ApiURL: apiUrl,
 		}
 
-		diag := c.GetToken()
-
-		return c, diag
+		return c, nil
 	}
 
 	return provider
