@@ -27,8 +27,6 @@ type Service struct {
 }
 
 func (c *NullClient) CreateService(s *Service) (*Service, error) {
-	url := fmt.Sprintf("https://%s%s", c.ApiURL, SERVICE_PATH)
-
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*s)
 
@@ -36,15 +34,7 @@ func (c *NullClient) CreateService(s *Service) (*Service, error) {
 		return nil, err
 	}
 
-	r, err := http.NewRequest("POST", url, &buf)
-	if err != nil {
-		return nil, err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("POST", SERVICE_PATH, &buf)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +62,7 @@ func (c *NullClient) CreateService(s *Service) (*Service, error) {
 }
 
 func (c *NullClient) PatchService(serviceId string, s *Service) error {
-	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, SERVICE_PATH, serviceId)
+	path := fmt.Sprintf("%s/%s", SERVICE_PATH, serviceId)
 
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*s)
@@ -81,15 +71,7 @@ func (c *NullClient) PatchService(serviceId string, s *Service) error {
 		return err
 	}
 
-	r, err := http.NewRequest("PATCH", url, &buf)
-	if err != nil {
-		return err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("PATCH", path, &buf)
 	if err != nil {
 		return err
 	}
@@ -104,17 +86,9 @@ func (c *NullClient) PatchService(serviceId string, s *Service) error {
 }
 
 func (c *NullClient) DeleteService(serviceId string) error {
-	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, SERVICE_PATH, serviceId)
+	path := fmt.Sprintf("%s/%s", SERVICE_PATH, serviceId)
 
-	r, err := http.NewRequest("DELETE", url, nil)
-	if err != nil {
-		return err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("DELETE", path, nil)
 	if err != nil {
 		return err
 	}
@@ -129,17 +103,9 @@ func (c *NullClient) DeleteService(serviceId string) error {
 }
 
 func (c *NullClient) GetService(serviceId string) (*Service, error) {
-	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, SERVICE_PATH, serviceId)
+	path := fmt.Sprintf("%s/%s", SERVICE_PATH, serviceId)
 
-	r, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
 		return nil, err
 	}

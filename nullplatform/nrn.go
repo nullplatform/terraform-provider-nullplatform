@@ -53,20 +53,11 @@ type NRN struct {
 func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode((*nrn))
-
 	if err != nil {
 		return err
 	}
 
-	r, err := http.NewRequest("PATCH", fmt.Sprintf("https://%s%s/%s", c.ApiURL, NRN_PATH, nrnId), &buf)
-	if err != nil {
-		return err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("PATCH", fmt.Sprintf("%s/%s", NRN_PATH, nrnId), &buf)
 	if err != nil {
 		return err
 	}
@@ -92,18 +83,10 @@ func (c *NullClient) GetNRN(nrnId string) (*NRN, error) {
 		jsonTag := field.Tag.Get("json")
 		namespaces = append(namespaces, jsonTag)
 	}
-	url := fmt.Sprintf("https://%s%s/%s?ids=%s", c.ApiURL, NRN_PATH, nrnId, strings.Join(namespaces, ","))
 
-	r, err := http.NewRequest("GET", url, nil)
+	path := fmt.Sprintf("%s/%s?ids=%s", NRN_PATH, nrnId, strings.Join(namespaces, ","))
 
-	if err != nil {
-		return nil, err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
 		return nil, err
 	}

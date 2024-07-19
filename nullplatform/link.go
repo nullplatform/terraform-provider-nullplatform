@@ -27,24 +27,13 @@ type Link struct {
 }
 
 func (c *NullClient) CreateLink(link *Link) (*Link, error) {
-	url := fmt.Sprintf("https://%s%s", c.ApiURL, LINK_PATH)
-
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*link)
-
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := http.NewRequest("POST", url, &buf)
-	if err != nil {
-		return nil, err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("POST", LINK_PATH, &buf)
 	if err != nil {
 		return nil, err
 	}
@@ -72,24 +61,15 @@ func (c *NullClient) CreateLink(link *Link) (*Link, error) {
 }
 
 func (c *NullClient) PatchLink(linkId string, link *Link) error {
-	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, LINK_PATH, linkId)
+	path := fmt.Sprintf("%s/%s", LINK_PATH, linkId)
 
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*link)
-
 	if err != nil {
 		return err
 	}
 
-	r, err := http.NewRequest("PATCH", url, &buf)
-	if err != nil {
-		return err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("PATCH", path, &buf)
 	if err != nil {
 		return err
 	}
@@ -104,17 +84,9 @@ func (c *NullClient) PatchLink(linkId string, link *Link) error {
 }
 
 func (c *NullClient) DeleteLink(linkId string) error {
-	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, LINK_PATH, linkId)
+	path := fmt.Sprintf("%s/%s", LINK_PATH, linkId)
 
-	r, err := http.NewRequest("DELETE", url, nil)
-	if err != nil {
-		return err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("DELETE", path, nil)
 	if err != nil {
 		return err
 	}
@@ -129,17 +101,9 @@ func (c *NullClient) DeleteLink(linkId string) error {
 }
 
 func (c *NullClient) GetLink(linkId string) (*Link, error) {
-	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, LINK_PATH, linkId)
+	path := fmt.Sprintf("%s/%s", LINK_PATH, linkId)
 
-	r, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
 		return nil, err
 	}

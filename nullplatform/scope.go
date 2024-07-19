@@ -43,8 +43,6 @@ type Scope struct {
 }
 
 func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
-	url := fmt.Sprintf("https://%s%s", c.ApiURL, SCOPE_PATH)
-
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*s)
 
@@ -52,15 +50,7 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 		return nil, err
 	}
 
-	r, err := http.NewRequest("POST", url, &buf)
-	if err != nil {
-		return nil, err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("POST", SCOPE_PATH, &buf)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +86,7 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 }
 
 func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
-	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, SCOPE_PATH, scopeId)
+	path := fmt.Sprintf("%s/%s", SCOPE_PATH, scopeId)
 
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*s)
@@ -105,15 +95,7 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 		return err
 	}
 
-	r, err := http.NewRequest("PATCH", url, &buf)
-	if err != nil {
-		return err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("PATCH", path, &buf)
 	if err != nil {
 		return err
 	}
@@ -127,17 +109,9 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 }
 
 func (c *NullClient) GetScope(scopeId string) (*Scope, error) {
-	url := fmt.Sprintf("https://%s%s/%s", c.ApiURL, SCOPE_PATH, scopeId)
+	path := fmt.Sprintf("%s/%s", SCOPE_PATH, scopeId)
 
-	r, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	res, err := c.Client.Do(r)
+	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
 		return nil, err
 	}
