@@ -2,6 +2,7 @@ package nullplatform
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -101,7 +102,7 @@ func ParameterValueCreate(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	log.Printf("[DEBUG] Parameter Value Created with OriginID: %d", paramValue.Id)
+	log.Printf("[DEBUG] Parameter Value Created with OriginID: %s", paramValue.Id)
 
 	paramValueId := generateParameterValueID(paramValue, parameterId)
 	d.SetId(paramValueId)
@@ -260,6 +261,13 @@ func isRetryableError(err error) bool {
 		switch httpErr.StatusCode() {
 		case http.StatusRequestTimeout, http.StatusConflict, http.StatusTooManyRequests:
 			return true
+		case http.StatusBadRequest:
+			var nErr NullErrors
+			if jsonErr := json.Unmarshal([]byte(err.Error()), &nErr); jsonErr == nil {
+				if nErr.Message == "The parameter already exists" {
+					return true
+				}
+			}
 		}
 	}
 	return false

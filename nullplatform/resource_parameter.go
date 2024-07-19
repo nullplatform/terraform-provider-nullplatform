@@ -5,7 +5,9 @@ import (
 	"log"
 	"reflect"
 	"strconv"
+	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -103,14 +105,25 @@ func ParameterCreate(d *schema.ResourceData, m any) error {
 	}
 
 	importIfCreated := d.Get("import_if_created").(bool)
-	param, err := nullOps.CreateParameter(newParameter, importIfCreated)
+
+	var param *Parameter
+	err := retry.RetryContext(context.Background(), 1*time.Minute, func() *retry.RetryError {
+		var err error
+		param, err = nullOps.CreateParameter(newParameter, importIfCreated)
+		if err != nil {
+			if isRetryableError(err) {
+				return retry.RetryableError(err)
+			}
+			return retry.NonRetryableError(err)
+		}
+		return nil
+	})
 
 	if err != nil {
 		return err
 	}
 
 	d.Set("import_if_created", importIfCreated)
-
 	d.SetId(strconv.Itoa(param.Id))
 
 	return ParameterRead(d, m)
