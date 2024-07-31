@@ -61,7 +61,7 @@ type NullOps interface {
 	PatchParameter(parameterId string, param *Parameter) error
 	GetParameter(parameterId string) (*Parameter, error)
 	DeleteParameter(parameterId string) error
-	GetParameterList(nrn string) (*ParameterList, error)
+	GetParameterList(nrn string, hideValues ...bool) (*ParameterList, error)
 
 	CreateParameterValue(paramId int, paramValue *ParameterValue) (*ParameterValue, error)
 	GetParameterValue(parameterId string, parameterValueId string) (*ParameterValue, error)
