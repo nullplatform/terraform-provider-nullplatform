@@ -48,7 +48,7 @@ type ParameterList struct {
 }
 
 func (c *NullClient) CreateParameter(param *Parameter, importIfCreated bool) (*Parameter, error) {
-	parameterList, err := c.GetParameterList(param.Nrn)
+	parameterList, err := c.GetParameterList(param.Nrn, true)
 	if err != nil {
 		return nil, err
 	}
@@ -252,9 +252,19 @@ func generateParameterValueID(value *ParameterValue, parameterId int) string {
 	return hashString
 }
 
-func (c *NullClient) GetParameterList(nrn string) (*ParameterList, error) {
+func (c *NullClient) GetParameterList(nrn string, hideValues ...bool) (*ParameterList, error) {
 	// TODO: Implement pagination
-	path := fmt.Sprintf("%s/?nrn=%s&limit=200", PARAMETER_PATH, nrn)
+
+	/*
+		This query string parameter is used to avoid decrypting parameter values in the response.
+		It should be light-weight than asking for decryption.
+	*/
+	hide := "false"
+	if len(hideValues) > 0 && hideValues[0] {
+		hide = "true"
+	}
+
+	path := fmt.Sprintf("%s/?nrn=%s&limit=200&hide_values=%s", PARAMETER_PATH, nrn, hide)
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {

@@ -259,7 +259,7 @@ func ParameterValueDelete(d *schema.ResourceData, m any) error {
 func isRetryableError(err error) bool {
 	if httpErr, ok := err.(interface{ StatusCode() int }); ok {
 		switch httpErr.StatusCode() {
-		case http.StatusRequestTimeout, http.StatusConflict, http.StatusTooManyRequests:
+		case http.StatusRequestTimeout, http.StatusConflict, http.StatusTooManyRequests, http.StatusServiceUnavailable, http.StatusGatewayTimeout, http.StatusBadGateway:
 			return true
 		case http.StatusBadRequest:
 			var nErr NullErrors
