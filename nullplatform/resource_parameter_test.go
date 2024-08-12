@@ -68,7 +68,7 @@ func testAccCheckParameterExists(n string, parameter *nullplatform.Parameter) re
 			return fmt.Errorf("provider meta is nil, ensure the provider is properly configured and initialized")
 		}
 
-		foundParameter, err := client.GetParameter(rs.Primary.ID)
+		foundParameter, err := client.GetParameter(rs.Primary.ID, nil)
 		if err != nil {
 			return err
 		}
@@ -97,7 +97,7 @@ func testAccCheckParameterDestroy(s *terraform.State) error {
 		// when import_if_created=true resources won't be deleted
 		importIfCreated, _ := strconv.ParseBool(rs.Primary.Attributes["import_if_created"])
 
-		_, err := client.GetParameter(rs.Primary.ID)
+		_, err := client.GetParameter(rs.Primary.ID, nil)
 		if err == nil && !importIfCreated {
 			return fmt.Errorf("Parameter with ID %s still exists", rs.Primary.ID)
 		}

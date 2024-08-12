@@ -133,7 +133,7 @@ func ParameterRead(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 	parameterId := d.Id()
 
-	param, err := nullOps.GetParameter(parameterId)
+	param, err := nullOps.GetParameter(parameterId, nil)
 	if err != nil {
 		// FIXME: Validate if error == 404
 		if !d.IsNewResource() {

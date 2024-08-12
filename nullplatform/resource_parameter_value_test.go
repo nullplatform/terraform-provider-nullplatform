@@ -60,7 +60,7 @@ func testAccCheckParameterValueExists(n string, parameterValue *nullplatform.Par
 			return fmt.Errorf("provider meta is nil, ensure the provider is properly configured and initialized")
 		}
 
-		foundParameterValue, err := client.GetParameterValue(rs.Primary.Attributes["parameter_id"], rs.Primary.ID)
+		foundParameterValue, err := client.GetParameterValue(rs.Primary.Attributes["parameter_id"], rs.Primary.ID, nil)
 		if err != nil {
 			return err
 		}
@@ -86,7 +86,7 @@ func testAccCheckParameterValueDestroy(s *terraform.State) error {
 			continue
 		}
 
-		_, err := client.GetParameterValue(rs.Primary.Attributes["parameter_id"], rs.Primary.ID)
+		_, err := client.GetParameterValue(rs.Primary.Attributes["parameter_id"], rs.Primary.ID, nil)
 		if err == nil {
 			return fmt.Errorf("Parameter still exists")
 		}
