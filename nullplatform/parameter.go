@@ -93,8 +93,12 @@ func (c *NullClient) CreateParameter(param *Parameter, importIfCreated bool) (*P
 	return paramRes, nil
 }
 
-func (c *NullClient) GetParameter(parameterId string) (*Parameter, error) {
+func (c *NullClient) GetParameter(parameterId string, nrn *string) (*Parameter, error) {
 	path := fmt.Sprintf("%s/%s", PARAMETER_PATH, parameterId)
+
+	if nrn != nil && *nrn != "" {
+		path = fmt.Sprintf("%s?nrn=%s", path, *nrn)
+	}
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
@@ -207,10 +211,10 @@ func (c *NullClient) DeleteParameterValue(parameterId string, parameterValueId s
 	return nil
 }
 
-func (c *NullClient) GetParameterValue(parameterId string, parameterValueId string) (*ParameterValue, error) {
+func (c *NullClient) GetParameterValue(parameterId string, parameterValueId string, nrn *string) (*ParameterValue, error) {
 	var parameterValue *ParameterValue
 
-	param, err := c.GetParameter(parameterId)
+	param, err := c.GetParameter(parameterId, nrn)
 	if err != nil {
 		return nil, fmt.Errorf("Parameter ID %s not found", parameterId)
 	}

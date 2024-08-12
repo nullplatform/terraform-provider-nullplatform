@@ -116,10 +116,11 @@ func ParameterValueRead(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 	parameterId := strconv.Itoa(d.Get("parameter_id").(int))
 	parameterValueId := d.Id()
+	nrn := d.Get("nrn").(string)
 
 	err := retry.RetryContext(context.Background(), 1*time.Minute, func() *retry.RetryError {
 		var err error
-		parameterValue, err = nullOps.GetParameterValue(parameterId, parameterValueId)
+		parameterValue, err = nullOps.GetParameterValue(parameterId, parameterValueId, &nrn)
 		if err != nil {
 			if isRetryableError(err) {
 				return retry.RetryableError(err)
@@ -209,7 +210,7 @@ func ParameterValueDelete(d *schema.ResourceData, m any) error {
 	// FIXME: Most of this logic is duplicated in `ParameterValueRead`
 	var parameterValue *ParameterValue
 
-	param, err := nullOps.GetParameter(parameterId)
+	param, err := nullOps.GetParameter(parameterId, nil)
 	if err != nil {
 		// FIXME: Validate if error == 404
 		if !d.IsNewResource() {
