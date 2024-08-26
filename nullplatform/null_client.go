@@ -66,6 +66,16 @@ type NullOps interface {
 	CreateParameterValue(paramId int, paramValue *ParameterValue) (*ParameterValue, error)
 	GetParameterValue(parameterId string, parameterValueId string, nrn *string) (*ParameterValue, error)
 	DeleteParameterValue(parameterId string, parameterValueId string) error
+
+	CreateApprovalAction(action *ApprovalAction) (*ApprovalAction, error)
+	PatchApprovalAction(approvalActionId string, action *ApprovalAction) error
+	GetApprovalAction(approvalActionId string) (*ApprovalAction, error)
+	DeleteApprovalAction(approvalActionId string) error
+
+	CreateApprovalPolicy(policy *ApprovalPolicy) (*ApprovalPolicy, error)
+	PatchApprovalPolicy(ApprovalPolicyId string, policy *ApprovalPolicy) error
+	GetApprovalPolicy(ApprovalPolicyId string) (*ApprovalPolicy, error)
+	DeleteApprovalPolicy(ApprovalPolicyId string) error
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {
