@@ -14,6 +14,7 @@ type ApprovalPolicy struct {
 	Nrn        string `json:"nrn,omitempty"`
 	Name       string `json:"name,omitempty"`
 	Conditions string `json:"conditions,omitempty"`
+	Status     string `json:"status,omitempty"`
 }
 
 func (c *NullClient) CreateApprovalPolicy(policy *ApprovalPolicy) (*ApprovalPolicy, error) {
@@ -86,6 +87,10 @@ func (c *NullClient) GetApprovalPolicy(ApprovalPolicyId string) (*ApprovalPolicy
 
 	if derr != nil {
 		return nil, derr
+	}
+
+	if policy.Status == "deleted" {
+		return policy, fmt.Errorf("error getting approval policy resource, the status is %s", policy.Status)
 	}
 
 	if res.StatusCode != http.StatusOK {

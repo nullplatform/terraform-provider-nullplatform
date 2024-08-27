@@ -58,35 +58,38 @@ func ApprovalPolicyCreate(d *schema.ResourceData, m any) error {
 		Conditions: conditions,
 	}
 
-	ApprovalPolicy, err := nullOps.CreateApprovalPolicy(newApprovalPolicy)
+	approvalPolicy, err := nullOps.CreateApprovalPolicy(newApprovalPolicy)
 
 	if err != nil {
 		return err
 	}
 
-	d.SetId(strconv.Itoa(ApprovalPolicy.Id))
+	d.SetId(strconv.Itoa(approvalPolicy.Id))
 
 	return ApprovalPolicyRead(d, m)
 }
 
 func ApprovalPolicyRead(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
-	ApprovalPolicyId := d.Id()
+	approvalPolicyId := d.Id()
 
-	ApprovalPolicy, err := nullOps.GetApprovalPolicy(ApprovalPolicyId)
+	approvalPolicy, err := nullOps.GetApprovalPolicy(approvalPolicyId)
 	if err != nil {
+		if approvalPolicy.Status == "deleted" {
+			d.SetId("")
+			return nil
+		}
+		return err
+	}
+	if err := d.Set("nrn", approvalPolicy.Nrn); err != nil {
 		return err
 	}
 
-	if err := d.Set("nrn", ApprovalPolicy.Nrn); err != nil {
+	if err := d.Set("name", approvalPolicy.Name); err != nil {
 		return err
 	}
 
-	if err := d.Set("name", ApprovalPolicy.Name); err != nil {
-		return err
-	}
-
-	if err := d.Set("conditions", ApprovalPolicy.Conditions); err != nil {
+	if err := d.Set("conditions", approvalPolicy.Conditions); err != nil {
 		return err
 	}
 
@@ -95,24 +98,24 @@ func ApprovalPolicyRead(d *schema.ResourceData, m any) error {
 
 func ApprovalPolicyUpdate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
-	ApprovalPolicyId := d.Id()
+	approvalPolicyId := d.Id()
 
-	ApprovalPolicy := &ApprovalPolicy{}
+	approvalPolicy := &ApprovalPolicy{}
 
 	if d.HasChange("nrn") {
-		ApprovalPolicy.Nrn = d.Get("nrn").(string)
+		approvalPolicy.Nrn = d.Get("nrn").(string)
 	}
 
 	if d.HasChange("name") {
-		ApprovalPolicy.Name = d.Get("name").(string)
+		approvalPolicy.Name = d.Get("name").(string)
 	}
 
 	if d.HasChange("conditions") {
-		ApprovalPolicy.Conditions = d.Get("conditions").(string)
+		approvalPolicy.Conditions = d.Get("conditions").(string)
 	}
 
-	if !reflect.DeepEqual(*ApprovalPolicy, Scope{}) {
-		err := nullOps.PatchApprovalPolicy(ApprovalPolicyId, ApprovalPolicy)
+	if !reflect.DeepEqual(*approvalPolicy, Scope{}) {
+		err := nullOps.PatchApprovalPolicy(approvalPolicyId, approvalPolicy)
 		if err != nil {
 			return err
 		}
@@ -123,9 +126,9 @@ func ApprovalPolicyUpdate(d *schema.ResourceData, m any) error {
 
 func ApprovalPolicyDelete(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
-	ApprovalPolicyId := d.Id()
+	approvalPolicyId := d.Id()
 
-	err := nullOps.DeleteApprovalPolicy(ApprovalPolicyId)
+	err := nullOps.DeleteApprovalPolicy(approvalPolicyId)
 	if err != nil {
 		return err
 	}

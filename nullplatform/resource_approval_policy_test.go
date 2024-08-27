@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/structure"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/nullplatform/terraform-provider-nullplatform/nullplatform"
 )
@@ -25,6 +26,7 @@ func TestAccResourceApprovalPolicy(t *testing.T) {
 					testAccCheckApprovalPolicyExists("nullplatform_approval_policy.policy"),
 					resource.TestCheckResourceAttr("nullplatform_approval_policy.policy", "name", "Memory <= 4Gb"),
 					//resource.TestCheckResourceAttr("nullplatform_approval_policy.policy", "conditions", ""),
+					testAccCheckApprovalPolicyMatches("nullplatform_approval_policy.policy", `{"scope.requested_spec.memory_in_gb": {"$lte": 4}}`),
 				),
 			},
 		},
@@ -78,6 +80,33 @@ func testAccCheckApprovalPolicyDestroy(s *terraform.State) error {
 	}
 
 	return nil
+}
+
+func testAccCheckApprovalPolicyMatches(resourceName, expectedJSON string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("Not found: %s", resourceName)
+		}
+
+		policyStr := rs.Primary.Attributes["conditions"]
+
+		normalizedPolicy, err := structure.NormalizeJsonString(policyStr)
+		if err != nil {
+			return fmt.Errorf("policy is not valid JSON: %s", err)
+		}
+
+		normalizedExpected, err := structure.NormalizeJsonString(expectedJSON)
+		if err != nil {
+			return fmt.Errorf("expected policy is not valid JSON: %s", err)
+		}
+
+		if normalizedPolicy != normalizedExpected {
+			return fmt.Errorf("policy does not match expected")
+		}
+
+		return nil
+	}
 }
 
 func testAccResourceApprovalPolicy_basic(applicationID string) string {

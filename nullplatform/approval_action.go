@@ -17,6 +17,7 @@ type ApprovalAction struct {
 	Dimensions      map[string]string `json:"dimensions,omitempty"`
 	OnPolicySuccess string            `json:"on_policy_success,omitempty"`
 	OnPolicyFail    string            `json:"on_policy_fail,omitempty"`
+	Status          string            `json:"status,omitempty"`
 }
 
 func (c *NullClient) CreateApprovalAction(action *ApprovalAction) (*ApprovalAction, error) {
@@ -89,6 +90,10 @@ func (c *NullClient) GetApprovalAction(approvalActionId string) (*ApprovalAction
 
 	if derr != nil {
 		return nil, derr
+	}
+
+	if action.Status == "deleted" {
+		return action, fmt.Errorf("error getting approval action resource, the status is %s", action.Status)
 	}
 
 	if res.StatusCode != http.StatusOK {

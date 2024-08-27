@@ -106,6 +106,10 @@ func ApprovalActionRead(d *schema.ResourceData, m any) error {
 
 	approvalAction, err := nullOps.GetApprovalAction(approvalActionId)
 	if err != nil {
+		if approvalAction.Status == "deleted" {
+			d.SetId("")
+			return nil
+		}
 		return err
 	}
 
