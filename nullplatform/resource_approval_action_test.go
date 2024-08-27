@@ -30,6 +30,13 @@ func TestAccResourceApprovalAction(t *testing.T) {
 					resource.TestCheckResourceAttr("nullplatform_approval_action.action", "on_policy_fail", "deny"),
 				),
 			},
+			{
+				Config: testAccResourceApprovalAction_withPolicyAssociation(applicationID),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckApprovalActionExists("nullplatform_approval_action.action"),
+					resource.TestCheckResourceAttrSet("nullplatform_approval_action.action", "policies.0"),
+				),
+			},
 		},
 	})
 }
@@ -98,6 +105,36 @@ resource "nullplatform_approval_action" "action" {
   }
   on_policy_success = "approve"
   on_policy_fail    = "deny"
+}
+`, applicationID)
+}
+
+func testAccResourceApprovalAction_withPolicyAssociation(applicationID string) string {
+	return fmt.Sprintf(`
+data "nullplatform_application" "app" {
+  id = %s
+}
+
+resource "nullplatform_approval_action" "action" {
+  nrn        = data.nullplatform_application.app.nrn
+  entity     = "deployment"
+  action     = "deployment:create"
+  dimensions = {
+	environment = "prod"
+  }
+  on_policy_success = "approve"
+  on_policy_fail    = "deny"
+  policies          = [nullplatform_approval_policy.policy.id]
+}
+
+resource "nullplatform_approval_policy" "policy" {
+  nrn        = data.nullplatform_application.app.nrn
+  name       = "Memory <= 4Gb"
+  conditions = jsonencode({
+    "scope.requested_spec.memory_in_gb" = {
+      "$lte" = 4
+    }
+  })
 }
 `, applicationID)
 }

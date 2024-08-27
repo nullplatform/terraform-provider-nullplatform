@@ -18,6 +18,7 @@ type ApprovalAction struct {
 	OnPolicySuccess string            `json:"on_policy_success,omitempty"`
 	OnPolicyFail    string            `json:"on_policy_fail,omitempty"`
 	Status          string            `json:"status,omitempty"`
+	Policies        []string          `json:"policies,omitempty"`
 }
 
 func (c *NullClient) CreateApprovalAction(action *ApprovalAction) (*ApprovalAction, error) {
@@ -114,6 +115,53 @@ func (c *NullClient) DeleteApprovalAction(approvalActionId string) error {
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
 		return fmt.Errorf("error deleting approval action resource, got %d", res.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *NullClient) AssociatePolicyWithAction(approvalActionId, approvalPolicyID string) error {
+	var buf bytes.Buffer
+	path := fmt.Sprintf("%s/%s/policy", APPROVAL_ACTION_PATH, approvalActionId)
+
+	policy := map[string]string{
+		"policy_id": approvalPolicyID,
+	}
+	err := json.NewEncoder(&buf).Encode(policy)
+
+	if err != nil {
+		return err
+	}
+
+	res, err := c.MakeRequest("POST", path, &buf)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		var nErr NullErrors
+		if err := json.NewDecoder(res.Body).Decode(&nErr); err != nil {
+			return fmt.Errorf("failed to decode error response: %w", err)
+		}
+		defer res.Body.Close()
+		return fmt.Errorf("error associating approval policy with action, got status code: %d, %s", res.StatusCode, nErr.Message)
+	}
+
+	return nil
+}
+
+func (c *NullClient) DisassociatePolicyFromAction(approvalActionId, approvalPolicyID string) error {
+	path := fmt.Sprintf("%s/%s/policy/%s", APPROVAL_ACTION_PATH, approvalActionId, approvalPolicyID)
+
+	res, err := c.MakeRequest("DELETE", path, nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
+		return fmt.Errorf("error deleting approval action and policy association, got %d", res.StatusCode)
 	}
 
 	return nil

@@ -76,6 +76,9 @@ type NullOps interface {
 	PatchApprovalPolicy(ApprovalPolicyId string, policy *ApprovalPolicy) error
 	GetApprovalPolicy(ApprovalPolicyId string) (*ApprovalPolicy, error)
 	DeleteApprovalPolicy(ApprovalPolicyId string) error
+
+	AssociatePolicyWithAction(approvalActionId, approvalPolicyID string) error
+	DisassociatePolicyFromAction(approvalActionId, approvalPolicyID string) error
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {

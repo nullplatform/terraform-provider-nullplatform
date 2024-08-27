@@ -60,6 +60,12 @@ func resourceApprovalAction() *schema.Resource {
 				Required:    true,
 				Description: "The action to be taken on policy failure. Possible values: [`manual`, `deny`]",
 			},
+			"policies": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+				Description: "A list of Policy IDs to associate with the action.",
+			},
 		},
 	}
 }
@@ -72,6 +78,7 @@ func ApprovalActionCreate(d *schema.ResourceData, m any) error {
 	action := d.Get("action").(string)
 	onPolicySuccess := d.Get("on_policy_success").(string)
 	onPolicyFail := d.Get("on_policy_fail").(string)
+	policies := d.Get("policies").(*schema.Set)
 
 	dimensionsMap := d.Get("dimensions").(map[string]any)
 	// Convert the dimensions to a map[string]string
@@ -90,12 +97,19 @@ func ApprovalActionCreate(d *schema.ResourceData, m any) error {
 	}
 
 	approvalAction, err := nullOps.CreateApprovalAction(newApprovalAction)
-
 	if err != nil {
 		return err
 	}
 
-	d.SetId(strconv.Itoa(approvalAction.Id))
+	approvalActionId := strconv.Itoa(approvalAction.Id)
+	d.SetId(approvalActionId)
+
+	for _, policyId := range policies.List() {
+		err := nullOps.AssociatePolicyWithAction(approvalActionId, policyId.(string))
+		if err != nil {
+			return err
+		}
+	}
 
 	return ApprovalActionRead(d, m)
 }
@@ -134,6 +148,10 @@ func ApprovalActionRead(d *schema.ResourceData, m any) error {
 	}
 
 	if err := d.Set("on_policy_fail", approvalAction.OnPolicyFail); err != nil {
+		return err
+	}
+
+	if err := d.Set("policies", approvalAction.Policies); err != nil {
 		return err
 	}
 
@@ -182,6 +200,40 @@ func ApprovalActionUpdate(d *schema.ResourceData, m any) error {
 		err := nullOps.PatchApprovalAction(approvalActionId, approvalAction)
 		if err != nil {
 			return err
+		}
+	}
+
+	if d.HasChange("policies") {
+		var oldSet, newSet *schema.Set
+
+		oldPolicies, newPolicies := d.GetChange("policies")
+
+		if oldPolicies != nil {
+			oldSet = oldPolicies.(*schema.Set)
+		} else {
+			oldSet = schema.NewSet(schema.HashString, nil)
+		}
+
+		if newPolicies != nil {
+			newSet = newPolicies.(*schema.Set)
+		} else {
+			newSet = schema.NewSet(schema.HashString, nil)
+		}
+
+		// Remove policies
+		for _, policyId := range oldSet.Difference(newSet).List() {
+			err := nullOps.DisassociatePolicyFromAction(approvalActionId, policyId.(string))
+			if err != nil {
+				return err
+			}
+		}
+
+		// Add new policies
+		for _, policyId := range newSet.Difference(oldSet).List() {
+			err := nullOps.AssociatePolicyWithAction(approvalActionId, policyId.(string))
+			if err != nil {
+				return err
+			}
 		}
 	}
 
