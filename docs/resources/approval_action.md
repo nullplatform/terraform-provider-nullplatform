@@ -26,6 +26,7 @@ The approval action resource allows you to configure a nullplatform action for t
 ### Optional
 
 - `dimensions` (Map of String) A key-value map with the runtime configuration dimensions that apply to this scope.
+- `policies` (Set of String) A list of Policy IDs to associate with the action.
 
 ### Read-Only
 
