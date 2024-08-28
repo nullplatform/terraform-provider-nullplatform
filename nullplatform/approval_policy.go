@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 )
 
 const APPROVAL_POLICY_PATH = "/approval/policy"
@@ -100,19 +99,8 @@ func (c *NullClient) GetApprovalPolicy(ApprovalPolicyId string) (*ApprovalPolicy
 	return policy, nil
 }
 
-func (c *NullClient) DeleteApprovalPolicy(approvalPolicyNrn, approvalPolicyId string) error {
+func (c *NullClient) DeleteApprovalPolicy(approvalPolicyId string) error {
 	path := fmt.Sprintf("%s/%s", APPROVAL_POLICY_PATH, approvalPolicyId)
-	approvalActions, err := c.GetApprovalActionsByPolicy(approvalPolicyNrn, approvalPolicyId)
-	if err != nil {
-		return err
-	}
-
-	for _, approvalAction := range approvalActions {
-		err := c.DisassociatePolicyFromAction(strconv.Itoa(approvalAction.Id), approvalPolicyId)
-		if err != nil {
-			return fmt.Errorf("failed to disassociate policy from action %d: %v", approvalAction.Id, err)
-		}
-	}
 
 	res, err := c.MakeRequest("DELETE", path, nil)
 	if err != nil {
