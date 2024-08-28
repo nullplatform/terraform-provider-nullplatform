@@ -127,9 +127,8 @@ func ApprovalPolicyUpdate(d *schema.ResourceData, m any) error {
 func ApprovalPolicyDelete(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 	approvalPolicyId := d.Id()
-	approvalPolicyNrn := d.Get("nrn").(string)
 
-	err := nullOps.DeleteApprovalPolicy(approvalPolicyNrn, approvalPolicyId)
+	err := nullOps.DeleteApprovalPolicy(approvalPolicyId)
 	if err != nil {
 		return err
 	}

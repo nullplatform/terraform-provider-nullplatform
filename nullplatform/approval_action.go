@@ -21,11 +21,6 @@ type ApprovalAction struct {
 	Policies        []*ApprovalPolicy `json:"policies,omitempty"`
 }
 
-type ApprovalActionList struct {
-	Paging  Paging            `json:"paging,omitempty""`
-	Results []*ApprovalAction `json:"results,omitempty""`
-}
-
 func (c *NullClient) CreateApprovalAction(action *ApprovalAction) (*ApprovalAction, error) {
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*action)
@@ -107,28 +102,6 @@ func (c *NullClient) GetApprovalAction(approvalActionId string) (*ApprovalAction
 	}
 
 	return action, nil
-}
-
-func (c *NullClient) GetApprovalActionsByPolicy(approvalPolicyNrn, approvalPolicyId string) ([]*ApprovalAction, error) {
-	path := fmt.Sprintf("%s?nrn=%s&policy_id=%s", APPROVAL_ACTION_PATH, approvalPolicyNrn, approvalPolicyId)
-
-	res, err := c.MakeRequest("GET", path, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	var approvalActions *ApprovalActionList
-	err = json.NewDecoder(res.Body).Decode(&approvalActions)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode approval actions: %v", err)
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error getting approval action by policy, got %d for %s", res.StatusCode, approvalPolicyId)
-	}
-
-	return approvalActions.Results, nil
 }
 
 func (c *NullClient) DeleteApprovalAction(approvalActionId string) error {
