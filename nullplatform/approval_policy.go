@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 )
 
 const APPROVAL_POLICY_PATH = "/approval/policy"
@@ -34,10 +35,9 @@ func (c *NullClient) CreateApprovalPolicy(policy *ApprovalPolicy) (*ApprovalPoli
 	if res.StatusCode != http.StatusOK {
 		var nErr NullErrors
 		if err := json.NewDecoder(res.Body).Decode(&nErr); err != nil {
-			return nil, fmt.Errorf("failed to decode error response: %w", err)
+			return nil, fmt.Errorf("failed to decode null error response: %w", err)
 		}
-		defer res.Body.Close()
-		return nil, fmt.Errorf("error creating approval policy resource, got status code: %d, %s", res.StatusCode, nErr.Message)
+		return nil, fmt.Errorf("error creating approval policy resource, got status code: %d, message: %s", res.StatusCode, nErr.Message)
 	}
 
 	policyRes := &ApprovalPolicy{}
@@ -100,8 +100,19 @@ func (c *NullClient) GetApprovalPolicy(ApprovalPolicyId string) (*ApprovalPolicy
 	return policy, nil
 }
 
-func (c *NullClient) DeleteApprovalPolicy(ApprovalPolicyId string) error {
-	path := fmt.Sprintf("%s/%s", APPROVAL_POLICY_PATH, ApprovalPolicyId)
+func (c *NullClient) DeleteApprovalPolicy(approvalPolicyNrn, approvalPolicyId string) error {
+	path := fmt.Sprintf("%s/%s", APPROVAL_POLICY_PATH, approvalPolicyId)
+	approvalActions, err := c.GetApprovalActionsByPolicy(approvalPolicyNrn, approvalPolicyId)
+	if err != nil {
+		return err
+	}
+
+	for _, approvalAction := range approvalActions {
+		err := c.DisassociatePolicyFromAction(strconv.Itoa(approvalAction.Id), approvalPolicyId)
+		if err != nil {
+			return fmt.Errorf("failed to disassociate policy from action %d: %v", approvalAction.Id, err)
+		}
+	}
 
 	res, err := c.MakeRequest("DELETE", path, nil)
 	if err != nil {
@@ -110,7 +121,11 @@ func (c *NullClient) DeleteApprovalPolicy(ApprovalPolicyId string) error {
 	defer res.Body.Close()
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		return fmt.Errorf("error deleting approval policy resource, got %d", res.StatusCode)
+		var nErr NullErrors
+		if err := json.NewDecoder(res.Body).Decode(&nErr); err != nil {
+			return fmt.Errorf("failed to decode null error response: %w", err)
+		}
+		return fmt.Errorf("error deleting approval policy resource, got status code: %d, message: %s", res.StatusCode, nErr.Message)
 	}
 
 	return nil

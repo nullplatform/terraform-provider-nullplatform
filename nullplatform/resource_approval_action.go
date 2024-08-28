@@ -151,7 +151,15 @@ func ApprovalActionRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	if err := d.Set("policies", approvalAction.Policies); err != nil {
+	// Convert ApprovalPolicy.Id to a set of strings
+	policyIds := make([]string, len(approvalAction.Policies))
+	for i, policy := range approvalAction.Policies {
+		if policy != nil {
+			policyIds[i] = strconv.Itoa(policy.Id)
+		}
+	}
+
+	if err := d.Set("policies", policyIds); err != nil {
 		return err
 	}
 

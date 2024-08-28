@@ -18,7 +18,12 @@ type ApprovalAction struct {
 	OnPolicySuccess string            `json:"on_policy_success,omitempty"`
 	OnPolicyFail    string            `json:"on_policy_fail,omitempty"`
 	Status          string            `json:"status,omitempty"`
-	Policies        []string          `json:"policies,omitempty"`
+	Policies        []*ApprovalPolicy `json:"policies,omitempty"`
+}
+
+type ApprovalActionList struct {
+	Paging  Paging            `json:"paging,omitempty""`
+	Results []*ApprovalAction `json:"results,omitempty""`
 }
 
 func (c *NullClient) CreateApprovalAction(action *ApprovalAction) (*ApprovalAction, error) {
@@ -104,6 +109,28 @@ func (c *NullClient) GetApprovalAction(approvalActionId string) (*ApprovalAction
 	return action, nil
 }
 
+func (c *NullClient) GetApprovalActionsByPolicy(approvalPolicyNrn, approvalPolicyId string) ([]*ApprovalAction, error) {
+	path := fmt.Sprintf("%s?nrn=%s&policy_id=%s", APPROVAL_ACTION_PATH, approvalPolicyNrn, approvalPolicyId)
+
+	res, err := c.MakeRequest("GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	var approvalActions *ApprovalActionList
+	err = json.NewDecoder(res.Body).Decode(&approvalActions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode approval actions: %v", err)
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("error getting approval action by policy, got %d for %s", res.StatusCode, approvalPolicyId)
+	}
+
+	return approvalActions.Results, nil
+}
+
 func (c *NullClient) DeleteApprovalAction(approvalActionId string) error {
 	path := fmt.Sprintf("%s/%s", APPROVAL_ACTION_PATH, approvalActionId)
 
@@ -139,7 +166,7 @@ func (c *NullClient) AssociatePolicyWithAction(approvalActionId, approvalPolicyI
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusCreated) {
 		var nErr NullErrors
 		if err := json.NewDecoder(res.Body).Decode(&nErr); err != nil {
 			return fmt.Errorf("failed to decode error response: %w", err)

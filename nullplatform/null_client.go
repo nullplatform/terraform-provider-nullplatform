@@ -75,7 +75,7 @@ type NullOps interface {
 	CreateApprovalPolicy(policy *ApprovalPolicy) (*ApprovalPolicy, error)
 	PatchApprovalPolicy(ApprovalPolicyId string, policy *ApprovalPolicy) error
 	GetApprovalPolicy(ApprovalPolicyId string) (*ApprovalPolicy, error)
-	DeleteApprovalPolicy(ApprovalPolicyId string) error
+	DeleteApprovalPolicy(approvalPolicyNrn, approvalPolicyId string) error
 
 	AssociatePolicyWithAction(approvalActionId, approvalPolicyID string) error
 	DisassociatePolicyFromAction(approvalActionId, approvalPolicyID string) error
