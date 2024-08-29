@@ -121,6 +121,10 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 
 	notificationChannel, err := nullOps.GetNotificationChannel(notificationChannelId)
 	if err != nil {
+		if notificationChannel.Status == "inactive" {
+			d.SetId("")
+			return nil
+		}
 		return err
 	}
 

@@ -15,6 +15,7 @@ type NotificationChannel struct {
 	Type          string                            `json:"type,omitempty"`
 	Source        []string                          `json:"source,omitempty"`
 	Configuration *NotificationChannelConfiguration `json:"configuration,omitempty"`
+	Status        string                            `json:"status,omitempty"`
 }
 
 type NotificationChannelConfiguration struct {
@@ -70,6 +71,10 @@ func (c *NullClient) GetNotificationChannel(notificationId string) (*Notificatio
 
 	if derr != nil {
 		return nil, derr
+	}
+
+	if notification.Status == "inactive" {
+		return notification, fmt.Errorf("error getting notification channel, the status is %s", notification.Status)
 	}
 
 	if res.StatusCode != http.StatusOK {
