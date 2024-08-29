@@ -79,6 +79,10 @@ type NullOps interface {
 
 	AssociatePolicyWithAction(approvalActionId, approvalPolicyID string) error
 	DisassociatePolicyFromAction(approvalActionId, approvalPolicyID string) error
+
+	CreateNotificationChannel(notification *NotificationChannel) (*NotificationChannel, error)
+	GetNotificationChannel(notificationId string) (*NotificationChannel, error)
+	DeleteNotificationChannel(notificationId string) error
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {
