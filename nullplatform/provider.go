@@ -31,13 +31,14 @@ func Provider() *schema.Provider {
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"nullplatform_scope":           resourceScope(),
-			"nullplatform_service":         resourceService(),
-			"nullplatform_link":            resourceLink(),
-			"nullplatform_parameter":       resourceParameter(),
-			"nullplatform_parameter_value": resourceParameterValue(),
-			"nullplatform_approval_action": resourceApprovalAction(),
-			"nullplatform_approval_policy": resourceApprovalPolicy(),
+			"nullplatform_scope":                resourceScope(),
+			"nullplatform_service":              resourceService(),
+			"nullplatform_link":                 resourceLink(),
+			"nullplatform_parameter":            resourceParameter(),
+			"nullplatform_parameter_value":      resourceParameterValue(),
+			"nullplatform_approval_action":      resourceApprovalAction(),
+			"nullplatform_approval_policy":      resourceApprovalPolicy(),
+			"nullplatform_notification_channel": resourceNotificationChannel(),
 		},
 		// DataSource is a subset of Resource.
 		DataSourcesMap: map[string]*schema.Resource{
