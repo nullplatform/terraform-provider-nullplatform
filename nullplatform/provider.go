@@ -39,6 +39,7 @@ func Provider() *schema.Provider {
 			"nullplatform_approval_action":      resourceApprovalAction(),
 			"nullplatform_approval_policy":      resourceApprovalPolicy(),
 			"nullplatform_notification_channel": resourceNotificationChannel(),
+			"nullplatform_runtime_configuration": resourceRuntimeConfiguration(),
 		},
 		// DataSource is a subset of Resource.
 		DataSourcesMap: map[string]*schema.Resource{

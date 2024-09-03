@@ -83,6 +83,11 @@ type NullOps interface {
 	CreateNotificationChannel(notification *NotificationChannel) (*NotificationChannel, error)
 	GetNotificationChannel(notificationId string) (*NotificationChannel, error)
 	DeleteNotificationChannel(notificationId string) error
+
+	CreateRuntimeConfiguration(rc *RuntimeConfiguration) (*RuntimeConfiguration, error)
+	PatchRuntimeConfiguration(runtimeConfigId string, rc *RuntimeConfiguration) error
+	GetRuntimeConfiguration(runtimeConfigId string) (*RuntimeConfiguration, error)
+	DeleteRuntimeConfiguration(runtimeConfigId string) error
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {

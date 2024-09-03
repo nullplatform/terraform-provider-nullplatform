@@ -38,6 +38,7 @@ func TestProvider_HasChildResources(t *testing.T) {
 		"nullplatform_approval_action",
 		"nullplatform_approval_policy",
 		"nullplatform_notification_channel",
+		"nullplatform_runtime_configuration",
 	}
 
 	resources := nullplatform.Provider().ResourcesMap
