@@ -90,9 +90,11 @@ type NullOps interface {
 	DeleteRuntimeConfiguration(runtimeConfigId string) error
 
 	CreateNpProvider(p *NpProvider) (*NpProvider, error)
-	PatchNpProvider(npProviderId string, p *NpProvider) error
 	GetNpProvider(npProviderId string) (*NpProvider, error)
+	PatchNpProvider(npProviderId string, p *NpProvider) error
 	DeleteNpProvider(npProviderId string) error
+	GetSpecificationIdFromSlug(slug string) (string, error)
+	GetSpecificationSlugFromId(id string) (string, error)
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {

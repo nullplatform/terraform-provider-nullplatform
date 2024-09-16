@@ -8,7 +8,10 @@ import (
 	"strings"
 )
 
-const PROVIDER_PATH = "/provider"
+const (
+	PROVIDER_PATH      = "/provider"
+	SPECIFICATION_PATH = "/provider_specification"
+)
 
 type NpProvider struct {
 	Id              string                 `json:"id,omitempty"`
@@ -16,6 +19,11 @@ type NpProvider struct {
 	Dimensions      map[string]string      `json:"dimensions,omitempty"`
 	SpecificationId string                 `json:"specificationId,omitempty"`
 	Attributes      map[string]interface{} `json:"attributes,omitempty"`
+}
+
+type NpSpecification struct {
+	Id   string `json:"id"`
+	Slug string `json:"slug"`
 }
 
 func (c *NullClient) CreateNpProvider(p *NpProvider) (*NpProvider, error) {
@@ -113,4 +121,48 @@ func (c *NullClient) DeleteNpProvider(npProviderId string) error {
 	}
 
 	return nil
+}
+
+func (c *NullClient) GetSpecificationIdFromSlug(slug string) (string, error) {
+	path := fmt.Sprintf("%s?slug=%s", SPECIFICATION_PATH, slug)
+
+	res, err := c.MakeRequest("GET", path, nil)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("error getting specification, got status code: %d", res.StatusCode)
+	}
+
+	spec := &NpSpecification{}
+	derr := json.NewDecoder(res.Body).Decode(spec)
+	if derr != nil {
+		return "", derr
+	}
+
+	return spec.Id, nil
+}
+
+func (c *NullClient) GetSpecificationSlugFromId(id string) (string, error) {
+	path := fmt.Sprintf("%s/%s", SPECIFICATION_PATH, id)
+
+	res, err := c.MakeRequest("GET", path, nil)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("error getting specification, got status code: %d", res.StatusCode)
+	}
+
+	spec := &NpSpecification{}
+	derr := json.NewDecoder(res.Body).Decode(spec)
+	if derr != nil {
+		return "", derr
+	}
+
+	return spec.Slug, nil
 }

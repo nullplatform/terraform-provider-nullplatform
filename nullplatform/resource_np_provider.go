@@ -1,7 +1,7 @@
 package nullplatform
 
 import (
-	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -16,10 +16,7 @@ func resourceNpProvider() *schema.Resource {
 		Delete: NpProviderDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
-				d.SetId(d.Id())
-				return []*schema.ResourceData{d}, nil
-			},
+			StateContext: schema.ImportStatePassthroughContext,
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -37,10 +34,10 @@ func resourceNpProvider() *schema.Resource {
 				},
 				Description: "A key-value map with the provider dimensions that apply to this scope.",
 			},
-			"specification_id": {
+			"specification": {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "The ID of the provider specification.",
+				Description: "The slug of the provider specification (e.g., 'aws/eks', 'aws/lambda_iam').",
 			},
 			"attributes": {
 				Type:     schema.TypeMap,
@@ -69,10 +66,16 @@ func NpProviderCreate(d *schema.ResourceData, m interface{}) error {
 		attributes[key] = value
 	}
 
+	specificationSlug := d.Get("specification").(string)
+	specificationId, err := nullOps.GetSpecificationIdFromSlug(specificationSlug)
+	if err != nil {
+		return fmt.Errorf("error fetching specification ID for slug %s: %v", specificationSlug, err)
+	}
+
 	newNpProvider := &NpProvider{
 		Nrn:             d.Get("nrn").(string),
 		Dimensions:      dimensions,
-		SpecificationId: d.Get("specification_id").(string),
+		SpecificationId: specificationId,
 		Attributes:      attributes,
 	}
 
@@ -105,7 +108,12 @@ func NpProviderRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	if err := d.Set("specification_id", np.SpecificationId); err != nil {
+	specificationSlug, err := nullOps.GetSpecificationSlugFromId(np.SpecificationId)
+	if err != nil {
+		return fmt.Errorf("error fetching specification slug for ID %s: %v", np.SpecificationId, err)
+	}
+
+	if err := d.Set("specification", specificationSlug); err != nil {
 		return err
 	}
 
@@ -135,8 +143,13 @@ func NpProviderUpdate(d *schema.ResourceData, m interface{}) error {
 		np.Dimensions = dimensions
 	}
 
-	if d.HasChange("specification_id") {
-		np.SpecificationId = d.Get("specification_id").(string)
+	if d.HasChange("specification") {
+		specificationSlug := d.Get("specification").(string)
+		specificationId, err := nullOps.GetSpecificationIdFromSlug(specificationSlug)
+		if err != nil {
+			return fmt.Errorf("error fetching specification ID for slug %s: %v", specificationSlug, err)
+		}
+		np.SpecificationId = specificationId
 	}
 
 	if d.HasChange("attributes") {
