@@ -6,14 +6,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func resourceNpProvider() *schema.Resource {
+func resourceProviderConfig() *schema.Resource {
 	return &schema.Resource{
-		Description: "The np_provider resource allows you to configure a nullplatform Provider",
+		Description: "The provider_config resource allows you to configure a nullplatform Provider",
 
-		Create: NpProviderCreate,
-		Read:   NpProviderRead,
-		Update: NpProviderUpdate,
-		Delete: NpProviderDelete,
+		Create: ProviderConfigCreate,
+		Read:   ProviderConfigRead,
+		Update: ProviderConfigUpdate,
+		Delete: ProviderConfigDelete,
 
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -51,7 +51,7 @@ func resourceNpProvider() *schema.Resource {
 	}
 }
 
-func NpProviderCreate(d *schema.ResourceData, m interface{}) error {
+func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
 
 	dimensionsMap := d.Get("dimensions").(map[string]interface{})
@@ -72,66 +72,66 @@ func NpProviderCreate(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("error fetching specification ID for slug %s: %v", specificationSlug, err)
 	}
 
-	newNpProvider := &NpProvider{
+	newProviderConfig := &ProviderConfig{
 		Nrn:             d.Get("nrn").(string),
 		Dimensions:      dimensions,
 		SpecificationId: specificationId,
 		Attributes:      attributes,
 	}
 
-	np, err := nullOps.CreateNpProvider(newNpProvider)
+	pc, err := nullOps.CreateProviderConfig(newProviderConfig)
 
 	if err != nil {
 		return err
 	}
 
-	d.SetId(np.Id)
+	d.SetId(pc.Id)
 
-	return NpProviderRead(d, m)
+	return ProviderConfigRead(d, m)
 }
 
-func NpProviderRead(d *schema.ResourceData, m interface{}) error {
+func ProviderConfigRead(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
-	npProviderId := d.Id()
+	providerConfigId := d.Id()
 
-	np, err := nullOps.GetNpProvider(npProviderId)
+	pc, err := nullOps.GetProviderConfig(providerConfigId)
 
 	if err != nil {
 		return err
 	}
 
-	if err := d.Set("nrn", np.Nrn); err != nil {
+	if err := d.Set("nrn", pc.Nrn); err != nil {
 		return err
 	}
 
-	if err := d.Set("dimensions", np.Dimensions); err != nil {
+	if err := d.Set("dimensions", pc.Dimensions); err != nil {
 		return err
 	}
 
-	specificationSlug, err := nullOps.GetSpecificationSlugFromId(np.SpecificationId)
+	specificationSlug, err := nullOps.GetSpecificationSlugFromId(pc.SpecificationId)
 	if err != nil {
-		return fmt.Errorf("error fetching specification slug for ID %s: %v", np.SpecificationId, err)
+		return fmt.Errorf("error fetching specification slug for ID %s: %v", pc.SpecificationId, err)
 	}
 
 	if err := d.Set("specification", specificationSlug); err != nil {
 		return err
 	}
 
-	if err := d.Set("attributes", np.Attributes); err != nil {
+	if err := d.Set("attributes", pc.Attributes); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func NpProviderUpdate(d *schema.ResourceData, m interface{}) error {
+func ProviderConfigUpdate(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
-	npProviderId := d.Id()
+	providerConfigId := d.Id()
 
-	np := &NpProvider{}
+	pc := &ProviderConfig{}
 
 	if d.HasChange("nrn") {
-		np.Nrn = d.Get("nrn").(string)
+		pc.Nrn = d.Get("nrn").(string)
 	}
 
 	if d.HasChange("dimensions") {
@@ -140,7 +140,7 @@ func NpProviderUpdate(d *schema.ResourceData, m interface{}) error {
 		for key, value := range dimensionsMap {
 			dimensions[key] = value.(string)
 		}
-		np.Dimensions = dimensions
+		pc.Dimensions = dimensions
 	}
 
 	if d.HasChange("specification") {
@@ -149,7 +149,7 @@ func NpProviderUpdate(d *schema.ResourceData, m interface{}) error {
 		if err != nil {
 			return fmt.Errorf("error fetching specification ID for slug %s: %v", specificationSlug, err)
 		}
-		np.SpecificationId = specificationId
+		pc.SpecificationId = specificationId
 	}
 
 	if d.HasChange("attributes") {
@@ -158,22 +158,22 @@ func NpProviderUpdate(d *schema.ResourceData, m interface{}) error {
 		for key, value := range attributesMap {
 			attributes[key] = value
 		}
-		np.Attributes = attributes
+		pc.Attributes = attributes
 	}
 
-	err := nullOps.PatchNpProvider(npProviderId, np)
+	err := nullOps.PatchProviderConfig(providerConfigId, pc)
 	if err != nil {
 		return err
 	}
 
-	return NpProviderRead(d, m)
+	return ProviderConfigRead(d, m)
 }
 
-func NpProviderDelete(d *schema.ResourceData, m interface{}) error {
+func ProviderConfigDelete(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
-	npProviderId := d.Id()
+	providerConfigId := d.Id()
 
-	err := nullOps.DeleteNpProvider(npProviderId)
+	err := nullOps.DeleteProviderConfig(providerConfigId)
 	if err != nil {
 		return err
 	}

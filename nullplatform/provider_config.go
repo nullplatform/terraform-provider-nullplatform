@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	PROVIDER_PATH      = "/provider"
-	SPECIFICATION_PATH = "/provider_specification"
+	PROVIDER_CONFIG_PATH = "/provider"
+	SPECIFICATION_PATH   = "/provider_specification"
 )
 
-type NpProvider struct {
+type ProviderConfig struct {
 	Id              string                 `json:"id,omitempty"`
 	Nrn             string                 `json:"nrn,omitempty"`
 	Dimensions      map[string]string      `json:"dimensions,omitempty"`
@@ -26,7 +26,11 @@ type NpSpecification struct {
 	Slug string `json:"slug"`
 }
 
-func (c *NullClient) CreateNpProvider(p *NpProvider) (*NpProvider, error) {
+type SpecificationResponse struct {
+	Results []NpSpecification `json:"results"`
+}
+
+func (c *NullClient) CreateProviderConfig(p *ProviderConfig) (*ProviderConfig, error) {
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*p)
 
@@ -34,7 +38,7 @@ func (c *NullClient) CreateNpProvider(p *NpProvider) (*NpProvider, error) {
 		return nil, err
 	}
 
-	res, err := c.MakeRequest("POST", PROVIDER_PATH, &buf)
+	res, err := c.MakeRequest("POST", PROVIDER_CONFIG_PATH, &buf)
 	if err != nil {
 		return nil, err
 	}
@@ -48,10 +52,10 @@ func (c *NullClient) CreateNpProvider(p *NpProvider) (*NpProvider, error) {
 				return nil, fmt.Errorf("el error es %s", strings.ToLower(dErr.Error()))
 			}
 		}
-		return nil, fmt.Errorf("error creating provider resource, got status code: %d", res.StatusCode)
+		return nil, fmt.Errorf("error creating provider config resource, got status code: %d", res.StatusCode)
 	}
 
-	pRes := &NpProvider{}
+	pRes := &ProviderConfig{}
 	derr := json.NewDecoder(res.Body).Decode(pRes)
 
 	if derr != nil {
@@ -61,8 +65,8 @@ func (c *NullClient) CreateNpProvider(p *NpProvider) (*NpProvider, error) {
 	return pRes, nil
 }
 
-func (c *NullClient) PatchNpProvider(npProviderId string, p *NpProvider) error {
-	path := fmt.Sprintf("%s/%s", PROVIDER_PATH, npProviderId)
+func (c *NullClient) PatchProviderConfig(providerConfigId string, p *ProviderConfig) error {
+	path := fmt.Sprintf("%s/%s", PROVIDER_CONFIG_PATH, providerConfigId)
 
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*p)
@@ -78,14 +82,14 @@ func (c *NullClient) PatchNpProvider(npProviderId string, p *NpProvider) error {
 	defer res.Body.Close()
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		return fmt.Errorf("error patching provider resource, got %d", res.StatusCode)
+		return fmt.Errorf("error patching provider config resource, got %d", res.StatusCode)
 	}
 
 	return nil
 }
 
-func (c *NullClient) GetNpProvider(npProviderId string) (*NpProvider, error) {
-	path := fmt.Sprintf("%s/%s", PROVIDER_PATH, npProviderId)
+func (c *NullClient) GetProviderConfig(providerConfigId string) (*ProviderConfig, error) {
+	path := fmt.Sprintf("%s/%s", PROVIDER_CONFIG_PATH, providerConfigId)
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
@@ -93,7 +97,7 @@ func (c *NullClient) GetNpProvider(npProviderId string) (*NpProvider, error) {
 	}
 	defer res.Body.Close()
 
-	p := &NpProvider{}
+	p := &ProviderConfig{}
 	derr := json.NewDecoder(res.Body).Decode(p)
 
 	if derr != nil {
@@ -101,14 +105,14 @@ func (c *NullClient) GetNpProvider(npProviderId string) (*NpProvider, error) {
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error getting provider resource, got %d for %s", res.StatusCode, npProviderId)
+		return nil, fmt.Errorf("error getting provider config resource, got %d for %s", res.StatusCode, providerConfigId)
 	}
 
 	return p, nil
 }
 
-func (c *NullClient) DeleteNpProvider(npProviderId string) error {
-	path := fmt.Sprintf("%s/%s", PROVIDER_PATH, npProviderId)
+func (c *NullClient) DeleteProviderConfig(providerConfigId string) error {
+	path := fmt.Sprintf("%s/%s", PROVIDER_CONFIG_PATH, providerConfigId)
 
 	res, err := c.MakeRequest("DELETE", path, nil)
 	if err != nil {
@@ -117,7 +121,7 @@ func (c *NullClient) DeleteNpProvider(npProviderId string) error {
 	defer res.Body.Close()
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		return fmt.Errorf("error deleting provider resource, got %d", res.StatusCode)
+		return fmt.Errorf("error deleting provider config resource, got %d", res.StatusCode)
 	}
 
 	return nil
@@ -136,17 +140,21 @@ func (c *NullClient) GetSpecificationIdFromSlug(slug string) (string, error) {
 		return "", fmt.Errorf("error getting specification, got status code: %d", res.StatusCode)
 	}
 
-	spec := &NpSpecification{}
-	derr := json.NewDecoder(res.Body).Decode(spec)
+	var specResponse SpecificationResponse
+	derr := json.NewDecoder(res.Body).Decode(&specResponse)
 	if derr != nil {
 		return "", derr
 	}
 
-	return spec.Id, nil
+	if len(specResponse.Results) == 0 {
+		return "", fmt.Errorf("no specification found for slug: %s", slug)
+	}
+
+	return specResponse.Results[0].Id, nil
 }
 
-func (c *NullClient) GetSpecificationSlugFromId(id string) (string, error) {
-	path := fmt.Sprintf("%s/%s", SPECIFICATION_PATH, id)
+func (c *NullClient) GetSpecificationSlugFromId(id string, nrn string) (string, error) {
+	path := fmt.Sprintf("%s/%s&%s", SPECIFICATION_PATH, id, nrn)
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
@@ -158,11 +166,15 @@ func (c *NullClient) GetSpecificationSlugFromId(id string) (string, error) {
 		return "", fmt.Errorf("error getting specification, got status code: %d", res.StatusCode)
 	}
 
-	spec := &NpSpecification{}
-	derr := json.NewDecoder(res.Body).Decode(spec)
+	var specResponse SpecificationResponse
+	derr := json.NewDecoder(res.Body).Decode(&specResponse)
 	if derr != nil {
 		return "", derr
 	}
 
-	return spec.Slug, nil
+	if len(specResponse.Results) == 0 {
+		return "", fmt.Errorf("no specification found for id: %s and nrn: %s", id, nrn)
+	}
+
+	return specResponse.Results[0].Slug, nil
 }

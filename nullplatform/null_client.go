@@ -89,10 +89,10 @@ type NullOps interface {
 	GetRuntimeConfiguration(runtimeConfigId string) (*RuntimeConfiguration, error)
 	DeleteRuntimeConfiguration(runtimeConfigId string) error
 
-	CreateNpProvider(p *NpProvider) (*NpProvider, error)
-	GetNpProvider(npProviderId string) (*NpProvider, error)
-	PatchNpProvider(npProviderId string, p *NpProvider) error
-	DeleteNpProvider(npProviderId string) error
+	CreateProviderConfig(p *ProviderConfig) (*ProviderConfig, error)
+	GetProviderConfig(providerConfigId string) (*ProviderConfig, error)
+	PatchProviderConfig(providerConfigId string, p *ProviderConfig) error
+	DeleteProviderConfig(providerConfigId string) error
 	GetSpecificationIdFromSlug(slug string) (string, error)
 	GetSpecificationSlugFromId(id string) (string, error)
 }

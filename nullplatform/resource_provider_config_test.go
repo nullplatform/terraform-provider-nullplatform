@@ -10,29 +10,29 @@ import (
 	"github.com/nullplatform/terraform-provider-nullplatform/nullplatform"
 )
 
-func TestAccResourceNpProvider(t *testing.T) {
-	var npProvider nullplatform.NpProvider
+func TestAccResourceProviderConfig(t *testing.T) {
+	var providerConfig nullplatform.ProviderConfig
 	specificationID := os.Getenv("NULLPLATFORM_SPECIFICATION_ID")
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckNpProviderDestroy,
+		CheckDestroy: testAccCheckProviderConfigDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNpProvider_basic(specificationID),
+				Config: testAccResourceProviderConfig_basic(specificationID),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckNpProviderExists("nullplatform_np_provider.test_provider", &npProvider),
-					resource.TestCheckResourceAttr("nullplatform_np_provider.test_provider", "attributes.api_key", "test-api-key"),
-					resource.TestCheckResourceAttr("nullplatform_np_provider.test_provider", "attributes.region", "us-west-2"),
-					resource.TestCheckResourceAttr("nullplatform_np_provider.test_provider", "dimensions.environment", "dev"),
+					testAccCheckProviderConfigExists("nullplatform_provider_config.test_provider", &providerConfig),
+					resource.TestCheckResourceAttr("nullplatform_provider_config.test_provider", "attributes.api_key", "test-api-key"),
+					resource.TestCheckResourceAttr("nullplatform_provider_config.test_provider", "attributes.region", "us-west-2"),
+					resource.TestCheckResourceAttr("nullplatform_provider_config.test_provider", "dimensions.environment", "dev"),
 				),
 			},
 		},
 	})
 }
 
-func testAccCheckNpProviderExists(n string, np *nullplatform.NpProvider) resource.TestCheckFunc {
+func testAccCheckProviderConfigExists(n string, pc *nullplatform.ProviderConfig) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[n]
 		if !ok {
@@ -48,45 +48,45 @@ func testAccCheckNpProviderExists(n string, np *nullplatform.NpProvider) resourc
 			return fmt.Errorf("provider meta is nil, ensure the provider is properly configured and initialized")
 		}
 
-		foundNpProvider, err := client.GetNpProvider(rs.Primary.ID)
+		foundProviderConfig, err := client.GetProviderConfig(rs.Primary.ID)
 		if err != nil {
 			return err
 		}
 
-		if foundNpProvider.Id != rs.Primary.ID {
-			return fmt.Errorf("NpProvider not found")
+		if foundProviderConfig.Id != rs.Primary.ID {
+			return fmt.Errorf("ProviderConfig not found")
 		}
 
-		*np = *foundNpProvider
+		*pc = *foundProviderConfig
 
 		return nil
 	}
 }
 
-func testAccCheckNpProviderDestroy(s *terraform.State) error {
+func testAccCheckProviderConfigDestroy(s *terraform.State) error {
 	client := testAccProviders["nullplatform"].Meta().(nullplatform.NullOps)
 	if client == nil {
 		return fmt.Errorf("provider meta is nil, ensure the provider is properly configured and initialized")
 	}
 
 	for _, rs := range s.RootModule().Resources {
-		if rs.Type != "nullplatform_np_provider" {
+		if rs.Type != "nullplatform_provider_config" {
 			continue
 		}
 
-		_, err := client.GetNpProvider(rs.Primary.ID)
+		_, err := client.GetProviderConfig(rs.Primary.ID)
 		if err == nil {
-			return fmt.Errorf("NpProvider with ID %s still exists", rs.Primary.ID)
+			return fmt.Errorf("ProviderConfig with ID %s still exists", rs.Primary.ID)
 		}
 	}
 
 	return nil
 }
 
-func testAccResourceNpProvider_basic(specificationID string) string {
+func testAccResourceProviderConfig_basic(specificationID string) string {
 	return fmt.Sprintf(`
-resource "nullplatform_np_provider" "test_provider" {
-  nrn              = "nrn:null:np_provider:test"
+resource "nullplatform_provider_config" "test_provider" {
+  nrn              = "nrn:null:provider_config:test"
   specification_id = "%s"
   dimensions = {
     environment = "dev"
