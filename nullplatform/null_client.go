@@ -93,7 +93,7 @@ type NullOps interface {
 	GetProviderConfig(providerConfigId string) (*ProviderConfig, error)
 	PatchProviderConfig(providerConfigId string, p *ProviderConfig) error
 	DeleteProviderConfig(providerConfigId string) error
-	GetSpecificationIdFromSlug(slug string) (string, error)
+	GetSpecificationIdFromSlug(slug string, nrn string) (string, error)
 	GetSpecificationSlugFromId(id string) (string, error)
 }
 

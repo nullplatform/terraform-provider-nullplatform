@@ -127,8 +127,8 @@ func (c *NullClient) DeleteProviderConfig(providerConfigId string) error {
 	return nil
 }
 
-func (c *NullClient) GetSpecificationIdFromSlug(slug string) (string, error) {
-	path := fmt.Sprintf("%s?slug=%s", SPECIFICATION_PATH, slug)
+func (c *NullClient) GetSpecificationIdFromSlug(slug string, nrn string) (string, error) {
+	path := fmt.Sprintf("%s?slug=%s&nrn=%s", SPECIFICATION_PATH, slug, nrn)
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
@@ -153,8 +153,8 @@ func (c *NullClient) GetSpecificationIdFromSlug(slug string) (string, error) {
 	return specResponse.Results[0].Id, nil
 }
 
-func (c *NullClient) GetSpecificationSlugFromId(id string, nrn string) (string, error) {
-	path := fmt.Sprintf("%s/%s&%s", SPECIFICATION_PATH, id, nrn)
+func (c *NullClient) GetSpecificationSlugFromId(id string) (string, error) {
+	path := fmt.Sprintf("%s/%s", SPECIFICATION_PATH, id)
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
@@ -173,7 +173,7 @@ func (c *NullClient) GetSpecificationSlugFromId(id string, nrn string) (string, 
 	}
 
 	if len(specResponse.Results) == 0 {
-		return "", fmt.Errorf("no specification found for id: %s and nrn: %s", id, nrn)
+		return "", fmt.Errorf("no specification found for id: %s", id)
 	}
 
 	return specResponse.Results[0].Slug, nil

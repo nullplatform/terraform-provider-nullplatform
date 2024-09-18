@@ -67,7 +67,7 @@ func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	specificationSlug := d.Get("specification").(string)
-	specificationId, err := nullOps.GetSpecificationIdFromSlug(specificationSlug)
+	specificationId, err := nullOps.GetSpecificationIdFromSlug(specificationSlug, d.Get("nrn").(string))
 	if err != nil {
 		return fmt.Errorf("error fetching specification ID for slug %s: %v", specificationSlug, err)
 	}
@@ -145,7 +145,7 @@ func ProviderConfigUpdate(d *schema.ResourceData, m interface{}) error {
 
 	if d.HasChange("specification") {
 		specificationSlug := d.Get("specification").(string)
-		specificationId, err := nullOps.GetSpecificationIdFromSlug(specificationSlug)
+		specificationId, err := nullOps.GetSpecificationIdFromSlug(specificationSlug, d.Get("nrn").(string))
 		if err != nil {
 			return fmt.Errorf("error fetching specification ID for slug %s: %v", specificationSlug, err)
 		}
