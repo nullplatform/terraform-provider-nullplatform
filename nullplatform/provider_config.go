@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
-	"strings"
 )
 
 const (
@@ -35,31 +35,25 @@ func (c *NullClient) CreateProviderConfig(p *ProviderConfig) (*ProviderConfig, e
 	err := json.NewEncoder(&buf).Encode(*p)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encode provider config: %v", err)
 	}
 
 	res, err := c.MakeRequest("POST", PROVIDER_CONFIG_PATH, &buf)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to make API request: %v", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		if res.StatusCode == http.StatusBadRequest {
-			nErr := &NullErrors{}
-			dErr := json.NewDecoder(res.Body).Decode(nErr)
-			if dErr != nil {
-				return nil, fmt.Errorf("el error es %s", strings.ToLower(dErr.Error()))
-			}
-		}
-		return nil, fmt.Errorf("error creating provider config resource, got status code: %d", res.StatusCode)
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("failed to create provider config resource: status code %d, response: %s", res.StatusCode, string(bodyBytes))
 	}
 
 	pRes := &ProviderConfig{}
 	derr := json.NewDecoder(res.Body).Decode(pRes)
 
 	if derr != nil {
-		return nil, derr
+		return nil, fmt.Errorf("failed to decode API response: %v", derr)
 	}
 
 	return pRes, nil
@@ -72,17 +66,18 @@ func (c *NullClient) PatchProviderConfig(providerConfigId string, p *ProviderCon
 	err := json.NewEncoder(&buf).Encode(*p)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to encode provider config: %v", err)
 	}
 
 	res, err := c.MakeRequest("PATCH", path, &buf)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to make API request: %v", err)
 	}
 	defer res.Body.Close()
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		return fmt.Errorf("error patching provider config resource, got %d", res.StatusCode)
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("failed to patch provider config resource: status code %d, response: %s", res.StatusCode, string(bodyBytes))
 	}
 
 	return nil
@@ -93,19 +88,20 @@ func (c *NullClient) GetProviderConfig(providerConfigId string) (*ProviderConfig
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to make API request: %v", err)
 	}
 	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("failed to get provider config resource: status code %d, response: %s", res.StatusCode, string(bodyBytes))
+	}
 
 	p := &ProviderConfig{}
 	derr := json.NewDecoder(res.Body).Decode(p)
 
 	if derr != nil {
-		return nil, derr
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error getting provider config resource, got %d for %s", res.StatusCode, providerConfigId)
+		return nil, fmt.Errorf("failed to decode API response: %v", derr)
 	}
 
 	return p, nil
@@ -116,12 +112,13 @@ func (c *NullClient) DeleteProviderConfig(providerConfigId string) error {
 
 	res, err := c.MakeRequest("DELETE", path, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to make API request: %v", err)
 	}
 	defer res.Body.Close()
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		return fmt.Errorf("error deleting provider config resource, got %d", res.StatusCode)
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("failed to delete provider config resource: status code %d, response: %s", res.StatusCode, string(bodyBytes))
 	}
 
 	return nil
@@ -132,18 +129,19 @@ func (c *NullClient) GetSpecificationIdFromSlug(slug string, nrn string) (string
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to make API request: %v", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("error getting specification, got status code: %d", res.StatusCode)
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return "", fmt.Errorf("failed to get specification: status code %d, response: %s", res.StatusCode, string(bodyBytes))
 	}
 
 	var specResponse SpecificationResponse
 	derr := json.NewDecoder(res.Body).Decode(&specResponse)
 	if derr != nil {
-		return "", derr
+		return "", fmt.Errorf("failed to decode API response: %v", derr)
 	}
 
 	if len(specResponse.Results) == 0 {
@@ -158,18 +156,19 @@ func (c *NullClient) GetSpecificationSlugFromId(id string) (string, error) {
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to make API request: %v", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("error getting specification, got status code: %d", res.StatusCode)
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return "", fmt.Errorf("failed to get specification: status code %d, response: %s", res.StatusCode, string(bodyBytes))
 	}
 
 	var specResponse SpecificationResponse
 	derr := json.NewDecoder(res.Body).Decode(&specResponse)
 	if derr != nil {
-		return "", derr
+		return "", fmt.Errorf("failed to decode API response: %v", derr)
 	}
 
 	if len(specResponse.Results) == 0 {
