@@ -27,6 +27,19 @@ type PatchNRN struct {
 	AWSLambdaFunctionWarmAlias      string `json:"aws.lambdaFunctionWarmAlias"`
 }
 
+type NRNComponent struct {
+	Key       string
+	GetFunc   func(*NullClient, string, string) (map[string]interface{}, error)
+	ParentKey string
+}
+
+var NRNComponents = []NRNComponent{
+	{"account", (*NullClient).GetAccountBySlug, "organization"},
+	{"namespace", (*NullClient).GetNamespaceBySlug, "account"},
+	{"application", (*NullClient).GetApplicationBySlug, "namespace"},
+	{"scope", (*NullClient).GetScopeBySlug, "application"},
+}
+
 var NRNSchema = map[string]*schema.Schema{
 	"account": {
 		Type:        schema.TypeString,
@@ -158,31 +171,22 @@ func ConstructNRNFromComponents(d *schema.ResourceData, nullOps NullOps) (string
 
 	nrnParts := []string{fmt.Sprintf("organization=%s", organizationID)}
 
-	components := []struct {
-		key       string
-		getFunc   func(string, string) (map[string]interface{}, error)
-		parentKey string
-	}{
-		{"account", nullOps.GetAccountBySlug, "organization"},
-		{"namespace", nullOps.GetNamespaceBySlug, "account"},
-		{"application", nullOps.GetApplicationBySlug, "namespace"},
-		{"scope", nullOps.GetScopeBySlug, "application"},
-	}
-
 	parentID := organizationID
-	for _, component := range components {
-		if v, ok := d.GetOk(component.key); ok {
-			result, err := component.getFunc(parentID, v.(string))
+	for _, component := range NRNComponents {
+		if v, ok := d.GetOk(component.Key); ok {
+			key := component.Key
+
+			result, err := component.GetFunc(client, parentID, v.(string))
 			if err != nil {
-				return "", fmt.Errorf("error resolving %s: %v", component.key, err)
+				return "", fmt.Errorf("error resolving %s: %v", key, err)
 			}
 
 			id, ok := result["id"].(string)
 			if !ok || id == "" {
-				return "", fmt.Errorf("%s not found or invalid ID: %s", component.key, v.(string))
+				return "", fmt.Errorf("%s not found or invalid ID: %s", key, v.(string))
 			}
 
-			nrnParts = append(nrnParts, fmt.Sprintf("%s=%s", component.key, id))
+			nrnParts = append(nrnParts, fmt.Sprintf("%s=%s", key, id))
 			parentID = id
 		} else {
 			break
