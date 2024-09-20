@@ -1,6 +1,7 @@
 package nullplatform
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -19,12 +20,7 @@ func resourceProviderConfig() *schema.Resource {
 			StateContext: schema.ImportStatePassthroughContext,
 		},
 
-		Schema: map[string]*schema.Schema{
-			"nrn": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "A system-wide unique ID representing the resource.",
-			},
+		Schema: AddNRNSchema(map[string]*schema.Schema{
 			"dimensions": {
 				Type:     schema.TypeMap,
 				ForceNew: true,
@@ -47,12 +43,25 @@ func resourceProviderConfig() *schema.Resource {
 				},
 				Description: "The set of attributes that this provider holds.",
 			},
-		},
+		}),
+
+		CustomizeDiff: customizeDiffNRN,
 	}
 }
 
 func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
+
+	var nrn string
+	var err error
+	if v, ok := d.GetOk("nrn"); ok {
+		nrn = v.(string)
+	} else {
+		nrn, err = ConstructNRNFromComponents(d, nullOps)
+		if err != nil {
+			return fmt.Errorf("error constructing NRN: %v", err)
+		}
+	}
 
 	dimensionsMap := d.Get("dimensions").(map[string]interface{})
 	dimensions := make(map[string]string)
@@ -67,13 +76,13 @@ func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	specificationSlug := d.Get("specification").(string)
-	specificationId, err := nullOps.GetSpecificationIdFromSlug(specificationSlug, d.Get("nrn").(string))
+	specificationId, err := nullOps.GetSpecificationIdFromSlug(specificationSlug, nrn)
 	if err != nil {
 		return fmt.Errorf("error fetching specification ID for slug %s: %v", specificationSlug, err)
 	}
 
 	newProviderConfig := &ProviderConfig{
-		Nrn:             d.Get("nrn").(string),
+		Nrn:             nrn,
 		Dimensions:      dimensions,
 		SpecificationId: specificationId,
 		Attributes:      attributes,
@@ -86,6 +95,7 @@ func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	d.SetId(pc.Id)
+	d.Set("nrn", nrn)
 
 	return ProviderConfigRead(d, m)
 }
@@ -129,10 +139,6 @@ func ProviderConfigUpdate(d *schema.ResourceData, m interface{}) error {
 	providerConfigId := d.Id()
 
 	pc := &ProviderConfig{}
-
-	if d.HasChange("nrn") {
-		pc.Nrn = d.Get("nrn").(string)
-	}
 
 	if d.HasChange("dimensions") {
 		dimensionsMap := d.Get("dimensions").(map[string]interface{})
@@ -179,6 +185,19 @@ func ProviderConfigDelete(d *schema.ResourceData, m interface{}) error {
 	}
 
 	d.SetId("")
+
+	return nil
+}
+
+func customizeDiffNRN(ctx context.Context, d *schema.ResourceDiff, meta interface{}) error {
+	if d.Id() == "" {
+		return nil
+	}
+
+	if d.HasChange("nrn") || d.HasChange("account") || d.HasChange("namespace") ||
+		d.HasChange("application") || d.HasChange("scope") {
+		return fmt.Errorf("cannot change NRN or its components after creation")
+	}
 
 	return nil
 }

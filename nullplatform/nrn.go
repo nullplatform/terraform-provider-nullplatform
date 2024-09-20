@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 const NRN_PATH = "/nrn"
@@ -23,6 +25,35 @@ type PatchNRN struct {
 	AWSLambdaFunctionMainAlias      string `json:"aws.lambdaFunctionMainAlias,omitempty"`
 	AWSLogReaderLog                 string `json:"aws.log_reader_role"`
 	AWSLambdaFunctionWarmAlias      string `json:"aws.lambdaFunctionWarmAlias"`
+}
+
+var NRNSchema = map[string]*schema.Schema{
+	"account": {
+		Type:        schema.TypeString,
+		Optional:    true,
+		Description: "The account component of the NRN",
+	},
+	"namespace": {
+		Type:        schema.TypeString,
+		Optional:    true,
+		Description: "The namespace component of the NRN",
+	},
+	"application": {
+		Type:        schema.TypeString,
+		Optional:    true,
+		Description: "The application component of the NRN",
+	},
+	"scope": {
+		Type:        schema.TypeString,
+		Optional:    true,
+		Description: "The scope component of the NRN",
+	},
+	"nrn": {
+		Type:          schema.TypeString,
+		Optional:      true,
+		Description:   "A system-wide unique ID representing the resource.",
+		ConflictsWith: []string{"account", "namespace", "application", "scope"},
+	},
 }
 
 // Similar structure to PatchNRN but without the `.aws`.
@@ -48,6 +79,13 @@ type Namespaces struct {
 type NRN struct {
 	Nrn        string      `json:"nrn,omitempty"`
 	Namespaces *Namespaces `json:"namespaces,omitempty"`
+}
+
+func AddNRNSchema(s map[string]*schema.Schema) map[string]*schema.Schema {
+	for k, v := range NRNSchema {
+		s[k] = v
+	}
+	return s
 }
 
 func (c *NullClient) PatchNRN(nrnId string, nrn *PatchNRN) error {
@@ -105,4 +143,97 @@ func (c *NullClient) GetNRN(nrnId string) (*NRN, error) {
 
 	return s, nil
 
+}
+
+func ConstructNRNFromComponents(d *schema.ResourceData, nullOps NullOps) (string, error) {
+	client, ok := nullOps.(*NullClient)
+	if !ok {
+		return "", fmt.Errorf("error asserting NullClient")
+	}
+
+	organizationID, err := client.GetOrganizationIDFromToken()
+	if err != nil {
+		return "", fmt.Errorf("error getting organization ID from token: %v", err)
+	}
+
+	nrnParts := []string{fmt.Sprintf("organization=%s", organizationID)}
+
+	components := []struct {
+		key       string
+		getFunc   func(string, string) (map[string]interface{}, error)
+		parentKey string
+	}{
+		{"account", nullOps.GetAccountBySlug, "organization"},
+		{"namespace", nullOps.GetNamespaceBySlug, "account"},
+		{"application", nullOps.GetApplicationBySlug, "namespace"},
+		{"scope", nullOps.GetScopeBySlug, "application"},
+	}
+
+	parentID := organizationID
+	for _, component := range components {
+		if v, ok := d.GetOk(component.key); ok {
+			result, err := component.getFunc(parentID, v.(string))
+			if err != nil {
+				return "", fmt.Errorf("error resolving %s: %v", component.key, err)
+			}
+
+			id, ok := result["id"].(string)
+			if !ok || id == "" {
+				return "", fmt.Errorf("%s not found or invalid ID: %s", component.key, v.(string))
+			}
+
+			nrnParts = append(nrnParts, fmt.Sprintf("%s=%s", component.key, id))
+			parentID = id
+		} else {
+			break
+		}
+	}
+
+	return strings.Join(nrnParts, ":"), nil
+}
+
+func (c *NullClient) GetAccountBySlug(organizationID, slug string) (map[string]interface{}, error) {
+	path := fmt.Sprintf("/account?organization_id=%s&slug=%s", organizationID, slug)
+	return c.getEntityBySlug(path)
+}
+
+func (c *NullClient) GetNamespaceBySlug(accountID, slug string) (map[string]interface{}, error) {
+	path := fmt.Sprintf("/namespace?account_id=%s&slug=%s", accountID, slug)
+	return c.getEntityBySlug(path)
+}
+
+func (c *NullClient) GetApplicationBySlug(namespaceID, slug string) (map[string]interface{}, error) {
+	path := fmt.Sprintf("/application?namespace_id=%s&slug=%s", namespaceID, slug)
+	return c.getEntityBySlug(path)
+}
+
+func (c *NullClient) GetScopeBySlug(applicationID, slug string) (map[string]interface{}, error) {
+	path := fmt.Sprintf("/scope?application_id=%s&slug=%s", applicationID, slug)
+	return c.getEntityBySlug(path)
+}
+
+func (c *NullClient) getEntityBySlug(path string) (map[string]interface{}, error) {
+	resp, err := c.MakeRequest(http.MethodGet, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("API request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Results []map[string]interface{} `json:"results"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode API response: %v", err)
+	}
+
+	if len(result.Results) == 0 {
+		return nil, fmt.Errorf("entity not found")
+	}
+
+	return result.Results[0], nil
 }

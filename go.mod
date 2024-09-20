@@ -3,6 +3,7 @@ module github.com/nullplatform/terraform-provider-nullplatform
 go 1.22.0
 
 require (
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/hashicorp/terraform-plugin-docs v0.16.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.34.0
 	github.com/motemen/go-loghttp v0.0.0-20170804080138-974ac5ceac27

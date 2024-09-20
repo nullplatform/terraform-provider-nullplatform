@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
+	"github.com/golang-jwt/jwt"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 )
 
@@ -22,11 +24,13 @@ type Token struct {
 }
 
 type NullClient struct {
-	Client     *http.Client
-	ApiURL     string
-	ApiKey     string
-	Token      Token
-	tokenMutex sync.Mutex
+	Client          *http.Client
+	ApiURL          string
+	ApiKey          string
+	Token           Token
+	tokenMutex      sync.Mutex
+	cachedOrgID     string
+	cachedOrgIDLock sync.RWMutex
 }
 
 type NullErrors struct {
@@ -95,6 +99,12 @@ type NullOps interface {
 	DeleteProviderConfig(providerConfigId string) error
 	GetSpecificationIdFromSlug(slug string, nrn string) (string, error)
 	GetSpecificationSlugFromId(id string) (string, error)
+
+	GetOrganizationIDFromToken() (string, error)
+	GetAccountBySlug(organizationID, slug string) (map[string]interface{}, error)
+	GetNamespaceBySlug(accountID, slug string) (map[string]interface{}, error)
+	GetApplicationBySlug(namespaceID, slug string) (map[string]interface{}, error)
+	GetScopeBySlug(applicationID, slug string) (map[string]interface{}, error)
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {
@@ -180,4 +190,52 @@ func (c *NullClient) getToken() diag.Diagnostics {
 	c.Token = (*tRes)
 
 	return nil
+}
+
+func (c *NullClient) GetOrganizationIDFromToken() (string, error) {
+	c.cachedOrgIDLock.RLock()
+	if c.cachedOrgID != "" {
+		defer c.cachedOrgIDLock.RUnlock()
+		return c.cachedOrgID, nil
+	}
+	c.cachedOrgIDLock.RUnlock()
+
+	c.cachedOrgIDLock.Lock()
+	defer c.cachedOrgIDLock.Unlock()
+
+	if c.cachedOrgID != "" {
+		return c.cachedOrgID, nil
+	}
+
+	token, err := jwt.Parse(c.Token.AccessToken, func(token *jwt.Token) (interface{}, error) {
+		return nil, nil
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("failed to parse token: %v", err)
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", fmt.Errorf("invalid token claims")
+	}
+
+	groups, ok := claims["cognito:groups"].([]interface{})
+	if !ok {
+		return "", fmt.Errorf("cognito:groups claim not found or invalid")
+	}
+
+	for _, group := range groups {
+		groupStr, ok := group.(string)
+		if !ok {
+			continue
+		}
+		if strings.HasPrefix(groupStr, "@nullplatform/organization=") {
+			orgID := strings.TrimPrefix(groupStr, "@nullplatform/organization=")
+			c.cachedOrgID = orgID
+			return orgID, nil
+		}
+	}
+
+	return "", fmt.Errorf("organization ID not found in token")
 }
