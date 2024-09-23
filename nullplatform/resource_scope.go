@@ -401,7 +401,7 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 	}
 
 	if d.HasChange("scope_asset_name") {
-		ps.Type = d.Get("scope_asset_name").(string)
+		ps.AssetName = d.Get("scope_asset_name").(string)
 	}
 
 	if d.HasChange("dimensions") {
