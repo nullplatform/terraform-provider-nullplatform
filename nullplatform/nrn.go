@@ -14,15 +14,15 @@ const NRN_PATH = "/nrn"
 // Vales with `omitempty` shoudn't be patched as empty values, the others can.
 // The struct is used to PATCH the NRN
 type PatchNRN struct {
-	AWSS3AssestBucket               string `json:"aws.s3_assets_bucket"`
-	AWSScopeWorkflowRole            string `json:"aws.scope_workflow_role"`
-	AWSLogGroupName                 string `json:"aws.log_group_name"`
+	AWSS3AssestBucket               string `json:"aws.s3_assets_bucket,omitempty"`
+	AWSScopeWorkflowRole            string `json:"aws.scope_workflow_role,omitempty"`
+	AWSLogGroupName                 string `json:"aws.log_group_name,omitempty"`
 	AWSLambdaFunctionName           string `json:"aws.lambdaFunctionName,omitempty"`
 	AWSLambdaCurrentFunctionVersion string `json:"aws.lambdaCurrentFunctionVersion,omitempty"`
 	AWSLambdaFunctionRole           string `json:"aws.lambdaFunctionRole,omitempty"`
 	AWSLambdaFunctionMainAlias      string `json:"aws.lambdaFunctionMainAlias,omitempty"`
-	AWSLogReaderLog                 string `json:"aws.log_reader_role"`
-	AWSLambdaFunctionWarmAlias      string `json:"aws.lambdaFunctionWarmAlias"`
+	AWSLogReaderLog                 string `json:"aws.log_reader_role,omitempty"`
+	AWSLambdaFunctionWarmAlias      string `json:"aws.lambdaFunctionWarmAlias,omitempty"`
 }
 
 // Similar structure to PatchNRN but without the `.aws`.
