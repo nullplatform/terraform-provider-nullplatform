@@ -175,6 +175,16 @@ func ProviderConfigDelete(d *schema.ResourceData, m interface{}) error {
 	return nil
 }
 
+// jsonMarshalAttributes normalizes and marshals the attributes map to JSON.
+// This function ensures consistent JSON representation by:
+// 1. Normalizing types (e.g., converting float64 to int64 where possible)
+// 2. Sorting map keys alphabetically
+// 3. Using consistent JSON formatting
+//
+// This normalization is crucial for:
+// - Maintaining consistent Terraform state
+// - Accurate diff detection (see suppressEquivalentJSON function)
+// - Ensuring API compatibility
 func jsonMarshalAttributes(attributes map[string]interface{}) (string, error) {
 	normalizedAttributes := normalizeAttributes(attributes)
 
