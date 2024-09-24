@@ -1,8 +1,12 @@
 package nullplatform
 
 import (
-	"context"
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"reflect"
+	"sort"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -33,19 +37,16 @@ func resourceProviderConfig() *schema.Resource {
 			"specification": {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "The slug of the provider specification (e.g., 'aws/eks', 'aws/lambda_iam').",
+				ForceNew:    true,
+				Description: "The slug of the provider specification (e.g., 'aws-eks', 'aws-lambda_iam').",
 			},
 			"attributes": {
-				Type:     schema.TypeMap,
-				Required: true,
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
-				},
-				Description: "The set of attributes that this provider holds.",
+				Type:             schema.TypeString,
+				Required:         true,
+				Description:      "The set of attributes that this provider holds as a JSON string.",
+				DiffSuppressFunc: suppressEquivalentJSON,
 			},
 		}),
-
-		CustomizeDiff: customizeDiffNRN,
 	}
 }
 
@@ -59,7 +60,7 @@ func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
 	} else {
 		nrn, err = ConstructNRNFromComponents(d, nullOps)
 		if err != nil {
-			return fmt.Errorf("error constructing NRN: %v", err)
+			return fmt.Errorf("error constructing NRN: %v %s", err, nrn)
 		}
 	}
 
@@ -69,10 +70,10 @@ func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
 		dimensions[key] = value.(string)
 	}
 
-	attributesMap := d.Get("attributes").(map[string]interface{})
-	attributes := make(map[string]interface{})
-	for key, value := range attributesMap {
-		attributes[key] = value
+	attributesJSON := d.Get("attributes").(string)
+	var attributes map[string]interface{}
+	if err := json.Unmarshal([]byte(attributesJSON), &attributes); err != nil {
+		return fmt.Errorf("error parsing attributes JSON: %v", err)
 	}
 
 	specificationSlug := d.Get("specification").(string)
@@ -89,7 +90,6 @@ func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	pc, err := nullOps.CreateProviderConfig(newProviderConfig)
-
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,6 @@ func ProviderConfigRead(d *schema.ResourceData, m interface{}) error {
 	providerConfigId := d.Id()
 
 	pc, err := nullOps.GetProviderConfig(providerConfigId)
-
 	if err != nil {
 		return err
 	}
@@ -127,8 +126,13 @@ func ProviderConfigRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	if err := d.Set("attributes", pc.Attributes); err != nil {
-		return err
+	attributesJSON, err := jsonMarshalAttributes(pc.Attributes)
+	if err != nil {
+		return fmt.Errorf("error serializing attributes to JSON: %v", err)
+	}
+
+	if err := d.Set("attributes", attributesJSON); err != nil {
+		return fmt.Errorf("error setting attributes in state: %v", err)
 	}
 
 	return nil
@@ -140,29 +144,11 @@ func ProviderConfigUpdate(d *schema.ResourceData, m interface{}) error {
 
 	pc := &ProviderConfig{}
 
-	if d.HasChange("dimensions") {
-		dimensionsMap := d.Get("dimensions").(map[string]interface{})
-		dimensions := make(map[string]string)
-		for key, value := range dimensionsMap {
-			dimensions[key] = value.(string)
-		}
-		pc.Dimensions = dimensions
-	}
-
-	if d.HasChange("specification") {
-		specificationSlug := d.Get("specification").(string)
-		specificationId, err := nullOps.GetSpecificationIdFromSlug(specificationSlug, d.Get("nrn").(string))
-		if err != nil {
-			return fmt.Errorf("error fetching specification ID for slug %s: %v", specificationSlug, err)
-		}
-		pc.SpecificationId = specificationId
-	}
-
 	if d.HasChange("attributes") {
-		attributesMap := d.Get("attributes").(map[string]interface{})
-		attributes := make(map[string]interface{})
-		for key, value := range attributesMap {
-			attributes[key] = value
+		attributesJSON := d.Get("attributes").(string)
+		var attributes map[string]interface{}
+		if err := json.Unmarshal([]byte(attributesJSON), &attributes); err != nil {
+			return fmt.Errorf("error parsing attributes JSON: %v", err)
 		}
 		pc.Attributes = attributes
 	}
@@ -189,15 +175,96 @@ func ProviderConfigDelete(d *schema.ResourceData, m interface{}) error {
 	return nil
 }
 
-func customizeDiffNRN(ctx context.Context, d *schema.ResourceDiff, meta interface{}) error {
-	if d.Id() == "" {
-		return nil
+func jsonMarshalAttributes(attributes map[string]interface{}) (string, error) {
+	normalizedAttributes := normalizeAttributes(attributes)
+
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+
+	sortedAttributes := sortMap(normalizedAttributes)
+	if err := encoder.Encode(sortedAttributes); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(buffer.String()), nil
+}
+
+func normalizeAttributes(attributes map[string]interface{}) map[string]interface{} {
+	for k, v := range attributes {
+		switch vv := v.(type) {
+		case float64:
+			if vv == float64(int64(vv)) {
+				attributes[k] = int64(vv)
+			}
+		case map[string]interface{}:
+			attributes[k] = normalizeAttributes(vv)
+		case []interface{}:
+			attributes[k] = normalizeSlice(vv)
+		}
+	}
+	return attributes
+}
+
+func normalizeSlice(s []interface{}) []interface{} {
+	for i, v := range s {
+		switch vv := v.(type) {
+		case float64:
+			if vv == float64(int64(vv)) {
+				s[i] = int64(vv)
+			}
+		case map[string]interface{}:
+			s[i] = normalizeAttributes(vv)
+		case []interface{}:
+			s[i] = normalizeSlice(vv)
+		}
+	}
+	return s
+}
+
+func sortMap(m map[string]interface{}) map[string]interface{} {
+	sortedMap := make(map[string]interface{})
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		v := m[k]
+		switch vv := v.(type) {
+		case map[string]interface{}:
+			sortedMap[k] = sortMap(vv)
+		case []interface{}:
+			sortedMap[k] = sortSlice(vv)
+		default:
+			sortedMap[k] = vv
+		}
+	}
+	return sortedMap
+}
+
+func sortSlice(s []interface{}) []interface{} {
+	for i, v := range s {
+		switch vv := v.(type) {
+		case map[string]interface{}:
+			s[i] = sortMap(vv)
+		case []interface{}:
+			s[i] = sortSlice(vv)
+		}
+	}
+	return s
+}
+
+func suppressEquivalentJSON(k, old, new string, d *schema.ResourceData) bool {
+	var oldJSON, newJSON interface{}
+
+	if err := json.Unmarshal([]byte(old), &oldJSON); err != nil {
+		return false
 	}
 
-	if d.HasChange("nrn") || d.HasChange("account") || d.HasChange("namespace") ||
-		d.HasChange("application") || d.HasChange("scope") {
-		return fmt.Errorf("cannot change NRN or its components after creation")
+	if err := json.Unmarshal([]byte(new), &newJSON); err != nil {
+		return false
 	}
 
-	return nil
+	return reflect.DeepEqual(oldJSON, newJSON)
 }

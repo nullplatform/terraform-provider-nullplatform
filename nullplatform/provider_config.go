@@ -16,8 +16,8 @@ const (
 type ProviderConfig struct {
 	Id              string                 `json:"id,omitempty"`
 	Nrn             string                 `json:"nrn,omitempty"`
-	Dimensions      map[string]string      `json:"dimensions,omitempty"`
-	SpecificationId string                 `json:"specificationId,omitempty"`
+	Dimensions      map[string]string      `json:"dimensions"`
+	SpecificationId string                 `json:"specification_id,omitempty"`
 	Attributes      map[string]interface{} `json:"attributes,omitempty"`
 }
 
@@ -165,15 +165,25 @@ func (c *NullClient) GetSpecificationSlugFromId(id string) (string, error) {
 		return "", fmt.Errorf("failed to get specification: status code %d, response: %s", res.StatusCode, string(bodyBytes))
 	}
 
-	var specResponse SpecificationResponse
-	derr := json.NewDecoder(res.Body).Decode(&specResponse)
-	if derr != nil {
-		return "", fmt.Errorf("failed to decode API response: %v", derr)
+	bodyBytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	if len(specResponse.Results) == 0 {
-		return "", fmt.Errorf("no specification found for id: %s", id)
+	var result map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+		return "", fmt.Errorf("failed to decode API response: %v", err)
 	}
 
-	return specResponse.Results[0].Slug, nil
+	slugValue, ok := result["slug"]
+	if !ok {
+		return "", fmt.Errorf("no 'slug' field found in specification for id: %s", id)
+	}
+
+	slug, ok := slugValue.(string)
+	if !ok {
+		return "", fmt.Errorf("'slug' field is not a string in specification for id: %s", id)
+	}
+
+	return slug, nil
 }

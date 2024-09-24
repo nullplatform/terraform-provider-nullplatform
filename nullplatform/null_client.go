@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -207,27 +208,32 @@ func (c *NullClient) GetOrganizationIDFromToken() (string, error) {
 		return c.cachedOrgID, nil
 	}
 
-	token, err := jwt.Parse(c.Token.AccessToken, func(token *jwt.Token) (interface{}, error) {
-		return nil, nil
-	})
-
+	token, _, err := new(jwt.Parser).ParseUnverified(c.Token.AccessToken, jwt.MapClaims{})
 	if err != nil {
 		return "", fmt.Errorf("failed to parse token: %v", err)
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		return "", fmt.Errorf("invalid token claims")
+		return "", fmt.Errorf("invalid token claims type: %T", token.Claims)
 	}
 
-	groups, ok := claims["cognito:groups"].([]interface{})
+	log.Printf("Token claims: %+v", claims)
+
+	groups, ok := claims["cognito:groups"]
 	if !ok {
-		return "", fmt.Errorf("cognito:groups claim not found or invalid")
+		return "", fmt.Errorf("cognito:groups claim not found")
 	}
 
-	for _, group := range groups {
+	groupsSlice, ok := groups.([]interface{})
+	if !ok {
+		return "", fmt.Errorf("cognito:groups is not a slice: %T", groups)
+	}
+
+	for _, group := range groupsSlice {
 		groupStr, ok := group.(string)
 		if !ok {
+			log.Printf("Unexpected group type: %T", group)
 			continue
 		}
 		if strings.HasPrefix(groupStr, "@nullplatform/organization=") {

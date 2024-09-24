@@ -31,26 +31,31 @@ var NRNSchema = map[string]*schema.Schema{
 	"account": {
 		Type:        schema.TypeString,
 		Optional:    true,
+		ForceNew:    true,
 		Description: "The account component of the NRN",
 	},
 	"namespace": {
 		Type:        schema.TypeString,
 		Optional:    true,
+		ForceNew:    true,
 		Description: "The namespace component of the NRN",
 	},
 	"application": {
 		Type:        schema.TypeString,
 		Optional:    true,
+		ForceNew:    true,
 		Description: "The application component of the NRN",
 	},
 	"scope": {
 		Type:        schema.TypeString,
 		Optional:    true,
+		ForceNew:    true,
 		Description: "The scope component of the NRN",
 	},
 	"nrn": {
 		Type:          schema.TypeString,
 		Optional:      true,
+		ForceNew:      true,
 		Description:   "A system-wide unique ID representing the resource.",
 		ConflictsWith: []string{"account", "namespace", "application", "scope"},
 	},
@@ -177,9 +182,18 @@ func ConstructNRNFromComponents(d *schema.ResourceData, nullOps NullOps) (string
 				return "", fmt.Errorf("error resolving %s: %v", component.key, err)
 			}
 
-			id, ok := result["id"].(string)
-			if !ok || id == "" {
-				return "", fmt.Errorf("%s not found or invalid ID: %s", component.key, v.(string))
+			var id string
+			switch idVal := result["id"].(type) {
+			case string:
+				id = idVal
+			case float64:
+				id = fmt.Sprintf("%.0f", idVal)
+			default:
+				return "", fmt.Errorf("%s has invalid ID type: %T. Full result: %v", component.key, result["id"], result)
+			}
+
+			if id == "" {
+				return "", fmt.Errorf("%s has empty ID. Value: %s, Full result: %v", component.key, v.(string), result)
 			}
 
 			nrnParts = append(nrnParts, fmt.Sprintf("%s=%s", component.key, id))
