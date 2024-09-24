@@ -201,6 +201,10 @@ func (c *NullClient) GetOrganizationIDFromToken() (string, error) {
 	}
 	c.cachedOrgIDLock.RUnlock()
 
+	if err := c.ensureValidToken(); err != nil {
+		return "", fmt.Errorf("failed to ensure valid token: %v", err)
+	}
+
 	c.cachedOrgIDLock.Lock()
 	defer c.cachedOrgIDLock.Unlock()
 

@@ -55,6 +55,7 @@ var NRNSchema = map[string]*schema.Schema{
 	"nrn": {
 		Type:          schema.TypeString,
 		Optional:      true,
+		Computed:      true,
 		ForceNew:      true,
 		Description:   "A system-wide unique ID representing the resource.",
 		ConflictsWith: []string{"account", "namespace", "application", "scope"},
