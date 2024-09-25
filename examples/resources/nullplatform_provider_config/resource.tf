@@ -2,7 +2,6 @@ terraform {
   required_providers {
     nullplatform = {
       source  = "nullplatform/com/nullplatform"
-      version = "0.0.15"
     }
   }
 }
@@ -47,6 +46,15 @@ resource "nullplatform_provider_config" "gke_config" {
     }
   })
 
+  /*
+    - Why is this necessary?
+
+    When creating provider's, there are resources that depend on other resources.
+    In this case, the `gke_config` resource depends on the `google_cloud_config` resource.
+    Since without the `google_cloud_config` resource, the `gke_config` resource cannot be created.
+    To avoid conflicts, and concurrency issues, we need to specify the dependency between the resources.
+
+  */
   depends_on = [
     nullplatform_provider_config.google_cloud_config
   ]

@@ -1,12 +1,9 @@
 package nullplatform
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"sort"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -48,6 +45,17 @@ func resourceProviderConfig() *schema.Resource {
 			},
 		}),
 	}
+}
+
+func suppressEquivalentJSON(k, old, new string, d *schema.ResourceData) bool {
+	var oldJSON, newJSON interface{}
+	if err := json.Unmarshal([]byte(old), &oldJSON); err != nil {
+		return false
+	}
+	if err := json.Unmarshal([]byte(new), &newJSON); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(oldJSON, newJSON)
 }
 
 func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
@@ -95,8 +103,6 @@ func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	d.SetId(pc.Id)
-	d.Set("nrn", nrn)
-
 	return ProviderConfigRead(d, m)
 }
 
@@ -126,12 +132,12 @@ func ProviderConfigRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	attributesJSON, err := jsonMarshalAttributes(pc.Attributes)
+	attributesJSON, err := json.Marshal(pc.Attributes)
 	if err != nil {
 		return fmt.Errorf("error serializing attributes to JSON: %v", err)
 	}
 
-	if err := d.Set("attributes", attributesJSON); err != nil {
+	if err := d.Set("attributes", string(attributesJSON)); err != nil {
 		return fmt.Errorf("error setting attributes in state: %v", err)
 	}
 
@@ -171,110 +177,5 @@ func ProviderConfigDelete(d *schema.ResourceData, m interface{}) error {
 	}
 
 	d.SetId("")
-
 	return nil
-}
-
-// jsonMarshalAttributes normalizes and marshals the attributes map to JSON.
-// This function ensures consistent JSON representation by:
-// 1. Normalizing types (e.g., converting float64 to int64 where possible)
-// 2. Sorting map keys alphabetically
-// 3. Using consistent JSON formatting
-//
-// This normalization is crucial for:
-// - Maintaining consistent Terraform state
-// - Accurate diff detection (see suppressEquivalentJSON function)
-// - Ensuring API compatibility
-func jsonMarshalAttributes(attributes map[string]interface{}) (string, error) {
-	normalizedAttributes := normalizeAttributes(attributes)
-
-	buffer := &bytes.Buffer{}
-	encoder := json.NewEncoder(buffer)
-	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", "  ")
-
-	sortedAttributes := sortMap(normalizedAttributes)
-	if err := encoder.Encode(sortedAttributes); err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(buffer.String()), nil
-}
-
-func normalizeAttributes(attributes map[string]interface{}) map[string]interface{} {
-	for k, v := range attributes {
-		switch vv := v.(type) {
-		case float64:
-			if vv == float64(int64(vv)) {
-				attributes[k] = int64(vv)
-			}
-		case map[string]interface{}:
-			attributes[k] = normalizeAttributes(vv)
-		case []interface{}:
-			attributes[k] = normalizeSlice(vv)
-		}
-	}
-	return attributes
-}
-
-func normalizeSlice(s []interface{}) []interface{} {
-	for i, v := range s {
-		switch vv := v.(type) {
-		case float64:
-			if vv == float64(int64(vv)) {
-				s[i] = int64(vv)
-			}
-		case map[string]interface{}:
-			s[i] = normalizeAttributes(vv)
-		case []interface{}:
-			s[i] = normalizeSlice(vv)
-		}
-	}
-	return s
-}
-
-func sortMap(m map[string]interface{}) map[string]interface{} {
-	sortedMap := make(map[string]interface{})
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		v := m[k]
-		switch vv := v.(type) {
-		case map[string]interface{}:
-			sortedMap[k] = sortMap(vv)
-		case []interface{}:
-			sortedMap[k] = sortSlice(vv)
-		default:
-			sortedMap[k] = vv
-		}
-	}
-	return sortedMap
-}
-
-func sortSlice(s []interface{}) []interface{} {
-	for i, v := range s {
-		switch vv := v.(type) {
-		case map[string]interface{}:
-			s[i] = sortMap(vv)
-		case []interface{}:
-			s[i] = sortSlice(vv)
-		}
-	}
-	return s
-}
-
-func suppressEquivalentJSON(k, old, new string, d *schema.ResourceData) bool {
-	var oldJSON, newJSON interface{}
-
-	if err := json.Unmarshal([]byte(old), &oldJSON); err != nil {
-		return false
-	}
-
-	if err := json.Unmarshal([]byte(new), &newJSON); err != nil {
-		return false
-	}
-
-	return reflect.DeepEqual(oldJSON, newJSON)
 }

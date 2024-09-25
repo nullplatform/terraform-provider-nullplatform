@@ -32,25 +32,25 @@ var NRNSchema = map[string]*schema.Schema{
 		Type:        schema.TypeString,
 		Optional:    true,
 		ForceNew:    true,
-		Description: "The account component of the NRN",
+		Description: "The slug of the account NRN component.",
 	},
 	"namespace": {
 		Type:        schema.TypeString,
 		Optional:    true,
 		ForceNew:    true,
-		Description: "The namespace component of the NRN",
+		Description: "The slug of the namespace NRN component.",
 	},
 	"application": {
 		Type:        schema.TypeString,
 		Optional:    true,
 		ForceNew:    true,
-		Description: "The application component of the NRN",
+		Description: "The slug of the application NRN component.",
 	},
 	"scope": {
 		Type:        schema.TypeString,
 		Optional:    true,
 		ForceNew:    true,
-		Description: "The scope component of the NRN",
+		Description: "The slug of the scope NRN component.",
 	},
 	"nrn": {
 		Type:          schema.TypeString,
@@ -152,10 +152,7 @@ func (c *NullClient) GetNRN(nrnId string) (*NRN, error) {
 }
 
 func ConstructNRNFromComponents(d *schema.ResourceData, nullOps NullOps) (string, error) {
-	client, ok := nullOps.(*NullClient)
-	if !ok {
-		return "", fmt.Errorf("error asserting NullClient")
-	}
+	client := nullOps.(*NullClient)
 
 	organizationID, err := client.GetOrganizationIDFromToken()
 	if err != nil {

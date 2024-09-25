@@ -222,11 +222,9 @@ func (c *NullClient) GetOrganizationIDFromToken() (string, error) {
 		return "", fmt.Errorf("invalid token claims type: %T", token.Claims)
 	}
 
-	log.Printf("Token claims: %+v", claims)
-
 	groups, ok := claims["cognito:groups"]
 	if !ok {
-		return "", fmt.Errorf("cognito:groups claim not found")
+		return "", fmt.Errorf("claim was not found")
 	}
 
 	groupsSlice, ok := groups.([]interface{})
