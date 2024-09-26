@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"strings"
 	"sync"
 
+	"github.com/golang-jwt/jwt"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 )
 
@@ -22,11 +25,13 @@ type Token struct {
 }
 
 type NullClient struct {
-	Client     *http.Client
-	ApiURL     string
-	ApiKey     string
-	Token      Token
-	tokenMutex sync.Mutex
+	Client          *http.Client
+	ApiURL          string
+	ApiKey          string
+	Token           Token
+	tokenMutex      sync.Mutex
+	cachedOrgID     string
+	cachedOrgIDLock sync.RWMutex
 }
 
 type NullErrors struct {
@@ -88,6 +93,19 @@ type NullOps interface {
 	PatchRuntimeConfiguration(runtimeConfigId string, rc *RuntimeConfiguration) error
 	GetRuntimeConfiguration(runtimeConfigId string) (*RuntimeConfiguration, error)
 	DeleteRuntimeConfiguration(runtimeConfigId string) error
+
+	CreateProviderConfig(p *ProviderConfig) (*ProviderConfig, error)
+	GetProviderConfig(providerConfigId string) (*ProviderConfig, error)
+	PatchProviderConfig(providerConfigId string, p *ProviderConfig) error
+	DeleteProviderConfig(providerConfigId string) error
+	GetSpecificationIdFromSlug(slug string, nrn string) (string, error)
+	GetSpecificationSlugFromId(id string) (string, error)
+
+	GetOrganizationIDFromToken() (string, error)
+	GetAccountBySlug(organizationID, slug string) (map[string]interface{}, error)
+	GetNamespaceBySlug(accountID, slug string) (map[string]interface{}, error)
+	GetApplicationBySlug(namespaceID, slug string) (map[string]interface{}, error)
+	GetScopeBySlug(applicationID, slug string) (map[string]interface{}, error)
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {
@@ -173,4 +191,59 @@ func (c *NullClient) getToken() diag.Diagnostics {
 	c.Token = (*tRes)
 
 	return nil
+}
+
+func (c *NullClient) GetOrganizationIDFromToken() (string, error) {
+	c.cachedOrgIDLock.RLock()
+	if c.cachedOrgID != "" {
+		defer c.cachedOrgIDLock.RUnlock()
+		return c.cachedOrgID, nil
+	}
+	c.cachedOrgIDLock.RUnlock()
+
+	if err := c.ensureValidToken(); err != nil {
+		return "", fmt.Errorf("failed to ensure valid token: %v", err)
+	}
+
+	c.cachedOrgIDLock.Lock()
+	defer c.cachedOrgIDLock.Unlock()
+
+	if c.cachedOrgID != "" {
+		return c.cachedOrgID, nil
+	}
+
+	token, _, err := new(jwt.Parser).ParseUnverified(c.Token.AccessToken, jwt.MapClaims{})
+	if err != nil {
+		return "", fmt.Errorf("failed to parse token: %v", err)
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", fmt.Errorf("invalid token claims type: %T", token.Claims)
+	}
+
+	groups, ok := claims["cognito:groups"]
+	if !ok {
+		return "", fmt.Errorf("claim was not found")
+	}
+
+	groupsSlice, ok := groups.([]interface{})
+	if !ok {
+		return "", fmt.Errorf("cognito:groups is not a slice: %T", groups)
+	}
+
+	for _, group := range groupsSlice {
+		groupStr, ok := group.(string)
+		if !ok {
+			log.Printf("Unexpected group type: %T", group)
+			continue
+		}
+		if strings.HasPrefix(groupStr, "@nullplatform/organization=") {
+			orgID := strings.TrimPrefix(groupStr, "@nullplatform/organization=")
+			c.cachedOrgID = orgID
+			return orgID, nil
+		}
+	}
+
+	return "", fmt.Errorf("organization ID not found in token")
 }
