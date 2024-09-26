@@ -19,7 +19,7 @@ data "nullplatform_provider_config" "existing_gke_config" {
 output "google_cloud_config_details" {
   value = {
     nrn           = data.nullplatform_provider_config.existing_google_cloud_config.nrn
-    specification = data.nullplatform_provider_config.existing_google_cloud_config.specification
+    type = data.nullplatform_provider_config.existing_google_cloud_config.type
     project_id    = jsondecode(data.nullplatform_provider_config.existing_google_cloud_config.attributes).project.id
     location      = jsondecode(data.nullplatform_provider_config.existing_google_cloud_config.attributes).project.location
   }

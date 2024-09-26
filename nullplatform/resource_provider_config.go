@@ -1,6 +1,7 @@
 package nullplatform
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -18,7 +19,10 @@ func resourceProviderConfig() *schema.Resource {
 		Delete: ProviderConfigDelete,
 
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+				d.Set("id", d.Id())
+				return []*schema.ResourceData{d}, nil
+			},
 		},
 
 		Schema: AddNRNSchema(map[string]*schema.Schema{
@@ -31,11 +35,11 @@ func resourceProviderConfig() *schema.Resource {
 				},
 				Description: "A key-value map with the provider dimensions that apply to this scope.",
 			},
-			"specification": {
+			"type": {
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,
-				Description: "The slug of the provider specification (e.g., 'aws-eks', 'aws-lambda_iam').",
+				Description: "The slug of the provider type (e.g., 'aws-eks', 'aws-lambda_iam').",
 			},
 			"attributes": {
 				Type:             schema.TypeString,
@@ -84,10 +88,10 @@ func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("error parsing attributes JSON: %v", err)
 	}
 
-	specificationSlug := d.Get("specification").(string)
-	specificationId, err := nullOps.GetSpecificationIdFromSlug(specificationSlug, nrn)
+	typeSlug := d.Get("type").(string)
+	specificationId, err := nullOps.GetSpecificationIdFromSlug(typeSlug, nrn)
 	if err != nil {
-		return fmt.Errorf("error fetching specification ID for slug %s: %v", specificationSlug, err)
+		return fmt.Errorf("error fetching specification ID for slug %s: %v", typeSlug, err)
 	}
 
 	newProviderConfig := &ProviderConfig{
@@ -128,7 +132,7 @@ func ProviderConfigRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("error fetching specification slug for ID %s: %v", pc.SpecificationId, err)
 	}
 
-	if err := d.Set("specification", specificationSlug); err != nil {
+	if err := d.Set("type", specificationSlug); err != nil {
 		return err
 	}
 

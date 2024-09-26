@@ -10,7 +10,7 @@ provider "nullplatform" {}
 
 resource "nullplatform_provider_config" "google_cloud_config" {
   nrn           = "organization=1234567890:account=987654321:namespace=1122334455:application=9876543210"
-  specification = "google-cloud-config"
+  type = "google-cloud-config"
   dimensions    = {}
   attributes    = jsonencode({
     project = {
@@ -33,7 +33,7 @@ resource "nullplatform_provider_config" "gke_config" {
   namespace   = "gcp-infrastructure"
   application = "gke-clusters"
 
-  specification = "gke-config"
+  type = "gke-config"
   dimensions    = {}
   attributes    = jsonencode({
     cluster = {
