@@ -69,7 +69,7 @@ func (c *NullClient) PatchProviderConfig(providerConfigId string, p *ProviderCon
 		return fmt.Errorf("failed to encode provider config: %v", err)
 	}
 
-	res, err := c.MakeRequest("PATCH", path, &buf)
+	res, err := c.MakeRequest("PUT", path, &buf)
 	if err != nil {
 		return fmt.Errorf("failed to make API request: %v", err)
 	}
