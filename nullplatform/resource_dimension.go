@@ -2,9 +2,7 @@ package nullplatform
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"reflect"
 	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -47,21 +45,6 @@ func resourceDimension() *schema.Resource {
 				Optional:    true,
 				Description: "The order of the dimension.",
 			},
-			"values": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "The values associated with the dimension as a JSON string.",
-				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-					var oldJSON, newJSON interface{}
-					if err := json.Unmarshal([]byte(old), &oldJSON); err != nil {
-						return false
-					}
-					if err := json.Unmarshal([]byte(new), &newJSON); err != nil {
-						return false
-					}
-					return reflect.DeepEqual(oldJSON, newJSON)
-				},
-			},
 		}),
 	}
 }
@@ -80,17 +63,10 @@ func DimensionCreate(d *schema.ResourceData, m interface{}) error {
 		}
 	}
 
-	valuesJSON := d.Get("values").(string)
-	var values map[string]string
-	if err := json.Unmarshal([]byte(valuesJSON), &values); err != nil {
-		return fmt.Errorf("error parsing values JSON: %v", err)
-	}
-
 	dimension := &Dimension{
-		Name:   d.Get("name").(string),
-		NRN:    nrn,
-		Order:  d.Get("order").(int),
-		Values: values,
+		Name:  d.Get("name").(string),
+		NRN:   nrn,
+		Order: d.Get("order").(int),
 	}
 
 	createdDimension, err := nullOps.CreateDimension(dimension)
@@ -127,14 +103,6 @@ func DimensionRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	valuesJSON, err := json.Marshal(dimension.Values)
-	if err != nil {
-		return fmt.Errorf("error serializing values to JSON: %v", err)
-	}
-	if err := d.Set("values", string(valuesJSON)); err != nil {
-		return fmt.Errorf("error setting values in state: %v", err)
-	}
-
 	return nil
 }
 
@@ -149,14 +117,6 @@ func DimensionUpdate(d *schema.ResourceData, m interface{}) error {
 	}
 	if d.HasChange("order") {
 		dimension.Order = d.Get("order").(int)
-	}
-	if d.HasChange("values") {
-		valuesJSON := d.Get("values").(string)
-		var values map[string]string
-		if err := json.Unmarshal([]byte(valuesJSON), &values); err != nil {
-			return fmt.Errorf("error parsing values JSON: %v", err)
-		}
-		dimension.Values = values
 	}
 
 	err := nullOps.UpdateDimension(dimensionID, dimension)
