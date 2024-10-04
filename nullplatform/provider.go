@@ -41,6 +41,8 @@ func Provider() *schema.Provider {
 			"nullplatform_notification_channel":  resourceNotificationChannel(),
 			"nullplatform_runtime_configuration": resourceRuntimeConfiguration(),
 			"nullplatform_provider_config":       resourceProviderConfig(),
+			"nullplaform_dimension":              resourceDimension(),
+			"nullplatform_dimension_value":       resourceDimensionValue(),
 		},
 		// DataSource is a subset of Resource.
 		DataSourcesMap: map[string]*schema.Resource{

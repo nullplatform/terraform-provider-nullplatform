@@ -106,6 +106,17 @@ type NullOps interface {
 	GetNamespaceBySlug(accountID, slug string) (map[string]interface{}, error)
 	GetApplicationBySlug(namespaceID, slug string) (map[string]interface{}, error)
 	GetScopeBySlug(applicationID, slug string) (map[string]interface{}, error)
+
+	CreateDimension(*Dimension) (*Dimension, error)
+	GetDimension(string) (*Dimension, error)
+	UpdateDimension(string, *Dimension) error
+	DeleteDimension(string) error
+
+	CreateDimensionValue(dimensionID string, dv *DimensionValue) (*DimensionValue, error)
+	GetDimensionValue(dimensionID, valueID string) (*DimensionValue, error)
+	UpdateDimensionValue(dimensionID, valueID string, dv *DimensionValue) error
+	DeleteDimensionValue(dimensionID, valueID string) error
+	ListDimensionValues(dimensionID string) ([]*DimensionValue, error)
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {
