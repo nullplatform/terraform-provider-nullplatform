@@ -3,7 +3,7 @@ package nullplatform
 import (
 	"context"
 	"fmt"
-	"strings"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -15,16 +15,11 @@ func resourceDimensionValue() *schema.Resource {
 
 		CreateContext: resourceDimensionValueCreate,
 		ReadContext:   resourceDimensionValueRead,
-		UpdateContext: resourceDimensionValueUpdate,
 		DeleteContext: resourceDimensionValueDelete,
-
-		Importer: &schema.ResourceImporter{
-			StateContext: resourceDimensionValueImport,
-		},
 
 		Schema: map[string]*schema.Schema{
 			"dimension_id": {
-				Type:        schema.TypeString,
+				Type:        schema.TypeInt,
 				Required:    true,
 				ForceNew:    true,
 				Description: "The ID of the parent dimension.",
@@ -32,11 +27,13 @@ func resourceDimensionValue() *schema.Resource {
 			"name": {
 				Type:        schema.TypeString,
 				Required:    true,
+				ForceNew:    true,
 				Description: "The name of the dimension value.",
 			},
 			"nrn": {
 				Type:        schema.TypeString,
 				Required:    true,
+				ForceNew:    true,
 				Description: "The NRN (Null Resource Name) of the dimension value.",
 			},
 			"slug": {
@@ -57,18 +54,17 @@ func resourceDimensionValueCreate(ctx context.Context, d *schema.ResourceData, m
 	c := m.(NullOps)
 
 	dimensionValue := &DimensionValue{
-		Name: d.Get("name").(string),
-		NRN:  d.Get("nrn").(string),
+		DimensionID: d.Get("dimension_id").(int),
+		Name:        d.Get("name").(string),
+		NRN:         d.Get("nrn").(string),
 	}
 
-	dimensionID := d.Get("dimension_id").(string)
-
-	createdValue, err := c.CreateDimensionValue(dimensionID, dimensionValue)
+	createdValue, err := c.CreateDimensionValue(dimensionValue)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	d.SetId(fmt.Sprintf("%s:%d", dimensionID, createdValue.ID))
+	d.SetId(strconv.Itoa(createdValue.ID))
 
 	return resourceDimensionValueRead(ctx, d, m)
 }
@@ -76,17 +72,19 @@ func resourceDimensionValueCreate(ctx context.Context, d *schema.ResourceData, m
 func resourceDimensionValueRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(NullOps)
 
-	dimensionID, valueID, err := splitDimensionValueID(d.Id())
+	id, err := strconv.Atoi(d.Id())
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("invalid dimension value ID: %v", err))
+	}
+
+	dimensionID := d.Get("dimension_id").(int)
+
+	value, err := c.GetDimensionValue(dimensionID, id)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	value, err := c.GetDimensionValue(dimensionID, valueID)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	d.Set("dimension_id", dimensionID)
+	d.Set("dimension_id", value.DimensionID)
 	d.Set("name", value.Name)
 	d.Set("nrn", value.NRN)
 	d.Set("slug", value.Slug)
@@ -95,36 +93,17 @@ func resourceDimensionValueRead(ctx context.Context, d *schema.ResourceData, m i
 	return nil
 }
 
-func resourceDimensionValueUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	c := m.(NullOps)
-
-	dimensionID, valueID, err := splitDimensionValueID(d.Id())
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	dimensionValue := &DimensionValue{
-		Name: d.Get("name").(string),
-		NRN:  d.Get("nrn").(string),
-	}
-
-	err = c.UpdateDimensionValue(dimensionID, valueID, dimensionValue)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	return resourceDimensionValueRead(ctx, d, m)
-}
-
 func resourceDimensionValueDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(NullOps)
 
-	dimensionID, valueID, err := splitDimensionValueID(d.Id())
+	id, err := strconv.Atoi(d.Id())
 	if err != nil {
-		return diag.FromErr(err)
+		return diag.FromErr(fmt.Errorf("invalid dimension value ID: %v", err))
 	}
 
-	err = c.DeleteDimensionValue(dimensionID, valueID)
+	dimensionID := d.Get("dimension_id").(int)
+
+	err = c.DeleteDimensionValue(dimensionID, id)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -132,24 +111,4 @@ func resourceDimensionValueDelete(ctx context.Context, d *schema.ResourceData, m
 	d.SetId("")
 
 	return nil
-}
-
-func resourceDimensionValueImport(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
-	dimensionID, valueID, err := splitDimensionValueID(d.Id())
-	if err != nil {
-		return nil, err
-	}
-
-	d.Set("dimension_id", dimensionID)
-	d.SetId(fmt.Sprintf("%s:%s", dimensionID, valueID))
-
-	return []*schema.ResourceData{d}, nil
-}
-
-func splitDimensionValueID(id string) (string, string, error) {
-	parts := strings.SplitN(id, ":", 2)
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid ID format: %s (expected dimension_id:value_id)", id)
-	}
-	return parts[0], parts[1], nil
 }

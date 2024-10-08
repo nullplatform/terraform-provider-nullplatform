@@ -112,11 +112,10 @@ type NullOps interface {
 	UpdateDimension(string, *Dimension) error
 	DeleteDimension(string) error
 
-	CreateDimensionValue(dimensionID string, dv *DimensionValue) (*DimensionValue, error)
-	GetDimensionValue(dimensionID, valueID string) (*DimensionValue, error)
-	UpdateDimensionValue(dimensionID, valueID string, dv *DimensionValue) error
-	DeleteDimensionValue(dimensionID, valueID string) error
-	ListDimensionValues(dimensionID string) ([]*DimensionValue, error)
+	CreateDimensionValue(dv *DimensionValue) (*DimensionValue, error)
+	GetDimensionValue(dimensionID, valueID int) (*DimensionValue, error)
+	DeleteDimensionValue(dimensionID, valueID int) error
+	ListDimensionValues(dimensionID int) ([]*DimensionValue, error)
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {
