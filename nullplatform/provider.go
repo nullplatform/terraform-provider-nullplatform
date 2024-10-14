@@ -10,16 +10,24 @@ import (
 	"github.com/motemen/go-loghttp"
 )
 
+const API_KEY = "api_key"
 const NP_API_KEY = "np_apikey"
 const NP_API_HOST = "np_api_host"
 
 func Provider() *schema.Provider {
 	provider := &schema.Provider{
 		Schema: map[string]*schema.Schema{
+			API_KEY: {
+				Type:        schema.TypeString,
+				DefaultFunc: schema.EnvDefaultFunc("NULLPLATFORM_API_KEY", nil),
+				Optional:    true,
+				Sensitive:   true,
+				Description: "Null Platform API KEY. Can also be set with the `NP_API_KEY` environment variable.",
+			},
 			NP_API_KEY: {
 				Type:        schema.TypeString,
 				DefaultFunc: schema.EnvDefaultFunc("NP_API_KEY", nil),
-				Required:    true,
+				Optional:    true,
 				Sensitive:   true,
 				Description: "Null Platform API KEY. Can also be set with the `NP_API_KEY` environment variable.",
 			},
@@ -44,7 +52,6 @@ func Provider() *schema.Provider {
 			"nullplatform_dimension":             resourceDimension(),
 			"nullplatform_dimension_value":       resourceDimensionValue(),
 		},
-		// DataSource is a subset of Resource.
 		DataSourcesMap: map[string]*schema.Resource{
 			"nullplatform_scope":             dataSourceScope(),
 			"nullplatform_application":       dataSourceApplication(),
@@ -56,7 +63,26 @@ func Provider() *schema.Provider {
 
 	provider.ConfigureContextFunc = func(_ context.Context, d *schema.ResourceData) (any, diag.Diagnostics) {
 		apiUrl := strings.Trim(d.Get(NP_API_HOST).(string), "\\")
-		apiKey := d.Get(NP_API_KEY).(string)
+		var apiKey string
+		var diags diag.Diagnostics
+
+		if v, ok := d.GetOk(API_KEY); ok {
+			apiKey = v.(string)
+		} else if v, ok := d.GetOk(NP_API_KEY); ok {
+			apiKey = v.(string)
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Deprecated API Key Usage",
+				Detail:   "You are using the deprecated 'np_apikey'. Please update your configuration to use 'api_key' instead.",
+			})
+		} else {
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Missing API Key",
+				Detail:   "Either 'api_key' or 'np_apikey' must be set. Please provide an API key for authentication.",
+			})
+			return nil, diags
+		}
 
 		c := &NullClient{
 			Client: &http.Client{
@@ -66,7 +92,7 @@ func Provider() *schema.Provider {
 			ApiURL: apiUrl,
 		}
 
-		return c, nil
+		return c, diags
 	}
 
 	return provider
