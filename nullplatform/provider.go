@@ -50,6 +50,8 @@ func Provider() *schema.Provider {
 			"nullplatform_notification_channel":  resourceNotificationChannel(),
 			"nullplatform_runtime_configuration": resourceRuntimeConfiguration(),
 			"nullplatform_provider_config":       resourceProviderConfig(),
+			"nullplatform_dimension":             resourceDimension(),
+			"nullplatform_dimension_value":       resourceDimensionValue(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"nullplatform_scope":             dataSourceScope(),

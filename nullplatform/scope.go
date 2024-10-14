@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -47,39 +48,25 @@ func (c *NullClient) CreateScope(s *Scope) (*Scope, error) {
 	err := json.NewEncoder(&buf).Encode(*s)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encode scope: %v", err)
 	}
 
 	res, err := c.MakeRequest("POST", SCOPE_PATH, &buf)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to make API request: %v", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		if res.StatusCode == http.StatusBadRequest {
-			nErr := &NullErrors{}
-			dErr := json.NewDecoder(res.Body).Decode(nErr)
-			if dErr != nil {
-				return nil, fmt.Errorf("El error es %s", dErr)
-			}
-			if (dErr == nil) && (nErr.Message == DUPLICATE_SCOPE_NAME_ERROR_STR) {
-				return nil, fmt.Errorf(
-					"error creating scope resource, duplicated scope name: %s found in null application id: %d",
-					s.Name,
-					s.ApplicationId,
-				)
-			}
-
-		}
-		return nil, fmt.Errorf("error creating scope resource, got status code: %d", res.StatusCode)
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("failed to create scope resource: status code %d, response: %s", res.StatusCode, string(bodyBytes))
 	}
 
 	sRes := &Scope{}
 	derr := json.NewDecoder(res.Body).Decode(sRes)
 
 	if derr != nil {
-		return nil, derr
+		return nil, fmt.Errorf("failed to decode API response: %v", derr)
 	}
 
 	return sRes, nil
@@ -102,7 +89,8 @@ func (c *NullClient) PatchScope(scopeId string, s *Scope) error {
 	defer res.Body.Close()
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		return fmt.Errorf("error patching scope resource, got %d", res.StatusCode)
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("failed to patch scope resource: status code %d, response: %s", res.StatusCode, string(bodyBytes))
 	}
 
 	return nil
@@ -129,7 +117,8 @@ func (c *NullClient) GetScope(scopeId string) (*Scope, error) {
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error getting scope resource, got %d for %s", res.StatusCode, scopeId)
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("failed to get scope resource: status code %d, response: %s", res.StatusCode, string(bodyBytes))
 	}
 
 	return s, nil
