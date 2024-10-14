@@ -19,7 +19,7 @@ func Provider() *schema.Provider {
 		Schema: map[string]*schema.Schema{
 			API_KEY: {
 				Type:        schema.TypeString,
-				DefaultFunc: schema.EnvDefaultFunc("API_KEY", nil),
+				DefaultFunc: schema.EnvDefaultFunc("NULLPLATFORM_API_KEY", nil),
 				Optional:    true,
 				Sensitive:   true,
 				Description: "Null Platform API KEY. Can also be set with the `NP_API_KEY` environment variable.",
@@ -30,7 +30,6 @@ func Provider() *schema.Provider {
 				Optional:    true,
 				Sensitive:   true,
 				Description: "Null Platform API KEY. Can also be set with the `NP_API_KEY` environment variable.",
-				Deprecated:  "Use 'api_key' instead. This field will be removed in a future version.",
 			},
 			NP_API_HOST: {
 				Type:        schema.TypeString,
