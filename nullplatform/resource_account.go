@@ -31,7 +31,7 @@ func resourceAccount() *schema.Resource {
 				Description: "The name of the account",
 			},
 			"organization_id": {
-				Type:        schema.TypeString,
+				Type:        schema.TypeInt,
 				Computed:    true,
 				ForceNew:    true,
 				Description: "The ID of the organization this account belongs to (computed from authentication token)",
@@ -59,7 +59,13 @@ func AccountCreate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 	client := nullOps.(*NullClient)
 
-	organizationID, err := client.GetOrganizationIDFromToken()
+	organizationIDStr, err := client.GetOrganizationIDFromToken()
+	if err != nil {
+		return fmt.Errorf("error getting organization ID from token: %w", err)
+	}
+
+	organizationID, err := strconv.Atoi(organizationIDStr)
+
 	if err != nil {
 		return fmt.Errorf("error getting organization ID from token: %w", err)
 	}
@@ -79,7 +85,6 @@ func AccountCreate(d *schema.ResourceData, m any) error {
 
 	d.SetId(strconv.Itoa(account.Id))
 
-	// Set the computed organization_id in the state
 	if err := d.Set("organization_id", account.OrganizationId); err != nil {
 		return fmt.Errorf("error setting organization_id: %w", err)
 	}

@@ -12,7 +12,7 @@ const ACCOUNT_PATH = "/account"
 type Account struct {
 	Id                 int    `json:"id,omitempty"`
 	Name               string `json:"name,omitempty"`
-	OrganizationId     string `json:"organization_id,omitempty"`
+	OrganizationId     int    `json:"organization_id,omitempty"`
 	RepositoryPrefix   string `json:"repository_prefix,omitempty"`
 	RepositoryProvider string `json:"repository_provider,omitempty"`
 	Slug               string `json:"slug,omitempty"`
