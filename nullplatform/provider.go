@@ -39,6 +39,7 @@ func Provider() *schema.Provider {
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
+			"nullplatform_account":               resourceAccount(),
 			"nullplatform_scope":                 resourceScope(),
 			"nullplatform_service":               resourceService(),
 			"nullplatform_link":                  resourceLink(),

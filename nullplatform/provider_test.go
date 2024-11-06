@@ -30,6 +30,7 @@ func testAccPreCheck(t *testing.T) {
 
 func TestProvider_HasChildResources(t *testing.T) {
 	expectedResources := []string{
+		"nullplatform_account",
 		"nullplatform_scope",
 		"nullplatform_service",
 		"nullplatform_link",
@@ -40,6 +41,8 @@ func TestProvider_HasChildResources(t *testing.T) {
 		"nullplatform_notification_channel",
 		"nullplatform_runtime_configuration",
 		"nullplatform_provider_config",
+		"nullplatform_dimension",
+		"nullplatform_dimension_value",
 	}
 
 	resources := nullplatform.Provider().ResourcesMap
