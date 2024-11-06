@@ -115,6 +115,11 @@ type NullOps interface {
 	CreateDimensionValue(dv *DimensionValue) (*DimensionValue, error)
 	GetDimensionValue(dimensionID, valueID int) (*DimensionValue, error)
 	DeleteDimensionValue(dimensionID, valueID int) error
+
+	CreateAccount(account *Account) (*Account, error)
+	GetAccount(accountId string) (*Account, error)
+	PatchAccount(accountId string, account *Account) error
+	DeleteAccount(accountId string) error
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {
