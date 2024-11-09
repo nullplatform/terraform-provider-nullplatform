@@ -16,7 +16,7 @@ The provider_config resource allows you to configure a nullplatform Provider
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/com/nullplatform"
+      source  = "nullplatform/nullplatform"
     }
   }
 }

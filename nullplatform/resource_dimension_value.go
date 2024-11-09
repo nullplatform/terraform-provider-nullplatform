@@ -17,7 +17,14 @@ func resourceDimensionValue() *schema.Resource {
 		ReadContext:   resourceDimensionValueRead,
 		DeleteContext: resourceDimensionValueDelete,
 
-		Schema: map[string]*schema.Schema{
+		Importer: &schema.ResourceImporter{
+			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+				d.Set("id", d.Id())
+				return []*schema.ResourceData{d}, nil
+			},
+		},
+
+		Schema: AddNRNSchema(map[string]*schema.Schema{
 			"dimension_id": {
 				Type:        schema.TypeInt,
 				Required:    true,
@@ -30,12 +37,6 @@ func resourceDimensionValue() *schema.Resource {
 				ForceNew:    true,
 				Description: "The name of the dimension value.",
 			},
-			"nrn": {
-				Type:        schema.TypeString,
-				Required:    true,
-				ForceNew:    true,
-				Description: "The NRN (Null Resource Name) of the dimension value.",
-			},
 			"slug": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -46,17 +47,28 @@ func resourceDimensionValue() *schema.Resource {
 				Computed:    true,
 				Description: "The status of the dimension value.",
 			},
-		},
+		}),
 	}
 }
 
 func resourceDimensionValueCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(NullOps)
 
+	var nrn string
+	var err error
+	if v, ok := d.GetOk("nrn"); ok {
+		nrn = v.(string)
+	} else {
+		nrn, err = ConstructNRNFromComponents(d, c)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("error constructing NRN: %v %s", err, nrn))
+		}
+	}
+
 	dimensionValue := &DimensionValue{
 		DimensionID: d.Get("dimension_id").(int),
 		Name:        d.Get("name").(string),
-		NRN:         d.Get("nrn").(string),
+		NRN:         nrn,
 	}
 
 	createdValue, err := c.CreateDimensionValue(dimensionValue)
