@@ -1,0 +1,136 @@
+{
+  "type": "object",
+  "title": "Azure",
+  "providerType": "azure-configuration",
+  "required": [
+    "authentication",
+    "networking"
+  ],
+  "properties": {
+    "networking": {
+      "type": "object",
+      "order": 2,
+      "title": "Networking",
+      "required": [
+        "domain_name",
+        "public_dns_zone_name",
+        "public_dns_zone_resource_group_name"
+      ],
+      "properties": {
+        "domain_name": {
+          "type": "string",
+          "order": 1,
+          "title": "Domain Name",
+          "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$",
+          "examples": [
+            "example.com"
+          ],
+          "description": "The root domain name to be used for your Azure resources. Must be a valid domain name that you own or control"
+        },
+        "application_domain": {
+          "type": "boolean",
+          "order": 6,
+          "title": "Application Domain",
+          "description": "Use account name as part of applications domains"
+        },
+        "public_dns_zone_name": {
+          "type": "string",
+          "order": 2,
+          "title": "Public DNS Zone Name",
+          "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$",
+          "examples": [
+            "public.example.com"
+          ],
+          "description": "The name of your Azure DNS public zone. This zone will handle public-facing DNS resolution for your domain"
+        },
+        "private_dns_zone_name": {
+          "type": "string",
+          "order": 4,
+          "title": "Private DNS Zone Name",
+          "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$",
+          "examples": [
+            "private.example.com"
+          ],
+          "description": "The name of your Azure DNS private zone. This zone will handle internal DNS resolution within your virtual network"
+        },
+        "public_dns_zone_resource_group_name": {
+          "type": "string",
+          "order": 3,
+          "title": "Public DNS Zone Resource Group",
+          "pattern": "^[a-zA-Z0-9-_]{1,90}$",
+          "examples": [
+            "my-public-dns-resource-group"
+          ],
+          "maxLength": 90,
+          "description": "The name of the Azure Resource Group containing your public DNS zone. Resource group names must be unique within your subscription"
+        },
+        "private_dns_zone_resource_group_name": {
+          "type": "string",
+          "order": 5,
+          "title": "Private DNS Zone Resource Group",
+          "pattern": "^[a-zA-Z0-9-_]{1,90}$",
+          "examples": [
+            "my-private-dns-resource-group"
+          ],
+          "maxLength": 90,
+          "description": "The name of the Azure Resource Group containing your private DNS zone. Resource group names must be unique within your subscription"
+        }
+      },
+      "description": "Configuration for DNS zones and domain names in Azure, including both public and private DNS settings"
+    },
+    "authentication": {
+      "type": "object",
+      "order": 1,
+      "title": "Authentication",
+      "required": [
+        "client_id",
+        "client_secret",
+        "tenant_id",
+        "subscription_id"
+      ],
+      "properties": {
+        "client_id": {
+          "tag": true,
+          "type": "string",
+          "order": 3,
+          "title": "Client ID",
+          "examples": [
+            "12345678-1234-1234-1234-123456789012"
+          ],
+          "description": "The unique identifier (UUID) of your Azure Active Directory application registration"
+        },
+        "tenant_id": {
+          "type": "string",
+          "order": 2,
+          "title": "Tenant ID",
+          "examples": [
+            "87654321-4321-4321-4321-210987654321"
+          ],
+          "description": "The unique identifier (UUID) of your Azure Active Directory tenant where the application is registered"
+        },
+        "client_secret": {
+          "type": "string",
+          "order": 4,
+          "title": "Client Secret",
+          "secret": true,
+          "examples": [
+            "ThisIsAMockSecretDoNotUseInProduction!"
+          ],
+          "minLength": 16,
+          "description": "The secret key generated for your Azure Active Directory application. Keep this value secure and never share it"
+        },
+        "subscription_id": {
+          "type": "string",
+          "order": 1,
+          "title": "Subscription ID",
+          "examples": [
+            "11111111-2222-3333-4444-555555555555"
+          ],
+          "description": "The unique identifier (UUID) of your Azure subscription where resources will be deployed"
+        }
+      },
+      "description": "Credentials and identifiers required for authenticating with Azure services"
+    }
+  },
+  "description": "Configuration for Azure services, including authentication credentials and DNS settings. These settings define how your application interacts with Azure resources"
+}

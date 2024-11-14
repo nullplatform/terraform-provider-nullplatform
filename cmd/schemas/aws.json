@@ -1,0 +1,206 @@
+{
+  "type": "object",
+  "providerType": "aws-configuration",
+  "title": "AWS",
+  "required": [
+    "account"
+  ],
+  "properties": {
+    "iam": {
+      "type": "object",
+      "order": 2,
+      "title": "IAM Configuration",
+      "required": [
+        "scope_workflow_role"
+      ],
+      "properties": {
+        "scope_workflow_role": {
+          "type": "string",
+          "order": 1,
+          "title": "Scope Workflow Role",
+          "pattern": "^arn:aws:iam::[0-9]{12}:role/[a-zA-Z0-9+=,.@_-]+$",
+          "examples": [
+            "arn:aws:iam::123456789012:role/scope-workflow-role"
+          ],
+          "description": "IAM role ARN used to perform actions over client cloud resources"
+        },
+        "scope_workflow_intermediate_role": {
+          "type": "string",
+          "order": 2,
+          "title": "Scope Workflow Intermediate Role",
+          "pattern": "^arn:aws:iam::[0-9]{12}:role/[a-zA-Z0-9+=,.@_-]+$",
+          "examples": [
+            "arn:aws:iam::123456789012:role/scope-workflow-intermediate-role"
+          ],
+          "description": "IAM role ARN that is intermediately assumed during workflow execution"
+        }
+      },
+      "description": "AWS IAM roles and permissions configuration"
+    },
+    "account": {
+      "type": "object",
+      "order": 1,
+      "title": "Account",
+      "required": [
+        "id",
+        "region"
+      ],
+      "properties": {
+        "id": {
+          "tag": true,
+          "type": "string",
+          "order": 1,
+          "title": "Account ID",
+          "pattern": "^[0-9]{12}$",
+          "examples": [
+            "123456789012"
+          ],
+          "maxLength": 12,
+          "minLength": 12,
+          "description": "A 12-digit number uniquely identifying your AWS account (e.g., '123456789012')"
+        },
+        "region": {
+          "enum": [
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "eu-central-1",
+            "eu-north-1",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-south-1",
+            "sa-east-1",
+            "ca-central-1",
+            "me-south-1",
+            "af-south-1"
+          ],
+          "type": "string",
+          "order": 2,
+          "title": "Region",
+          "examples": [
+            "us-east-1"
+          ],
+          "description": "The primary AWS region where your resources are deployed (e.g., 'us-east-1')"
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "order": 4,
+      "title": "Storage",
+      "properties": {
+        "s3_assets_bucket": {
+          "type": "string",
+          "order": 1,
+          "title": "S3 Assets Bucket",
+          "pattern": "^[a-z0-9](?:[a-z0-9.-]{1,61}[a-z0-9])?$",
+          "examples": [
+            "my-assets-bucket"
+          ],
+          "maxLength": 63,
+          "minLength": 3,
+          "description": "The name of the Amazon S3 bucket used for storing build assets, or other static files"
+        },
+        "s3_params_bucket": {
+          "type": "string",
+          "order": 2,
+          "title": "S3 Parameters Bucket",
+          "pattern": "^[a-z0-9](?:[a-z0-9.-]{1,61}[a-z0-9])?$",
+          "examples": [
+            "my-params-bucket"
+          ],
+          "maxLength": 63,
+          "minLength": 3,
+          "description": "The name of the Amazon S3 bucket used for storing application parameters"
+        }
+      }
+    },
+    "networking": {
+      "type": "object",
+      "order": 3,
+      "title": "Networking",
+      "properties": {
+        "vpc_id": {
+          "type": "string",
+          "order": 1,
+          "title": "VPC ID",
+          "pattern": "^vpc-([0-9a-f]{8}|[0-9a-f]{17})$",
+          "examples": [
+            "vpc-1a2b3c4d"
+          ],
+          "description": "The identifier of the AWS Virtual Private Cloud (VPC) where your resources are deployed (e.g., 'vpc-1a2b3c4d')"
+        },
+        "subnet_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^subnet-([0-9a-f]{8}|[0-9a-f]{17})$",
+            "examples": [
+              "subnet-1234abcd"
+            ]
+          },
+          "order": 2,
+          "title": "Subnet IDs",
+          "minItems": 1,
+          "description": "A list of AWS Subnet IDs associated with your VPC (e.g., ['subnet-1234abcd', 'subnet-5678efgh'])"
+        },
+        "domain_name": {
+          "type": "string",
+          "order": 4,
+          "title": "Domain Name",
+          "examples": [
+            "example.com"
+          ],
+          "description": "The domain name to be used for when creating DNS resources"
+        },
+        "hosted_zone_id": {
+          "type": "string",
+          "order": 5,
+          "title": "Hosted Zone ID",
+          "pattern": "^Z[A-Z0-9]{10,}$",
+          "examples": [
+            "Z1236544LJ11DEI6J5UW"
+          ],
+          "description": "The Route53 private hosted zone ID"
+        },
+        "application_domain": {
+          "type": "boolean",
+          "order": 7,
+          "title": "Application Domain",
+          "description": "Use account name as part of applications domains"
+        },
+        "security_group_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^sg-([0-9a-f]{8}|[0-9a-f]{17})$",
+            "examples": [
+              "sg-0a1b2c3d"
+            ]
+          },
+          "order": 3,
+          "title": "Security Group IDs",
+          "minItems": 1,
+          "description": "A list of AWS Security Group IDs used to control inbound and outbound traffic (e.g., ['sg-0a1b2c3d'])"
+        },
+        "hosted_public_zone_id": {
+          "type": "string",
+          "order": 6,
+          "title": "Hosted Public Zone ID",
+          "pattern": "^Z[A-Z0-9]{10,}$",
+          "examples": [
+            "Z0123451R02R84JD4U98"
+          ],
+          "description": "The Route53 public hosted zone ID"
+        }
+      }
+    }
+  },
+  "description": "Defines the settings for AWS core settings, including IAM roles and account permissions."
+}
