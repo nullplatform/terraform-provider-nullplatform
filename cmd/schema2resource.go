@@ -9,7 +9,6 @@ import (
 	"text/template"
 )
 
-// JSONSchemaProperty represents a property in the JSON schema
 type JSONSchemaProperty struct {
 	Type        string                        `json:"type"`
 	Description string                        `json:"description"`
@@ -18,7 +17,6 @@ type JSONSchemaProperty struct {
 	Enum        []string                      `json:"enum"`
 }
 
-// JSONSchema represents the main JSON schema structure
 type JSONSchema struct {
 	Title        string                        `json:"title"`
 	ProviderType string                        `json:"providerType"`
@@ -26,7 +24,6 @@ type JSONSchema struct {
 	Properties   map[string]JSONSchemaProperty `json:"properties"`
 }
 
-// Convert JSON schema types to Terraform schema types
 func getSchemaType(jsonType string) string {
 	switch jsonType {
 	case "string":
@@ -40,13 +37,12 @@ func getSchemaType(jsonType string) string {
 	case "array":
 		return "schema.TypeList"
 	case "object":
-		return "schema.TypeList" // For nested objects we'll use TypeList with MaxItems: 1
+		return "schema.TypeList"
 	default:
 		return "schema.TypeString"
 	}
 }
 
-// Generate schema fields recursively
 func generateSchemaFields(props map[string]JSONSchemaProperty) string {
 	var fields []string
 
@@ -59,7 +55,6 @@ func generateSchemaFields(props map[string]JSONSchemaProperty) string {
 				Description: %q,`, prop.Description)
 		}
 
-		// For objects, create a nested schema
 		if prop.Type == "object" && len(prop.Properties) > 0 {
 			field += `
 				MaxItems:    1,
@@ -70,7 +65,6 @@ func generateSchemaFields(props map[string]JSONSchemaProperty) string {
 					},
 				},`
 		} else if prop.Type == "array" && prop.Items != nil {
-			// For arrays, handle the items schema
 			field += fmt.Sprintf(`
 				Elem: &schema.Schema{
 					Type: %s,
@@ -142,7 +136,6 @@ func providerConfig{{.TypeName}}Create(d *schema.ResourceData, m interface{}) er
 		dimensions[key] = value.(string)
 	}
 
-	// Build attributes from individual fields
 	attributes := make(map[string]interface{})
 	{{range $name, $prop := .Schema.Properties}}
 	if v, ok := d.GetOk("{{$name}}"); ok {
@@ -150,7 +143,6 @@ func providerConfig{{.TypeName}}Create(d *schema.ResourceData, m interface{}) er
 	}
 	{{end}}
 
-	// Get specification ID for this provider type
 	specificationId, err := nullOps.GetSpecificationIdFromSlug("{{.ProviderType}}", nrn)
 	if err != nil {
 		return fmt.Errorf("error fetching specification ID for {{.ProviderType}}: %v", err)
@@ -189,7 +181,6 @@ func providerConfig{{.TypeName}}Read(d *schema.ResourceData, m interface{}) erro
 		return err
 	}
 
-	// Verify this is the correct provider type
 	specificationSlug, err := nullOps.GetSpecificationSlugFromId(pc.SpecificationId)
 	if err != nil {
 		return fmt.Errorf("error fetching specification slug for ID %s: %v", pc.SpecificationId, err)
@@ -198,7 +189,6 @@ func providerConfig{{.TypeName}}Read(d *schema.ResourceData, m interface{}) erro
 		return fmt.Errorf("provider configuration type mismatch: expected {{.ProviderType}}, got %s", specificationSlug)
 	}
 
-	// Set individual fields from attributes
 	for key, value := range pc.Attributes {
 		if err := d.Set(key, value); err != nil {
 			return fmt.Errorf("error setting %s: %v", key, err)
@@ -214,7 +204,6 @@ func providerConfig{{.TypeName}}Update(d *schema.ResourceData, m interface{}) er
 
 	pc := &ProviderConfig{}
 
-	// Check which fields have changed and update attributes accordingly
 	attributes := make(map[string]interface{})
 	{{range $name, $prop := .Schema.Properties}}
 	if d.HasChange("{{$name}}") {
@@ -242,14 +231,12 @@ func generateResource(schema JSONSchema) error {
 		return fmt.Errorf("schema is missing required 'providerType' field")
 	}
 
-	// Convert provider type to a valid Go identifier
 	typeName := strings.NewReplacer(
 		"-", "_",
 		".", "_",
 	).Replace(schema.ProviderType)
 	typeName = strings.Title(strings.Replace(typeName, "_", "", -1))
 
-	// Generate schema fields
 	schemaFields := generateSchemaFields(schema.Properties)
 
 	data := struct {
@@ -266,13 +253,11 @@ func generateResource(schema JSONSchema) error {
 		Schema:       schema,
 	}
 
-	// Parse and execute template
 	tmpl, err := template.New("resource").Parse(resourceTemplate)
 	if err != nil {
 		return err
 	}
 
-	// Create output file
 	filename := fmt.Sprintf("resource_provider_%s.go", strings.Replace(schema.ProviderType, "-", "_", -1))
 	f, err := os.Create(filename)
 	if err != nil {
@@ -291,7 +276,6 @@ func main() {
 
 	schemaDir := os.Args[1]
 
-	// Process all JSON files in the schema directory
 	files, err := filepath.Glob(filepath.Join(schemaDir, "*.json"))
 	if err != nil {
 		fmt.Printf("Error finding schema files: %v\n", err)

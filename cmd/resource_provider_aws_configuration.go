@@ -146,7 +146,6 @@ func providerConfigAwsconfigurationCreate(d *schema.ResourceData, m interface{})
 		dimensions[key] = value.(string)
 	}
 
-	// Build attributes from individual fields
 	attributes := make(map[string]interface{})
 
 	if v, ok := d.GetOk("account"); ok {
@@ -165,7 +164,6 @@ func providerConfigAwsconfigurationCreate(d *schema.ResourceData, m interface{})
 		attributes["storage"] = v
 	}
 
-	// Get specification ID for this provider type
 	specificationId, err := nullOps.GetSpecificationIdFromSlug("aws-configuration", nrn)
 	if err != nil {
 		return fmt.Errorf("error fetching specification ID for aws-configuration: %v", err)
@@ -204,7 +202,6 @@ func providerConfigAwsconfigurationRead(d *schema.ResourceData, m interface{}) e
 		return err
 	}
 
-	// Verify this is the correct provider type
 	specificationSlug, err := nullOps.GetSpecificationSlugFromId(pc.SpecificationId)
 	if err != nil {
 		return fmt.Errorf("error fetching specification slug for ID %s: %v", pc.SpecificationId, err)
@@ -213,7 +210,6 @@ func providerConfigAwsconfigurationRead(d *schema.ResourceData, m interface{}) e
 		return fmt.Errorf("provider configuration type mismatch: expected aws-configuration, got %s", specificationSlug)
 	}
 
-	// Set individual fields from attributes
 	for key, value := range pc.Attributes {
 		if err := d.Set(key, value); err != nil {
 			return fmt.Errorf("error setting %s: %v", key, err)
@@ -229,7 +225,6 @@ func providerConfigAwsconfigurationUpdate(d *schema.ResourceData, m interface{})
 
 	pc := &ProviderConfig{}
 
-	// Check which fields have changed and update attributes accordingly
 	attributes := make(map[string]interface{})
 
 	if d.HasChange("account") {

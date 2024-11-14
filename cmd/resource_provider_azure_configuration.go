@@ -111,7 +111,6 @@ func providerConfigAzureconfigurationCreate(d *schema.ResourceData, m interface{
 		dimensions[key] = value.(string)
 	}
 
-	// Build attributes from individual fields
 	attributes := make(map[string]interface{})
 
 	if v, ok := d.GetOk("authentication"); ok {
@@ -122,7 +121,6 @@ func providerConfigAzureconfigurationCreate(d *schema.ResourceData, m interface{
 		attributes["networking"] = v
 	}
 
-	// Get specification ID for this provider type
 	specificationId, err := nullOps.GetSpecificationIdFromSlug("azure-configuration", nrn)
 	if err != nil {
 		return fmt.Errorf("error fetching specification ID for azure-configuration: %v", err)
@@ -161,7 +159,6 @@ func providerConfigAzureconfigurationRead(d *schema.ResourceData, m interface{})
 		return err
 	}
 
-	// Verify this is the correct provider type
 	specificationSlug, err := nullOps.GetSpecificationSlugFromId(pc.SpecificationId)
 	if err != nil {
 		return fmt.Errorf("error fetching specification slug for ID %s: %v", pc.SpecificationId, err)
@@ -170,7 +167,6 @@ func providerConfigAzureconfigurationRead(d *schema.ResourceData, m interface{})
 		return fmt.Errorf("provider configuration type mismatch: expected azure-configuration, got %s", specificationSlug)
 	}
 
-	// Set individual fields from attributes
 	for key, value := range pc.Attributes {
 		if err := d.Set(key, value); err != nil {
 			return fmt.Errorf("error setting %s: %v", key, err)
@@ -186,7 +182,6 @@ func providerConfigAzureconfigurationUpdate(d *schema.ResourceData, m interface{
 
 	pc := &ProviderConfig{}
 
-	// Check which fields have changed and update attributes accordingly
 	attributes := make(map[string]interface{})
 
 	if d.HasChange("authentication") {
