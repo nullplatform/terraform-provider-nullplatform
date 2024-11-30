@@ -36,6 +36,7 @@ type Scope struct {
 	Name                  string            `json:"name,omitempty"`
 	ApplicationId         int               `json:"application_id,omitempty"`
 	Type                  string            `json:"type,omitempty"`
+	AssetName             string            `json:"asset_name,omitempty"`
 	ExternalCreated       bool              `json:"external_created,omitempty"`
 	RequestedSpec         *RequestSpec      `json:"requested_spec,omitempty"`
 	Capabilities          *Capability       `json:"capabilities,omitempty"`
