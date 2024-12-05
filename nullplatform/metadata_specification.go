@@ -9,17 +9,17 @@ import (
 )
 
 const (
-	METADATA_SPECIFICATION_PATH = "/metadata_specification"
+	METADATA_SPECIFICATION_PATH = "/metadata/metadata_specification"
 )
 
 type MetadataSpecification struct {
 	Id          string                 `json:"id,omitempty"`
-	Name        string                 `json:"name"`
+	Name        string                 `json:"name,omitempty"`
 	Description string                 `json:"description,omitempty"`
-	Nrn         string                 `json:"nrn"`
-	Entity      string                 `json:"entity"`
-	Metadata    string                 `json:"metadata"`
-	Schema      map[string]interface{} `json:"schema"`
+	Nrn         string                 `json:"nrn,omitempty"`
+	Entity      string                 `json:"entity,omitempty"`
+	Metadata    string                 `json:"metadata,omitempty"`
+	Schema      map[string]interface{} `json:"schema,omitempty"`
 }
 
 func (c *NullClient) CreateMetadataSpecification(m *MetadataSpecification) (*MetadataSpecification, error) {
@@ -101,7 +101,9 @@ func (c *NullClient) GetMetadataSpecification(id string) (*MetadataSpecification
 func (c *NullClient) DeleteMetadataSpecification(id string) error {
 	path := fmt.Sprintf("%s/%s", METADATA_SPECIFICATION_PATH, id)
 
-	res, err := c.MakeRequest("DELETE", path, nil)
+	emptyBody := bytes.NewBuffer([]byte("{}"))
+
+	res, err := c.MakeRequest("DELETE", path, emptyBody)
 	if err != nil {
 		return fmt.Errorf("failed to make API request: %v", err)
 	}

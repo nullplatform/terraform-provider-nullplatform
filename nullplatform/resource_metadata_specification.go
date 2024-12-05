@@ -60,9 +60,15 @@ func resourceMetadataSpecification() *schema.Resource {
 func MetadataSpecificationCreate(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
 
-	nrn, err := ConstructNRNFromComponents(d, nullOps)
-	if err != nil {
-		return fmt.Errorf("error constructing NRN: %v", err)
+	var nrn string
+	var err error
+	if v, ok := d.GetOk("nrn"); ok {
+		nrn = v.(string)
+	} else {
+		nrn, err = ConstructNRNFromComponents(d, nullOps)
+		if err != nil {
+			return fmt.Errorf("error constructing NRN: %v %s", err, nrn)
+		}
 	}
 
 	schemaJSON := d.Get("schema").(string)
