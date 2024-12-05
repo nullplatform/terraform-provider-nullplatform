@@ -41,6 +41,7 @@ func TestProvider_HasChildResources(t *testing.T) {
 		"nullplatform_notification_channel",
 		"nullplatform_runtime_configuration",
 		"nullplatform_provider_config",
+		"nullplatform_metadata_specification",
 		"nullplatform_dimension",
 		"nullplatform_dimension_value",
 	}

@@ -120,6 +120,11 @@ type NullOps interface {
 	GetAccount(accountId string) (*Account, error)
 	PatchAccount(accountId string, account *Account) error
 	DeleteAccount(accountId string) error
+
+	CreateMetadataSpecification(spec *MetadataSpecification) (*MetadataSpecification, error)
+	GetMetadataSpecification(specId string) (*MetadataSpecification, error)
+	UpdateMetadataSpecification(specId string, spec *MetadataSpecification) (*MetadataSpecification, error)
+	DeleteMetadataSpecification(specId string) error
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {
