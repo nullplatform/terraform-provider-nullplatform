@@ -2,6 +2,8 @@ package nullplatform
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"reflect"
 	"strconv"
 
@@ -37,20 +39,26 @@ func resourceApprovalPolicy() *schema.Resource {
 				Description: "The name of the policy.",
 			},
 			"conditions": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The conditions that the policy applies to, as a JSON object.",
+				Type:             schema.TypeString,
+				Required:         true,
+				Description:      "The conditions that the policy applies to, as a JSON string.",
+				DiffSuppressFunc: suppressEquivalentJSON,
 			},
 		},
 	}
 }
 
-func ApprovalPolicyCreate(d *schema.ResourceData, m any) error {
+func ApprovalPolicyCreate(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
 
 	nrn := d.Get("nrn").(string)
 	name := d.Get("name").(string)
-	conditions := d.Get("conditions").(string)
+	conditionsJSON := d.Get("conditions").(string)
+
+	var conditions map[string]interface{}
+	if err := json.Unmarshal([]byte(conditionsJSON), &conditions); err != nil {
+		return fmt.Errorf("error parsing conditions JSON: %v", err)
+	}
 
 	newApprovalPolicy := &ApprovalPolicy{
 		Nrn:        nrn,
@@ -59,17 +67,15 @@ func ApprovalPolicyCreate(d *schema.ResourceData, m any) error {
 	}
 
 	approvalPolicy, err := nullOps.CreateApprovalPolicy(newApprovalPolicy)
-
 	if err != nil {
 		return err
 	}
 
 	d.SetId(strconv.Itoa(approvalPolicy.Id))
-
 	return ApprovalPolicyRead(d, m)
 }
 
-func ApprovalPolicyRead(d *schema.ResourceData, m any) error {
+func ApprovalPolicyRead(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
 	approvalPolicyId := d.Id()
 
@@ -81,6 +87,7 @@ func ApprovalPolicyRead(d *schema.ResourceData, m any) error {
 		}
 		return err
 	}
+
 	if err := d.Set("nrn", approvalPolicy.Nrn); err != nil {
 		return err
 	}
@@ -89,32 +96,38 @@ func ApprovalPolicyRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	if err := d.Set("conditions", approvalPolicy.Conditions); err != nil {
-		return err
+	conditionsJSON, err := json.Marshal(approvalPolicy.Conditions)
+	if err != nil {
+		return fmt.Errorf("error serializing conditions to JSON: %v", err)
+	}
+
+	if err := d.Set("conditions", string(conditionsJSON)); err != nil {
+		return fmt.Errorf("error setting conditions in state: %v", err)
 	}
 
 	return nil
 }
 
-func ApprovalPolicyUpdate(d *schema.ResourceData, m any) error {
+func ApprovalPolicyUpdate(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
 	approvalPolicyId := d.Id()
 
 	approvalPolicy := &ApprovalPolicy{}
-
-	if d.HasChange("nrn") {
-		approvalPolicy.Nrn = d.Get("nrn").(string)
-	}
 
 	if d.HasChange("name") {
 		approvalPolicy.Name = d.Get("name").(string)
 	}
 
 	if d.HasChange("conditions") {
-		approvalPolicy.Conditions = d.Get("conditions").(string)
+		conditionsJSON := d.Get("conditions").(string)
+		var conditions map[string]interface{}
+		if err := json.Unmarshal([]byte(conditionsJSON), &conditions); err != nil {
+			return fmt.Errorf("error parsing conditions JSON: %v", err)
+		}
+		approvalPolicy.Conditions = conditions
 	}
 
-	if !reflect.DeepEqual(*approvalPolicy, Scope{}) {
+	if !reflect.DeepEqual(*approvalPolicy, ApprovalPolicy{}) {
 		err := nullOps.PatchApprovalPolicy(approvalPolicyId, approvalPolicy)
 		if err != nil {
 			return err
@@ -124,7 +137,7 @@ func ApprovalPolicyUpdate(d *schema.ResourceData, m any) error {
 	return ApprovalPolicyRead(d, m)
 }
 
-func ApprovalPolicyDelete(d *schema.ResourceData, m any) error {
+func ApprovalPolicyDelete(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
 	approvalPolicyId := d.Id()
 
@@ -134,6 +147,5 @@ func ApprovalPolicyDelete(d *schema.ResourceData, m any) error {
 	}
 
 	d.SetId("")
-
 	return nil
 }

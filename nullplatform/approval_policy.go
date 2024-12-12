@@ -10,11 +10,11 @@ import (
 const APPROVAL_POLICY_PATH = "/approval/policy"
 
 type ApprovalPolicy struct {
-	Id         int    `json:"id,omitempty"`
-	Nrn        string `json:"nrn,omitempty"`
-	Name       string `json:"name,omitempty"`
-	Conditions string `json:"conditions,omitempty"`
-	Status     string `json:"status,omitempty"`
+	Id         int                    `json:"id,omitempty"`
+	Nrn        string                 `json:"nrn,omitempty"`
+	Name       string                 `json:"name,omitempty"`
+	Conditions map[string]interface{} `json:"conditions,omitempty"`
+	Status     string                 `json:"status,omitempty"`
 }
 
 func (c *NullClient) CreateApprovalPolicy(policy *ApprovalPolicy) (*ApprovalPolicy, error) {
