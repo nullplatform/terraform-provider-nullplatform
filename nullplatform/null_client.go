@@ -135,10 +135,10 @@ func (c *NullClient) PrepareQueryString(params map[string]string) string {
 	var query string
 	// params is already validated outside, here it is assumed it is a non empty map of strings
 	for k, v := range params {
-		query += fmt.Sprintf("%s=%s&", k, v)
+		query = strings.Join([]string{query, strings.Join([]string{k, v}, "=")}, "&")
 	}
 
-	return "?" + query[:len(query)-1]
+	return "?" + query
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {

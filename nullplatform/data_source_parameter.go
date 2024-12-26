@@ -76,6 +76,9 @@ func dataSourceParameterRead(_ context.Context, d *schema.ResourceData, m any) d
 	nullOps := m.(NullOps)
 
 	param, err := nullOps.GetParameter(strconv.Itoa(d.Get("id").(int)), nil)
+	if err != nil {
+		return diag.FromErr(err)
+	}
 
 	err = d.Set("name", param.Name)
 	if err != nil {

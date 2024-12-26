@@ -12,15 +12,14 @@ import (
 const DIMENSION_PATH = "/runtime_configuration/dimension"
 
 type Dimension struct {
-	ID     int                      `json:"id,omitempty"`
-	Name   string                   `json:"name"`
-	NRN    string                   `json:"nrn"`
-	Slug   string                   `json:"slug,omitempty"`
-	Status string                   `json:"status,omitempty"`
-	Order  int                      `json:"order,omitempty"`
-	Values []map[string]interface{} `json:"values,omitempty"`
+	ID     int              `json:"id,omitempty"`
+	Name   string           `json:"name"`
+	NRN    string           `json:"nrn"`
+	Slug   string           `json:"slug,omitempty"`
+	Status string           `json:"status,omitempty"`
+	Order  int              `json:"order,omitempty"`
+	Values []DimensionValue `json:"values,omitempty"`
 }
-
 type ErrorResponse struct {
 	Message string `json:"message"`
 	Code    string `json:"code"`
@@ -108,13 +107,13 @@ func (c *NullClient) GetDimension(ID *string, name *string, slug *string, status
 		return nil, fmt.Errorf("error getting dimension resource, got status code: %d, body: %s", res.StatusCode, string(body))
 	}
 
-	response := &map[string]interface{}{}
+	response := &map[string]any{}
 	err = json.Unmarshal(body, response)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding dimension: %v", err)
 	}
 
-	results, ok := (*response)["results"].([]interface{})
+	results, ok := (*response)["results"].([]any)
 	if !ok {
 		return nil, fmt.Errorf("the data has returnned no occurence")
 	}
@@ -124,24 +123,15 @@ func (c *NullClient) GetDimension(ID *string, name *string, slug *string, status
 		return nil, fmt.Errorf("result expected returned %d elements", len(results))
 	}
 
-	dimension := &Dimension{}
-	rawDimension := results[0].(map[string]interface{})
-	dimension.ID = int(rawDimension["id"].(float64))
-	dimension.Name = rawDimension["name"].(string)
-	dimension.Status = rawDimension["status"].(string)
-	dimension.NRN = rawDimension["nrn"].(string)
-	dimension.Order = int(rawDimension["order"].(float64))
-	dimension.Slug = rawDimension["slug"].(string)
-	values := rawDimension["values"].([]interface{})
-	dimension.Values = make([]map[string]interface{}, len(values))
+	rawDimension := results[0].(map[string]any)
+	dimension := c.mapDimension(rawDimension)
+	values := rawDimension["values"].([]any)
+	dimension.Values = make([]DimensionValue, len(values))
 	for i, v := range values {
-		dimension.Values[i] = v.(map[string]interface{})
-	}
-	if err != nil {
-		return nil, fmt.Errorf("error asserting result to map %v", results[0])
+		dimension.Values[i] = c.mapDimensionValue(v.(map[string]any))
 	}
 
-	return dimension, nil
+	return &dimension, nil
 }
 
 func (c *NullClient) UpdateDimension(dimensionID string, d *Dimension) error {
@@ -198,4 +188,25 @@ func (c *NullClient) DeleteDimension(dimensionID string) error {
 	}
 
 	return nil
+}
+
+func (c *NullClient) mapDimension(rawDimension map[string]any) Dimension {
+	return Dimension{
+		ID:     int(rawDimension["id"].(float64)),
+		Name:   rawDimension["name"].(string),
+		Status: rawDimension["status"].(string),
+		NRN:    rawDimension["nrn"].(string),
+		Order:  int(rawDimension["order"].(float64)),
+		Slug:   rawDimension["slug"].(string),
+	}
+}
+
+func (c *NullClient) mapDimensionValue(rawDimensionValue map[string]any) DimensionValue {
+	return DimensionValue{
+		ID:     int(rawDimensionValue["id"].(float64)),
+		Name:   rawDimensionValue["name"].(string),
+		Status: rawDimensionValue["status"].(string),
+		NRN:    rawDimensionValue["nrn"].(string),
+		Slug:   rawDimensionValue["slug"].(string),
+	}
 }
