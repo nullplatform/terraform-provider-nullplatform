@@ -17,28 +17,65 @@ func dataSourceDimension() *schema.Resource {
 		Schema: map[string]*schema.Schema{
 			"id": {
 				Type:        schema.TypeInt,
-				Required:    true,
+				Optional:    true,
 				Description: "A system-wide unique ID for the Dimension",
 			},
 			"name": {
 				Type:        schema.TypeString,
-				Computed:    true,
+				Optional:    true,
 				Description: "The Dimension name.",
 			},
 			"slug": {
 				Type:        schema.TypeString,
-				Computed:    true,
+				Optional:    true,
 				Description: "The Dimension slug.",
 			},
 			"status": {
 				Type:        schema.TypeString,
-				Computed:    true,
+				Optional:    true,
 				Description: "Possible values: [`active`, `inactive`].",
 			},
 			"nrn": {
 				Type:        schema.TypeString,
-				Computed:    true,
+				Required:    true,
 				Description: "A system-wide unique ID representing the resource. If id not provided nrn is mandatory",
+			},
+			"values": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "Values available for the given dimension",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"id": {
+							Type:     schema.TypeFloat,
+							Computed: true,
+						},
+						"name": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"slug": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"nrn": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"status": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"created_at": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"updated_at": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+					},
+				},
 			},
 		},
 	}
@@ -62,11 +99,6 @@ func dataSourceDimensionRead(_ context.Context, d *schema.ResourceData, m any) d
 		return diag.FromErr(err)
 	}
 
-	err = d.Set("name", dimension.Name)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
 	err = d.Set("status", dimension.Status)
 	if err != nil {
 		return diag.FromErr(err)
@@ -78,6 +110,11 @@ func dataSourceDimensionRead(_ context.Context, d *schema.ResourceData, m any) d
 	}
 
 	err = d.Set("nrn", dimension.NRN)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	err = d.Set("values", dimension.Values)
 	if err != nil {
 		return diag.FromErr(err)
 	}

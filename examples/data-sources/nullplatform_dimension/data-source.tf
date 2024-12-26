@@ -6,40 +6,23 @@ terraform {
   }
 }
 
-provider "nullplatform" {}
-
-data "nullplatform_dimension" "example" {
-  id = "123456"
+provider "nullplatform" {
 }
 
-data "nullplatform_dimension" "by_nrn" {
-  nrn = "organization=1234567890:account=987654321:namespace=1122334455"
+data "nullplatform_dimension" "by_id" {
+  nrn = "organization=1205600439:account=1016594569:namespace=1933968243"
+  id = "1008402567"
 }
 
-data "nullplatform_dimension" "by_components" {
-  organization = "1234567890"
-  account     = "my-account"
-  namespace   = "platform-config"
+data "nullplatform_dimension" "by_slug" {
+  nrn = "organization=1205600439:account=1016594569:namespace=1933968243"
+  slug = "environment"
 }
 
-resource "nullplatform_dimension_value" "prod" {
-  dimension_id = data.nullplatform_dimension.example.id
-  name        = "Production"
-  nrn         = "${data.nullplatform_dimension.example.nrn}:value=prod"
+output "by_id" {
+  value = data.nullplatform_dimension.by_id
 }
 
-output "dimension_name" {
-  value = data.nullplatform_dimension.example.name
-}
-
-output "dimension_slug" {
-  value = data.nullplatform_dimension.example.slug
-}
-
-output "dimension_status" {
-  value = data.nullplatform_dimension.example.status
-}
-
-output "dimension_order" {
-  value = data.nullplatform_dimension.example.order
+output "by_slug" {
+  value = data.nullplatform_dimension.by_slug
 }

@@ -133,6 +133,7 @@ func (c *NullClient) PrepareQueryString(params map[string]string) string {
 	}
 
 	var query string
+	// params is already validated outside, here it is assumed it is a non empty map of strings
 	for k, v := range params {
 		query += fmt.Sprintf("%s=%s&", k, v)
 	}
