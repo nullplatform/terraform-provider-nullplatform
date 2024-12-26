@@ -108,7 +108,7 @@ type NullOps interface {
 	GetScopeBySlug(applicationID, slug string) (map[string]interface{}, error)
 
 	CreateDimension(*Dimension) (*Dimension, error)
-	GetDimension(string) (*Dimension, error)
+	GetDimension(*string, *string, *string, *string, *string) (*Dimension, error)
 	UpdateDimension(string, *Dimension) error
 	DeleteDimension(string) error
 
@@ -125,6 +125,19 @@ type NullOps interface {
 	GetMetadataSpecification(specId string) (*MetadataSpecification, error)
 	UpdateMetadataSpecification(specId string, spec *MetadataSpecification) (*MetadataSpecification, error)
 	DeleteMetadataSpecification(specId string) error
+}
+
+func (c *NullClient) PrepareQueryString(params map[string]string) string {
+	if len(params) == 0 {
+		return ""
+	}
+
+	var query string
+	for k, v := range params {
+		query += fmt.Sprintf("%s=%s&", k, v)
+	}
+
+	return "?" + query[:len(query)-1]
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {

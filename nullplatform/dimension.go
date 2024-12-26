@@ -60,35 +60,106 @@ func (c *NullClient) CreateDimension(d *Dimension) (*Dimension, error) {
 	return createdDimension, nil
 }
 
-func (c *NullClient) GetDimension(dimensionID string) (*Dimension, error) {
-	path := fmt.Sprintf("%s/%s", DIMENSION_PATH, dimensionID)
+func (c *NullClient) GetDimension(ID *string, name *string, slug *string, status *string, nrn *string) (*Dimension, error) {
+	if ID == nil {
+		path := fmt.Sprintf("%s/%s", DIMENSION_PATH, ID)
 
-	res, err := c.MakeRequest("GET", path, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error making GET request: %v", err)
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response body: %v", err)
-	}
-
-	if res.StatusCode != http.StatusOK {
-		var errResp ErrorResponse
-		if err := json.Unmarshal(body, &errResp); err == nil {
-			return nil, fmt.Errorf("API error getting dimension: %s (Code: %s)", errResp.Message, errResp.Code)
+		res, err := c.MakeRequest("GET", path, nil)
+		if err != nil {
+			return nil, fmt.Errorf("error making GET request: %v", err)
 		}
-		return nil, fmt.Errorf("error getting dimension resource, got status code: %d, body: %s", res.StatusCode, string(body))
-	}
+		defer res.Body.Close()
 
-	dimension := &Dimension{}
-	err = json.Unmarshal(body, dimension)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding dimension: %v", err)
-	}
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, fmt.Errorf("error reading response body: %v", err)
+		}
 
-	return dimension, nil
+		if res.StatusCode != http.StatusOK {
+			var errResp ErrorResponse
+			if err := json.Unmarshal(body, &errResp); err == nil {
+				return nil, fmt.Errorf("API error getting dimension: %s (Code: %s)", errResp.Message, errResp.Code)
+			}
+			return nil, fmt.Errorf("error getting dimension resource, got status code: %d, body: %s", res.StatusCode, string(body))
+		}
+
+		dimension := &Dimension{}
+		err = json.Unmarshal(body, dimension)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding dimension: %v", err)
+		}
+		return dimension, nil
+
+	} else {
+		if nrn == nil {
+			return nil, fmt.Errorf("nrn is required when ID is not provided")
+		} else {
+			params := map[string]string{}
+
+			if nrn == nil {
+				return nil, fmt.Errorf("nrn is mandatory when Id is not provided")
+			} else {
+				params["nrn"] = *nrn
+			}
+
+			if name != nil {
+				params["name"] = *name
+			}
+
+			if slug != nil {
+				params["slug"] = *slug
+			}
+
+			if status != nil {
+				params["status"] = *status
+			}
+
+			queryString := c.PrepareQueryString(params)
+			path := fmt.Sprintf("%s/%s", DIMENSION_PATH, queryString)
+
+			res, err := c.MakeRequest("GET", path, nil)
+			if err != nil {
+				return nil, fmt.Errorf("error making GET request: %v", err)
+			}
+			defer res.Body.Close()
+
+			body, err := io.ReadAll(res.Body)
+			if err != nil {
+				return nil, fmt.Errorf("error reading response body: %v", err)
+			}
+
+			if res.StatusCode != http.StatusOK {
+				var errResp ErrorResponse
+				if err := json.Unmarshal(body, &errResp); err == nil {
+					return nil, fmt.Errorf("API error getting dimension: %s (Code: %s)", errResp.Message, errResp.Code)
+				}
+				return nil, fmt.Errorf("error getting dimension resource, got status code: %d, body: %s", res.StatusCode, string(body))
+			}
+
+			response := &map[string]interface{}{}
+			err = json.Unmarshal(body, response)
+			if err != nil {
+				return nil, fmt.Errorf("error decoding dimension: %v", err)
+			}
+
+			results, ok := (*response)["results"].([]interface{})
+			if !ok {
+				return nil, fmt.Errorf("The data has returnned no occurence")
+			}
+
+			// Check if "results" has exactly one element
+			if len(results) != 1 {
+				return nil, fmt.Errorf("Result expected returned more than one occurence")
+			}
+
+			dimension, ok := results[0].(*Dimension)
+			if !ok {
+				return nil, fmt.Errorf("error asserting result to map")
+			}
+
+			return dimension, nil
+		}
+	}
 }
 
 func (c *NullClient) UpdateDimension(dimensionID string, d *Dimension) error {
