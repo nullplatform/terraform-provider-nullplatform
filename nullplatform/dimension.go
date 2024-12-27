@@ -65,7 +65,34 @@ func (c *NullClient) GetDimension(ID *string, name *string, slug *string, status
 
 	if ID != nil && *ID != "" {
 		if id, err := strconv.Atoi(*ID); err == nil && id > 0 {
-			params["id"] = *ID
+			path := fmt.Sprintf("%s/%s", DIMENSION_PATH, *ID)
+
+			res, err := c.MakeRequest("GET", path, nil)
+			if err != nil {
+				return nil, fmt.Errorf("error making GET request: %v", err)
+			}
+			defer res.Body.Close()
+
+			body, err := io.ReadAll(res.Body)
+			if err != nil {
+				return nil, fmt.Errorf("error reading response body: %v", err)
+			}
+
+			if res.StatusCode != http.StatusOK {
+				var errResp ErrorResponse
+				if err := json.Unmarshal(body, &errResp); err == nil {
+					return nil, fmt.Errorf("API error getting dimension: %s (Code: %s)", errResp.Message, errResp.Code)
+				}
+				return nil, fmt.Errorf("error getting dimension resource, got status code: %d, body: %s", res.StatusCode, string(body))
+			}
+
+			dimension := &Dimension{}
+			err = json.Unmarshal(body, dimension)
+			if err != nil {
+				return nil, fmt.Errorf("error decoding dimension: %v", err)
+			}
+
+			return dimension, nil
 		}
 	}
 
