@@ -86,23 +86,19 @@ func dataSourceDimensionRead(_ context.Context, d *schema.ResourceData, unWrappe
 		return diag.FromErr(err)
 	}
 
-	err = d.Set("name", dimension.Name)
-	if err != nil {
+	if err = d.Set("name", dimension.Name); err != nil {
 		return diag.FromErr(err)
 	}
 
-	err = d.Set("status", dimension.Status)
-	if err != nil {
+	if err = d.Set("status", dimension.Status); err != nil {
 		return diag.FromErr(err)
 	}
 
-	err = d.Set("slug", dimension.Slug)
-	if err != nil {
+	if err = d.Set("slug", dimension.Slug); err != nil {
 		return diag.FromErr(err)
 	}
 
-	err = d.Set("nrn", dimension.NRN)
-	if err != nil {
+	if err = d.Set("nrn", dimension.NRN); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -116,8 +112,7 @@ func dataSourceDimensionRead(_ context.Context, d *schema.ResourceData, unWrappe
 			"status": v.Status,
 		}
 	}
-	err = d.Set("values", value)
-	if err != nil {
+	if err = d.Set("values", value); err != nil {
 		return diag.FromErr(err)
 	}
 

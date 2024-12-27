@@ -60,7 +60,7 @@ func (c *NullClient) CreateDimension(d *Dimension) (*Dimension, error) {
 	return createdDimension, nil
 }
 
-func (c *NullClient) GetDimension(ID *string, name *string, slug *string, status *string, nrn *string) (*Dimension, error) {
+func (c *NullClient) GetDimension(ID, name, slug, status, nrn *string) (*Dimension, error) {
 	params := map[string]string{}
 
 	if ID != nil && *ID != "" {
@@ -69,13 +69,13 @@ func (c *NullClient) GetDimension(ID *string, name *string, slug *string, status
 
 			res, err := c.MakeRequest("GET", path, nil)
 			if err != nil {
-				return nil, fmt.Errorf("error making GET request: %v", err)
+				return nil, fmt.Errorf("error making GET request: %w", err)
 			}
 			defer res.Body.Close()
 
 			body, err := io.ReadAll(res.Body)
 			if err != nil {
-				return nil, fmt.Errorf("error reading response body: %v", err)
+				return nil, fmt.Errorf("error reading response body: %w", err)
 			}
 
 			if res.StatusCode != http.StatusOK {
@@ -89,7 +89,7 @@ func (c *NullClient) GetDimension(ID *string, name *string, slug *string, status
 			dimension := &Dimension{}
 			err = json.Unmarshal(body, dimension)
 			if err != nil {
-				return nil, fmt.Errorf("error decoding dimension: %v", err)
+				return nil, fmt.Errorf("error decoding dimension: %w", err)
 			}
 
 			return dimension, nil
@@ -155,7 +155,12 @@ func (c *NullClient) GetDimension(ID *string, name *string, slug *string, status
 	values := rawDimension["values"].([]any)
 	dimension.Values = make([]DimensionValue, len(values))
 	for i, v := range values {
-		dimension.Values[i] = c.mapDimensionValue(v.(map[string]any))
+		val, ok := v.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("value expected to be a map")
+		}
+
+		dimension.Values[i] = c.mapDimensionValue(val)
 	}
 
 	return &dimension, nil
