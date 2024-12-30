@@ -6,20 +6,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 )
 
 const DIMENSION_PATH = "/runtime_configuration/dimension"
 
 type Dimension struct {
-	ID     int               `json:"id,omitempty"`
-	Name   string            `json:"name"`
-	NRN    string            `json:"nrn"`
-	Slug   string            `json:"slug,omitempty"`
-	Status string            `json:"status,omitempty"`
-	Order  int               `json:"order,omitempty"`
-	Values map[string]string `json:"values,omitempty"`
+	ID     int              `json:"id,omitempty"`
+	Name   string           `json:"name"`
+	NRN    string           `json:"nrn"`
+	Slug   string           `json:"slug,omitempty"`
+	Status string           `json:"status,omitempty"`
+	Order  int              `json:"order,omitempty"`
+	Values []DimensionValue `json:"values,omitempty"`
 }
-
 type ErrorResponse struct {
 	Message string `json:"message"`
 	Code    string `json:"code"`
@@ -60,8 +60,60 @@ func (c *NullClient) CreateDimension(d *Dimension) (*Dimension, error) {
 	return createdDimension, nil
 }
 
-func (c *NullClient) GetDimension(dimensionID string) (*Dimension, error) {
-	path := fmt.Sprintf("%s/%s", DIMENSION_PATH, dimensionID)
+func (c *NullClient) GetDimension(ID, name, slug, status, nrn *string) (*Dimension, error) {
+	params := map[string]string{}
+
+	if ID != nil && *ID != "" {
+		if id, err := strconv.Atoi(*ID); err == nil && id > 0 {
+			path := fmt.Sprintf("%s/%s", DIMENSION_PATH, *ID)
+
+			res, err := c.MakeRequest("GET", path, nil)
+			if err != nil {
+				return nil, fmt.Errorf("error making GET request: %w", err)
+			}
+			defer res.Body.Close()
+
+			body, err := io.ReadAll(res.Body)
+			if err != nil {
+				return nil, fmt.Errorf("error reading response body: %w", err)
+			}
+
+			if res.StatusCode != http.StatusOK {
+				var errResp ErrorResponse
+				if err := json.Unmarshal(body, &errResp); err == nil {
+					return nil, fmt.Errorf("API error getting dimension: %s (Code: %s)", errResp.Message, errResp.Code)
+				}
+				return nil, fmt.Errorf("error getting dimension resource, got status code: %d, body: %s", res.StatusCode, string(body))
+			}
+
+			dimension := &Dimension{}
+			err = json.Unmarshal(body, dimension)
+			if err != nil {
+				return nil, fmt.Errorf("error decoding dimension: %w", err)
+			}
+
+			return dimension, nil
+		}
+	}
+
+	if nrn != nil && *nrn != "" {
+		params["nrn"] = *nrn
+	}
+
+	if name != nil && *name != "" {
+		params["name"] = *name
+	}
+
+	if slug != nil && *slug != "" {
+		params["slug"] = *slug
+	}
+
+	if status != nil && *status != "" {
+		params["status"] = *status
+	}
+
+	queryString := c.PrepareQueryString(params)
+	path := fmt.Sprintf("%s%s", DIMENSION_PATH, queryString)
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
@@ -82,13 +134,36 @@ func (c *NullClient) GetDimension(dimensionID string) (*Dimension, error) {
 		return nil, fmt.Errorf("error getting dimension resource, got status code: %d, body: %s", res.StatusCode, string(body))
 	}
 
-	dimension := &Dimension{}
-	err = json.Unmarshal(body, dimension)
+	response := &map[string]any{}
+	err = json.Unmarshal(body, response)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding dimension: %v", err)
 	}
 
-	return dimension, nil
+	results, ok := (*response)["results"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("the data has returnned no occurence")
+	}
+
+	// Check if "results" has exactly one element
+	if len(results) != 1 {
+		return nil, fmt.Errorf("result expected returned %d elements", len(results))
+	}
+
+	rawDimension := results[0].(map[string]any)
+	dimension := c.mapDimension(rawDimension)
+	values := rawDimension["values"].([]any)
+	dimension.Values = make([]DimensionValue, len(values))
+	for i, v := range values {
+		val, ok := v.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("value expected to be a map")
+		}
+
+		dimension.Values[i] = c.mapDimensionValue(val)
+	}
+
+	return &dimension, nil
 }
 
 func (c *NullClient) UpdateDimension(dimensionID string, d *Dimension) error {
@@ -145,4 +220,25 @@ func (c *NullClient) DeleteDimension(dimensionID string) error {
 	}
 
 	return nil
+}
+
+func (c *NullClient) mapDimension(rawDimension map[string]any) Dimension {
+	return Dimension{
+		ID:     int(rawDimension["id"].(float64)),
+		Name:   rawDimension["name"].(string),
+		Status: rawDimension["status"].(string),
+		NRN:    rawDimension["nrn"].(string),
+		Order:  int(rawDimension["order"].(float64)),
+		Slug:   rawDimension["slug"].(string),
+	}
+}
+
+func (c *NullClient) mapDimensionValue(rawDimensionValue map[string]any) DimensionValue {
+	return DimensionValue{
+		ID:     int(rawDimensionValue["id"].(float64)),
+		Name:   rawDimensionValue["name"].(string),
+		Status: rawDimensionValue["status"].(string),
+		NRN:    rawDimensionValue["nrn"].(string),
+		Slug:   rawDimensionValue["slug"].(string),
+	}
 }

@@ -82,7 +82,7 @@ func DimensionRead(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
 	dimensionID := d.Id()
 
-	dimension, err := nullOps.GetDimension(dimensionID)
+	dimension, err := nullOps.GetDimension(&dimensionID, nil, nil, nil, nil)
 	if err != nil {
 		return err
 	}

@@ -108,7 +108,7 @@ type NullOps interface {
 	GetScopeBySlug(applicationID, slug string) (map[string]interface{}, error)
 
 	CreateDimension(*Dimension) (*Dimension, error)
-	GetDimension(string) (*Dimension, error)
+	GetDimension(*string, *string, *string, *string, *string) (*Dimension, error)
 	UpdateDimension(string, *Dimension) error
 	DeleteDimension(string) error
 
@@ -125,6 +125,20 @@ type NullOps interface {
 	GetMetadataSpecification(specId string) (*MetadataSpecification, error)
 	UpdateMetadataSpecification(specId string, spec *MetadataSpecification) (*MetadataSpecification, error)
 	DeleteMetadataSpecification(specId string) error
+}
+
+func (c *NullClient) PrepareQueryString(params map[string]string) string {
+	if len(params) == 0 {
+		return ""
+	}
+
+	var query string
+	// params is already validated outside, here it is assumed it is a non empty map of strings
+	for k, v := range params {
+		query = strings.Join([]string{query, strings.Join([]string{k, v}, "=")}, "&")
+	}
+
+	return "?" + query
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {
