@@ -28,6 +28,7 @@ func resourceNamespace() *schema.Resource {
 			"name": {
 				Type:        schema.TypeString,
 				Required:    true,
+				ForceNew:    true,
 				Description: "The name of the namespace. Maximum length is 60 characters.",
 			},
 			"slug": {
@@ -45,6 +46,7 @@ func resourceNamespace() *schema.Resource {
 			"account_id": {
 				Type:        schema.TypeInt,
 				Required:    true,
+				ForceNew:    true,
 				Description: "The ID of the account that owns this namespace",
 			},
 		},
@@ -79,22 +81,22 @@ func NamespaceRead(d *schema.ResourceData, m any) error {
 	if err != nil {
 		if namespace != nil && namespace.Status == "inactive" {
 			d.SetId("")
-			return nil
+			return fmt.Errorf("namespace with ID '%s' is inactive and has been removed from state", namespaceId)
 		}
-		return fmt.Errorf("error reading namespace: %w", err)
+		return fmt.Errorf("failed to fetch namespace with ID '%s': %w", namespaceId, err)
 	}
 
 	if err := d.Set("name", namespace.Name); err != nil {
-		return err
+		return fmt.Errorf("failed to set 'name' for namespace with ID '%s': %w", namespaceId, err)
 	}
 	if err := d.Set("slug", namespace.Slug); err != nil {
-		return err
+		return fmt.Errorf("failed to set 'slug' for namespace with ID '%s': %w", namespaceId, err)
 	}
 	if err := d.Set("status", namespace.Status); err != nil {
-		return err
+		return fmt.Errorf("failed to set 'status' for namespace with ID '%s': %w", namespaceId, err)
 	}
 	if err := d.Set("account_id", namespace.AccountId); err != nil {
-		return err
+		return fmt.Errorf("failed to set 'account_id' for namespace with ID '%s': %w", namespaceId, err)
 	}
 
 	return nil
@@ -118,10 +120,14 @@ func NamespaceUpdate(d *schema.ResourceData, m any) error {
 
 	err := nullOps.PatchNamespace(namespaceId, namespace)
 	if err != nil {
-		return fmt.Errorf("error updating namespace: %w", err)
+		return fmt.Errorf("failed to update namespace with ID '%s': %w", namespaceId, err)
 	}
 
-	return NamespaceRead(d, m)
+	if err := NamespaceRead(d, m); err != nil {
+		return fmt.Errorf("error reading namespace after update for ID '%s': %w", namespaceId, err)
+	}
+
+	return nil
 }
 
 func NamespaceDelete(d *schema.ResourceData, m any) error {
@@ -130,7 +136,7 @@ func NamespaceDelete(d *schema.ResourceData, m any) error {
 
 	err := nullOps.DeleteNamespace(namespaceId)
 	if err != nil {
-		return fmt.Errorf("error deleting namespace: %w", err)
+		return fmt.Errorf("failed to delete namespace with ID '%s': %w", namespaceId, err)
 	}
 
 	d.SetId("")
