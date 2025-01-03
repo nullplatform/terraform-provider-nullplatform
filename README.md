@@ -1,7 +1,14 @@
-# terraform-provider-nullplatform
+<h2 align="center">
+    <a href="https://nullplatform.com" target="blank_">
+        <img height="100" alt="Nullplatform" src="https://nullplatform.com/favicon/android-chrome-192x192.png" />
+    </a>
+    <br>
+    <br>
+    Terraform provider nullplatform
+    <br>
+</h2>
 
-The Provider allows Terraform to manage Null Platform resources.
-
+This provider allows Terraform to manage nullplatform resources.
 
 ## Development Environment Setup
 
