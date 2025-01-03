@@ -121,6 +121,11 @@ type NullOps interface {
 	PatchAccount(accountId string, account *Account) error
 	DeleteAccount(accountId string) error
 
+	CreateNamespace(namespace *Namespace) (*Namespace, error)
+	GetNamespace(namespaceId string) (*Namespace, error)
+	PatchNamespace(namespaceId string, account *Namespace) error
+	DeleteNamespace(namespaceId string) error
+
 	CreateMetadataSpecification(spec *MetadataSpecification) (*MetadataSpecification, error)
 	GetMetadataSpecification(specId string) (*MetadataSpecification, error)
 	UpdateMetadataSpecification(specId string, spec *MetadataSpecification) (*MetadataSpecification, error)

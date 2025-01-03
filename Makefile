@@ -2,7 +2,7 @@ HOSTNAME=nullplatform
 NAMESPACE=com
 NAME=nullplatform
 BINARY=terraform-provider-${NAME}
-VERSION=0.0.15
+VERSION=0.0.42
 TEST := ./...
 
 OS := $(shell uname -o | tr '[:upper:]' '[:lower:]')
@@ -29,4 +29,4 @@ testacc:
 	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 120m   
 
 update-docs:
-	tfplugindocs generate -provider-name nullplatform --rendered-provider-name "Null Platform"
+	tfplugindocs generate -provider-name nullplatform --rendered-provider-name "Nullplatform"
