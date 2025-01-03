@@ -22,13 +22,12 @@ func Provider() *schema.Provider {
 				DefaultFunc: schema.EnvDefaultFunc("NULLPLATFORM_API_KEY", nil),
 				Optional:    true,
 				Sensitive:   true,
-				Description: "Nullplatform API KEY. Can also be set with the `NP_API_KEY` environment variable.",
+				Description: "Nullplatform API KEY. Can also be set with the `NULLPLATFORM_API_KEY` environment variable.",
 			},
 			HOST: {
 				Type:        schema.TypeString,
 				DefaultFunc: schema.EnvDefaultFunc("NULLPLATFORM_HOST", "api.nullplatform.com"),
 				Optional:    true,
-				Sensitive:   true,
 				Description: "Nullplatform HOST. Can also be set with the `NULLPLATFORM_HOST` environment variable. If omitted, the default value is `api.nullplatform.com`",
 			},
 			NP_API_KEY: {
