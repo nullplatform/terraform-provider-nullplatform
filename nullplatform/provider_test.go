@@ -31,6 +31,7 @@ func testAccPreCheck(t *testing.T) {
 func TestProvider_HasChildResources(t *testing.T) {
 	expectedResources := []string{
 		"nullplatform_account",
+		"nullplatform_namespace",
 		"nullplatform_scope",
 		"nullplatform_service",
 		"nullplatform_link",
@@ -57,6 +58,7 @@ func TestProvider_HasChildResources(t *testing.T) {
 
 func TestProvider_HasChildDataSources(t *testing.T) {
 	expectedDataSources := []string{
+		"nullplatform_dimension",
 		"nullplatform_scope",
 		"nullplatform_service",
 		"nullplatform_application",
