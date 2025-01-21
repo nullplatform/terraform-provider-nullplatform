@@ -37,11 +37,6 @@ type Parameter struct {
 	VersionID       int               `json:"version_id,omitempty"`
 }
 
-type Paging struct {
-	Offset int `json:"offset,omitempty"`
-	Limit  int `json:"limit,omitempty"`
-}
-
 type ParameterList struct {
 	Paging  *Paging      `json:"paging,omitempty"`
 	Results []*Parameter `json:"results,omitempty"`
