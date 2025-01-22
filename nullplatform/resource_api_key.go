@@ -11,7 +11,7 @@ import (
 
 func resourceApiKey() *schema.Resource {
 	return &schema.Resource{
-		Description: "The API key resource allows you to configure an API key for the nullplatform API",
+		Description: "The API key resource allows you to configure an API key for the nullplatform API.",
 
 		CreateContext: CreateApiKey,
 		ReadContext:   ReadApiKey,
@@ -22,47 +22,47 @@ func resourceApiKey() *schema.Resource {
 			"name": {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "The name of the API key",
+				Description: "The name of the API key.",
 			},
 			"api_key": {
 				Type:        schema.TypeString,
 				Computed:    true,
 				Sensitive:   true,
-				Description: "The API key value (only available after creation)",
+				Description: "The API key value (only available after creation).",
 			},
 			"masked_api_key": {
 				Type:        schema.TypeString,
 				Computed:    true,
-				Description: "The masked version of the API key",
+				Description: "The masked version of the API key.",
 			},
 			"owner_id": {
 				Type:        schema.TypeInt,
 				Computed:    true,
-				Description: "The ID of the API key owner",
+				Description: "The ID of the API key owner.",
 			},
 			"grants": {
 				Type:        schema.TypeSet,
 				Required:    true,
-				Description: "List of grants associated with the API key",
+				Description: "List of grants associated with the API key.",
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"nrn": {
 							Type:         schema.TypeString,
 							Required:     true,
-							Description:  "The NRN for the grant",
+							Description:  "The NRN for the grant.",
 							ValidateFunc: validation.StringIsNotEmpty,
 						},
 						"role_id": {
 							Type:        schema.TypeInt,
 							Optional:    true,
 							Computed:    true,
-							Description: "The ID of the role",
+							Description: "The ID of the role.",
 						},
 						"role_slug": {
 							Type:        schema.TypeString,
 							Optional:    true,
 							Computed:    true,
-							Description: "The slug of the role",
+							Description: "The slug of the role.",
 						},
 					},
 				},
@@ -70,18 +70,18 @@ func resourceApiKey() *schema.Resource {
 			"tags": {
 				Type:        schema.TypeSet,
 				Optional:    true,
-				Description: "List of tags of the API key",
+				Description: "List of tags of the API key.",
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"key": {
 							Type:        schema.TypeString,
 							Required:    true,
-							Description: "The key of the tag",
+							Description: "The key of the tag.",
 						},
 						"value": {
 							Type:        schema.TypeString,
 							Required:    true,
-							Description: "The value of the tag",
+							Description: "The value of the tag.",
 						},
 					},
 				},
@@ -89,17 +89,17 @@ func resourceApiKey() *schema.Resource {
 			"last_used_at": {
 				Type:        schema.TypeString,
 				Computed:    true,
-				Description: "Timestamp of the last usage of the API key",
+				Description: "Timestamp of the last usage of the API key.",
 			},
 			"created_at": {
 				Type:        schema.TypeString,
 				Computed:    true,
-				Description: "Timestamp when the API key was created",
+				Description: "Timestamp when the API key was created.",
 			},
 			"updated_at": {
 				Type:        schema.TypeString,
 				Computed:    true,
-				Description: "Timestamp when the API key was last updated",
+				Description: "Timestamp when the API key was last updated.",
 			},
 		},
 	}
