@@ -23,6 +23,8 @@ terraform {
 
 provider "nullplatform" {}
 
+# To enable slack integration please refer first to https://docs.nullplatform.com/docs/notifications/#slack
+
 resource "nullplatform_notification_channel" "slack" {
  nrn    = "organization=1:account=2:namespace=3:application=123"
  type   = "slack"
