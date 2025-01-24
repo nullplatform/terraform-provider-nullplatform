@@ -16,51 +16,60 @@ The approval action resource allows you to configure a nullplatform action for t
 terraform {
   required_providers {
     nullplatform = {
-      source = "nullplatform/nullplatform"
+        source = "nullplatform/nullplatform"
     }
   }
 }
 
 provider "nullplatform" {}
 
-resource "nullplatform_notification_channel" "slack" {
-  nrn    = "organization=1255165411:account=95118862:namespace=1493172477:application=113444824"
-  type   = "slack"
-  source = ["approval", "service"]
-  
-  configuration {
-    slack {
-      channels = ["#alerts", "#platform-notifications"]
+resource "nullplatform_approval_action" "deployment_create" {
+    nrn = "organization=12551165411:account=2:namespace=3:application=123"
+    entity = "deployment"
+    action = "deployment:create"
+    
+    dimensions = {
+      environment = "production"
     }
-  }
+
+    on_policy_success = "approve"
+    on_policy_fail = "manual"
+
+    policies = [
+      nullplatform_approval_policy.example_policy.id
+    ]
 }
 
-resource "nullplatform_notification_channel" "webhook" {
-  nrn  = "organization=1255165411:account=95118862:namespace=1493172477:application=113444824"
-  type = "http"
-  source = ["approval", "service"]
-  
-  configuration {
-    http {
-      url = "https://hooks.example.com/webhook/xyz"
+resource "nullplatform_approval_action" "scope_delete" {
+    nrn = "organization=12551165411:account=2:namespace=3:application=123"
+    entity = "scope"
+    action = "scope:delete"
+    
+    dimensions = {
+        environment = "production"
     }
-  }
+
+    on_policy_success = "approve"
+    on_policy_fail = "manual"
+
+    policies = [
+      nullplatform_approval_policy.example_policy.id
+    ]
 }
 
-resource "nullplatform_notification_channel" "github" {
-  nrn    = "organization=1255165411:account=95118862:namespace=1493172477:application=113444824"
-  type   = "github"
-  source = ["approval", "service"]
-  
-  configuration {
-    github {
-      account         = "GalactusPlatform"
-      reference       = "main"
-      repository      = "demo-nullplatform-services-manager"
-      workflow_id     = "service-action.yml"
-      installation_id = "57594772"
+resource "nullplatform_approval_action" "scope_create" {
+    account = "test-account"
+    entity = "scope"
+    action = "scope:create"
+    dimensions = {
+      environment = "production"
     }
-  }
+    on_policy_success = "approve"
+    on_policy_fail = "manual"
+
+    policies = [
+      nullplatform_approval_policy.example_policy.id
+    ]
 }
 ```
 
@@ -71,14 +80,18 @@ resource "nullplatform_notification_channel" "github" {
 
 - `action` (String) The action to which this action applies. Example: `deployment:create`
 - `entity` (String) The entity to which this action applies. Example: `deployment`.
-- `nrn` (String) The NRN of the resource (including children resources) where the action will apply.
 - `on_policy_fail` (String) The action to be taken on policy failure. Possible values: [`manual`, `deny`]
 - `on_policy_success` (String) The action to be taken on policy success. Possible values: [`approve`, `manual`]
 
 ### Optional
 
+- `account` (String) The slug of the account NRN component.
+- `application` (String) The slug of the application NRN component.
 - `dimensions` (Map of String) A key-value map with the runtime configuration dimensions that apply to this scope.
+- `namespace` (String) The slug of the namespace NRN component.
+- `nrn` (String) A system-wide unique ID representing the resource.
 - `policies` (Set of String) A list of Policy IDs to associate with the action.
+- `scope` (String) The slug of the scope NRN component.
 
 ### Read-Only
 
