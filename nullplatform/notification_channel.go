@@ -9,6 +9,25 @@ import (
 
 const NOTIFICATION_CHANNEL_PATH = "/notification/channel"
 
+type NotificationChannelSlackConfig struct {
+	Channels []string `json:"channels,omitempty"`
+}
+
+type NotificationChannelHttpConfig struct {
+	Url string `json:"url,omitempty"`
+}
+
+type NotificationChannelGitlabConfig struct {
+	ProjectId string `json:"project_id,omitempty"`
+	Reference string `json:"reference,omitempty"`
+}
+
+type NotificationChannelConfiguration struct {
+	Slack  *NotificationChannelSlackConfig  `json:"slack,omitempty"`
+	Http   *NotificationChannelHttpConfig   `json:"http,omitempty"`
+	Gitlab *NotificationChannelGitlabConfig `json:"gitlab,omitempty"`
+}
+
 type NotificationChannel struct {
 	Id            int                               `json:"id,omitempty"`
 	Nrn           string                            `json:"nrn,omitempty"`
@@ -16,18 +35,12 @@ type NotificationChannel struct {
 	Source        []string                          `json:"source,omitempty"`
 	Configuration *NotificationChannelConfiguration `json:"configuration,omitempty"`
 	Status        string                            `json:"status,omitempty"`
-}
-
-type NotificationChannelConfiguration struct {
-	Channels []string `json:"channels,omitempty"`
-	Url      string   `json:"url,omitempty"`
-	Token    string   `json:"token,omitempty"`
+	Filters       map[string]interface{}            `json:"filters,omitempty"`
 }
 
 func (c *NullClient) CreateNotificationChannel(notification *NotificationChannel) (*NotificationChannel, error) {
 	var buf bytes.Buffer
 	err := json.NewEncoder(&buf).Encode(*notification)
-
 	if err != nil {
 		return nil, err
 	}
@@ -43,15 +56,12 @@ func (c *NullClient) CreateNotificationChannel(notification *NotificationChannel
 		if err := json.NewDecoder(res.Body).Decode(&nErr); err != nil {
 			return nil, fmt.Errorf("failed to decode error response: %w", err)
 		}
-		defer res.Body.Close()
 		return nil, fmt.Errorf("error creating notification channel, got status code: %d, %s", res.StatusCode, nErr.Message)
 	}
 
 	resNotification := &NotificationChannel{}
-	derr := json.NewDecoder(res.Body).Decode(resNotification)
-
-	if derr != nil {
-		return nil, derr
+	if err := json.NewDecoder(res.Body).Decode(resNotification); err != nil {
+		return nil, err
 	}
 
 	return resNotification, nil
@@ -67,10 +77,8 @@ func (c *NullClient) GetNotificationChannel(notificationId string) (*Notificatio
 	defer res.Body.Close()
 
 	notification := &NotificationChannel{}
-	derr := json.NewDecoder(res.Body).Decode(notification)
-
-	if derr != nil {
-		return nil, derr
+	if err := json.NewDecoder(res.Body).Decode(notification); err != nil {
+		return nil, err
 	}
 
 	if notification.Status == "inactive" {
@@ -82,22 +90,6 @@ func (c *NullClient) GetNotificationChannel(notificationId string) (*Notificatio
 	}
 
 	return notification, nil
-}
-
-func (c *NullClient) DeleteNotificationChannel(notificationId string) error {
-	path := fmt.Sprintf("%s/%s", NOTIFICATION_CHANNEL_PATH, notificationId)
-
-	res, err := c.MakeRequest("DELETE", path, nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-
-	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		return fmt.Errorf("error deleting notification channel, got %d", res.StatusCode)
-	}
-
-	return nil
 }
 
 func (c *NullClient) UpdateNotificationChannel(notificationId string, notification *NotificationChannel) error {
@@ -116,6 +108,22 @@ func (c *NullClient) UpdateNotificationChannel(notificationId string, notificati
 
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("error updating notification channel, got %d", res.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *NullClient) DeleteNotificationChannel(notificationId string) error {
+	path := fmt.Sprintf("%s/%s", NOTIFICATION_CHANNEL_PATH, notificationId)
+
+	res, err := c.MakeRequest("DELETE", path, nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
+		return fmt.Errorf("error deleting notification channel, got %d", res.StatusCode)
 	}
 
 	return nil
