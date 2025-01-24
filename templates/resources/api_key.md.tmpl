@@ -14,7 +14,9 @@ description: |-
 
 > **Warning:** API Key Stored in the `tfstate` file
 >
-> When creating an API key with Terraform, the secret value will be stored in the `tfstate` file and nowhere else. Make sure to protect this file from unauthorized access.
+> - The secret value of the API key will **only** be stored in the `tfstate` file and nowhere else.
+> - Once generated, the secret value **cannot be retrieved again**, not even by importing the resource.
+> - Make sure to **securely store** and protect the `tfstate` file from unauthorized access to avoid potential security risks.
 
 ## Example Usage
 
