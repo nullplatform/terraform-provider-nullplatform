@@ -11,7 +11,7 @@ description: |-
 {{ .Description | trimspace }}
 {{- end }}
 
-~> **WARNING:** The secret value of the API key will **only** be stored in the `tfstate` file and nowhere else. Once generated, the secret value **cannot be retrieved again**, not even by importing the resource. Make sure to **securely store** and protect the `tfstate` file from unauthorized access to avoid potential security risks.
+~> **Secure your API keys** The API key's secret value is **only stored in the `tfstate` file** and **cannot be retrieved again**, even by importing the resource. Ensure the `tfstate` file is **securely** stored and protected from unauthorized access to mitigate security risks.
 
 ## Examples
 
