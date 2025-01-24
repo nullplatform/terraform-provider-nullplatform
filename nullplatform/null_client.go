@@ -131,6 +131,11 @@ type NullOps interface {
 	GetMetadataSpecification(specId string) (*MetadataSpecification, error)
 	UpdateMetadataSpecification(specId string, spec *MetadataSpecification) (*MetadataSpecification, error)
 	DeleteMetadataSpecification(specId string) error
+
+	GetApiKey(apiKeyId int64) (*ApiKey, error)
+	CreateApiKey(body *CreateApiKeyRequestBody) (*CreateApiKeyResponseBody, error)
+	PatchApiKey(apiKeyId int64, body *PatchApiKeyRequestBody) error
+	DeleteApiKey(apiKeyId int64) error
 }
 
 func (c *NullClient) PrepareQueryString(params map[string]string) string {

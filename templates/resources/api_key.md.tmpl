@@ -1,0 +1,26 @@
+---
+page_title: "{{.Name}} Resource - {{.ProviderName}}"
+subcategory: ""
+description: |-
+  {{ .Description | trimspace }}
+---
+
+# {{.Name}} (Resource)
+
+{{ if .Description -}}
+{{ .Description | trimspace }}
+{{- end }}
+
+~> **Secure your API keys** The API key's secret value is **only stored in the `tfstate` file** and **cannot be retrieved again**, even by importing the resource. Ensure the `tfstate` file is **securely** stored and protected from unauthorized access.
+
+## Examples
+
+### Basic Example
+
+{{ tffile (printf "examples/resources/%s/simple.tf" .Name) }}
+
+### Advanced Example
+
+{{ tffile (printf "examples/resources/%s/advanced.tf" .Name) }}
+
+{{ .SchemaMarkdown | trimspace }}

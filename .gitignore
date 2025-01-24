@@ -8,3 +8,4 @@ dist/
 .git/
 .terraformrc
 .idea
+bin
