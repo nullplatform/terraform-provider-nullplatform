@@ -2,6 +2,8 @@ package nullplatform
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"reflect"
 	"strconv"
 
@@ -24,13 +26,7 @@ func resourceApprovalPolicy() *schema.Resource {
 			},
 		},
 
-		Schema: map[string]*schema.Schema{
-			"nrn": {
-				Type:        schema.TypeString,
-				Required:    true,
-				ForceNew:    true,
-				Description: "The NRN of the resource (including children resources) where the policy will apply.",
-			},
+		Schema: AddNRNSchema(map[string]*schema.Schema{
 			"name": {
 				Type:        schema.TypeString,
 				Required:    true,
@@ -41,16 +37,30 @@ func resourceApprovalPolicy() *schema.Resource {
 				Required:    true,
 				Description: "The conditions that the policy applies to, as a JSON object.",
 			},
-		},
+		}),
 	}
 }
 
 func ApprovalPolicyCreate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 
-	nrn := d.Get("nrn").(string)
+	var nrn string
+	var err error
+	if v, ok := d.GetOk("nrn"); ok {
+		nrn = v.(string)
+	} else {
+		nrn, err = ConstructNRNFromComponents(d, nullOps)
+		if err != nil {
+			return fmt.Errorf("error constructing NRN: %v %s", err, nrn)
+		}
+	}
 	name := d.Get("name").(string)
-	conditions := d.Get("conditions").(string)
+	conditionsJSON := d.Get("conditions").(string)
+
+	var conditions map[string]interface{}
+	if err := json.Unmarshal([]byte(conditionsJSON), &conditions); err != nil {
+		return fmt.Errorf("error parsing conditions JSON: %v", err)
+	}
 
 	newApprovalPolicy := &ApprovalPolicy{
 		Nrn:        nrn,
@@ -89,7 +99,12 @@ func ApprovalPolicyRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	if err := d.Set("conditions", approvalPolicy.Conditions); err != nil {
+	conditionsJSON, err := json.Marshal(approvalPolicy.Conditions)
+	if err != nil {
+		return fmt.Errorf("error serializing conditions to JSON: %v", err)
+	}
+
+	if err := d.Set("conditions", string(conditionsJSON)); err != nil {
 		return err
 	}
 
@@ -111,7 +126,12 @@ func ApprovalPolicyUpdate(d *schema.ResourceData, m any) error {
 	}
 
 	if d.HasChange("conditions") {
-		approvalPolicy.Conditions = d.Get("conditions").(string)
+		conditionsJSON := d.Get("conditions").(string)
+		var conditions map[string]interface{}
+		if err := json.Unmarshal([]byte(conditionsJSON), &conditions); err != nil {
+			return fmt.Errorf("error parsing conditions JSON: %v", err)
+		}
+		approvalPolicy.Conditions = conditions
 	}
 
 	if !reflect.DeepEqual(*approvalPolicy, Scope{}) {

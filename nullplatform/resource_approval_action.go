@@ -2,6 +2,7 @@ package nullplatform
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strconv"
 
@@ -24,13 +25,7 @@ func resourceApprovalAction() *schema.Resource {
 			},
 		},
 
-		Schema: map[string]*schema.Schema{
-			"nrn": {
-				Type:        schema.TypeString,
-				Required:    true,
-				ForceNew:    true,
-				Description: "The NRN of the resource (including children resources) where the action will apply.",
-			},
+		Schema: AddNRNSchema(map[string]*schema.Schema{
 			"entity": {
 				Type:        schema.TypeString,
 				Required:    true,
@@ -66,14 +61,23 @@ func resourceApprovalAction() *schema.Resource {
 				Elem:        &schema.Schema{Type: schema.TypeString},
 				Description: "A list of Policy IDs to associate with the action.",
 			},
-		},
+		}),
 	}
 }
 
 func ApprovalActionCreate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 
-	nrn := d.Get("nrn").(string)
+	var nrn string
+	var err error
+	if v, ok := d.GetOk("nrn"); ok {
+		nrn = v.(string)
+	} else {
+		nrn, err = ConstructNRNFromComponents(d, nullOps)
+		if err != nil {
+			return fmt.Errorf("error constructing NRN: %v %s", err, nrn)
+		}
+	}
 	entity := d.Get("entity").(string)
 	action := d.Get("action").(string)
 	onPolicySuccess := d.Get("on_policy_success").(string)
@@ -151,7 +155,6 @@ func ApprovalActionRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	// Convert ApprovalPolicy.Id to a set of strings
 	policyIds := make([]string, len(approvalAction.Policies))
 	for i, policy := range approvalAction.Policies {
 		if policy != nil {
@@ -187,7 +190,6 @@ func ApprovalActionUpdate(d *schema.ResourceData, m any) error {
 	if d.HasChange("dimensions") {
 		dimensionsMap := d.Get("dimensions").(map[string]interface{})
 
-		// Convert the dimensions to a map[string]string
 		dimensions := make(map[string]string)
 		for key, value := range dimensionsMap {
 			dimensions[key] = value.(string)
