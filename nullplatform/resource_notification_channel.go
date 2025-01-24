@@ -30,18 +30,10 @@ func resourceNotificationChannel() *schema.Resource {
 				},
 			},
 			"configuration": {
-<<<<<<< HEAD
 				Type:     schema.TypeList,
 				Required: true,
 				MinItems: 1,
 				MaxItems: 1,
-=======
-				Type:        schema.TypeList,
-				MaxItems:    1,
-				Required:    true,
-				ForceNew:    true,
-				Description: "Channels as an array of Slack channels or Http as the URL where the notifications will be sent.",
->>>>>>> main
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"slack": {
