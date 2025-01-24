@@ -9,33 +9,14 @@ import (
 
 const NOTIFICATION_CHANNEL_PATH = "/notification/channel"
 
-type NotificationChannelSlackConfig struct {
-	Channels []string `json:"channels,omitempty"`
-}
-
-type NotificationChannelHttpConfig struct {
-	Url string `json:"url,omitempty"`
-}
-
-type NotificationChannelGitlabConfig struct {
-	ProjectId string `json:"project_id,omitempty"`
-	Reference string `json:"reference,omitempty"`
-}
-
-type NotificationChannelConfiguration struct {
-	Slack  *NotificationChannelSlackConfig  `json:"slack,omitempty"`
-	Http   *NotificationChannelHttpConfig   `json:"http,omitempty"`
-	Gitlab *NotificationChannelGitlabConfig `json:"gitlab,omitempty"`
-}
-
 type NotificationChannel struct {
-	Id            int                               `json:"id,omitempty"`
-	Nrn           string                            `json:"nrn,omitempty"`
-	Type          string                            `json:"type,omitempty"`
-	Source        []string                          `json:"source,omitempty"`
-	Configuration *NotificationChannelConfiguration `json:"configuration,omitempty"`
-	Status        string                            `json:"status,omitempty"`
-	Filters       map[string]interface{}            `json:"filters,omitempty"`
+	Id            int                    `json:"id,omitempty"`
+	Nrn           string                 `json:"nrn,omitempty"`
+	Type          string                 `json:"type,omitempty"`
+	Source        []string               `json:"source,omitempty"`
+	Configuration map[string]interface{} `json:"configuration,omitempty"`
+	Status        string                 `json:"status,omitempty"`
+	Filters       map[string]interface{} `json:"filters"`
 }
 
 func (c *NullClient) CreateNotificationChannel(notification *NotificationChannel) (*NotificationChannel, error) {
@@ -44,6 +25,8 @@ func (c *NullClient) CreateNotificationChannel(notification *NotificationChannel
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("Request body: %s\n", buf.String())
 
 	res, err := c.MakeRequest("POST", NOTIFICATION_CHANNEL_PATH, &buf)
 	if err != nil {
@@ -99,6 +82,8 @@ func (c *NullClient) UpdateNotificationChannel(notificationId string, notificati
 		return err
 	}
 
+	fmt.Printf("Request body: %s\n", buf.String())
+
 	path := fmt.Sprintf("%s/%s", NOTIFICATION_CHANNEL_PATH, notificationId)
 	res, err := c.MakeRequest("PATCH", path, &buf)
 	if err != nil {
@@ -106,7 +91,7 @@ func (c *NullClient) UpdateNotificationChannel(notificationId string, notificati
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("error updating notification channel, got %d", res.StatusCode)
 	}
 
