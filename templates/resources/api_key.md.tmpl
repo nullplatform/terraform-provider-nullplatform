@@ -18,8 +18,14 @@ description: |-
 > - Once generated, the secret value **cannot be retrieved again**, not even by importing the resource.
 > - Make sure to **securely store** and protect the `tfstate` file from unauthorized access to avoid potential security risks.
 
-## Example Usage
+## Examples
 
-{{ tffile (printf "examples/resources/%s/resource.tf" .Name) }}
+### Basic Example
+
+{{ tffile (printf "examples/resources/%s/simple.tf" .Name) }}
+
+### Advanced Example
+
+{{ tffile (printf "examples/resources/%s/advanced.tf" .Name) }}
 
 {{ .SchemaMarkdown | trimspace }}

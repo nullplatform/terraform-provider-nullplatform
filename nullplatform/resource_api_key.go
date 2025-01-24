@@ -45,7 +45,7 @@ func resourceApiKey() *schema.Resource {
 			"owner_id": {
 				Type:        schema.TypeInt,
 				Computed:    true,
-				Description: "The ID of the API key owner.",
+				Description: "The ID of the user who owns the API key.",
 			},
 			"grants": {
 				Type:        schema.TypeSet,
@@ -63,13 +63,13 @@ func resourceApiKey() *schema.Resource {
 							Type:        schema.TypeInt,
 							Optional:    true,
 							Computed:    true,
-							Description: "The ID of the role.",
+							Description: "The ID of the role. (Either role_id or role_slug must be set)",
 						},
 						"role_slug": {
 							Type:        schema.TypeString,
 							Optional:    true,
 							Computed:    true,
-							Description: "The slug of the role.",
+							Description: "The slug of the role. (Either role_id or role_slug must be set)",
 						},
 					},
 				},

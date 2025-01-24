@@ -31,3 +31,7 @@ output "my_api_key_value" {
   value     = nullplatform_api_key.my_api_key.api_key
   sensitive = true
 }
+
+output "my_api_key_id" {
+  value     = nullplatform_api_key.my_api_key.id
+}
