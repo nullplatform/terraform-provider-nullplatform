@@ -48,7 +48,14 @@ resource "nullplatform_approval_policy" "example" {
 
 - `conditions` (String) The conditions that the policy applies to, as a JSON object.
 - `name` (String) The name of the policy.
-- `nrn` (String) The NRN of the resource (including children resources) where the policy will apply.
+
+### Optional
+
+- `account` (String) The slug of the account NRN component.
+- `application` (String) The slug of the application NRN component.
+- `namespace` (String) The slug of the namespace NRN component.
+- `nrn` (String) A system-wide unique ID representing the resource.
+- `scope` (String) The slug of the scope NRN component.
 
 ### Read-Only
 
