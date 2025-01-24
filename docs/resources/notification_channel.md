@@ -25,6 +25,7 @@ provider "nullplatform" {}
 
 # To enable slack integration please refer first to https://docs.nullplatform.com/docs/notifications/#slack
 
+# Slack channels will not be valid for organization NRNs. They must be in a lower level, at least account level.
 resource "nullplatform_notification_channel" "slack" {
  nrn    = "organization=1:account=2:namespace=3:application=123"
  type   = "slack"
