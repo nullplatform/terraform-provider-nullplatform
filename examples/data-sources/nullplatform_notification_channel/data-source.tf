@@ -1,11 +1,11 @@
 data "nullplatform_notification_channel" "slack" {
-  nrn = "organization=1255165411:account=95118862:namespace=1493172477:application=113444824"
+  nrn = "organization=1:account=2:namespace=3:application=123"
 }
 
 data "nullplatform_notification_channel" "webhook" {
-  nrn = "organization=1255165411:account=95118862:namespace=1493172477:application=113444824"
+  nrn = "organization=1:account=2:namespace=3:application=123"
 }
 
 data "nullplatform_notification_channel" "github" {
-  nrn = "organization=1255165411:account=95118862:namespace=1493172477:application=113444824"
+  nrn = "organization=1:account=2:namespace=3:application=123"
 }

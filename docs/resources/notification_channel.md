@@ -24,33 +24,36 @@ terraform {
 provider "nullplatform" {}
 
 resource "nullplatform_notification_channel" "slack" {
- nrn    = "organization=1255165411:account=95118862:namespace=1493172477:application=113444824"
+ nrn    = "organization=1:account=2:namespace=3:application=123"
  type   = "slack"
  source = ["approval"]
  
  configuration {
    slack {
-     channels = ["#alerts", "#platform-notifications"]
+     channels = ["alerts", "platform-notifications"] # Multiple channels can be specified
    }
  }
 }
 
 resource "nullplatform_notification_channel" "webhook" {
- nrn  = "organization=1255165411:account=95118862:namespace=1493172477:application=113444824"
+ nrn  = "organization=1:account=2:namespace=3:application=123"
  type = "http"
  source = ["approval"]
  
  configuration {
    http {
-     url = "https://hooks.example.com/webhook/xyz"
+     url = "https://hooks.example.com/webhook/xyz" # Custom webhook URL - can contain headers
+     headers = {
+        "Auhorization" = "Bearer xyz"
+     }
    }
  }
 }
 
 resource "nullplatform_notification_channel" "github" {
- nrn    = "organization=1255165411:account=95118862:namespace=1493172477:application=113444824"
+ nrn    = "organization=1:account=2:namespace=3:application=123"
  type   = "github"
- source = ["approval", "service"]
+ source = ["service"]
  
  configuration {
    github {
