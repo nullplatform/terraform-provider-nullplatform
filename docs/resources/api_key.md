@@ -150,7 +150,7 @@ output "my_api_key_id" {
 - `id` (String) The ID of this resource.
 - `last_used_at` (String) Timestamp of the last usage of the API key.
 - `masked_api_key` (String) The masked version of the API key.
-- `owner_id` (Number) The ID of the API key owner.
+- `owner_id` (Number) The ID of the user who owns the API key.
 - `updated_at` (String) Timestamp when the API key was last updated.
 
 <a id="nestedblock--grants"></a>
