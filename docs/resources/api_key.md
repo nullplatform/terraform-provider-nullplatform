@@ -9,7 +9,7 @@ description: |-
 
 The API key resource allows you to configure an API key for the nullplatform API.
 
-~> **Secure your API keys** The API key's secret value is **only stored in the `tfstate` file** and **cannot be retrieved again**, even by importing the resource. Ensure the `tfstate` file is **securely** stored and protected from unauthorized access to mitigate security risks.
+~> **Secure your API keys** The API key's secret value is **only stored in the `tfstate` file** and **cannot be retrieved again**, even by importing the resource. Ensure the `tfstate` file is **securely** stored and protected from unauthorized access.
 
 ## Examples
 
