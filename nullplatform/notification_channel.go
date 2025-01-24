@@ -99,3 +99,24 @@ func (c *NullClient) DeleteNotificationChannel(notificationId string) error {
 
 	return nil
 }
+
+func (c *NullClient) UpdateNotificationChannel(notificationId string, notification *NotificationChannel) error {
+	var buf bytes.Buffer
+	err := json.NewEncoder(&buf).Encode(*notification)
+	if err != nil {
+		return err
+	}
+
+	path := fmt.Sprintf("%s/%s", NOTIFICATION_CHANNEL_PATH, notificationId)
+	res, err := c.MakeRequest("PATCH", path, &buf)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("error updating notification channel, got %d", res.StatusCode)
+	}
+
+	return nil
+}

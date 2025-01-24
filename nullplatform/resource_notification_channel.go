@@ -2,6 +2,7 @@ package nullplatform
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -14,7 +15,7 @@ func resourceNotificationChannel() *schema.Resource {
 
 		Create: NotificationChannelCreate,
 		Read:   NotificationChannelRead,
-		//Update: NotificationChannelUpdate,
+		Update: NotificationChannelUpdate,
 		Delete: NotificationChannelDelete,
 
 		Importer: &schema.ResourceImporter{
@@ -29,33 +30,29 @@ func resourceNotificationChannel() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,
-				Description: "The NRN of the resource (including children resources) where the action will apply.",
+				Description: "The NRN identifier",
 			},
 			"type": {
 				Type:        schema.TypeString,
 				Required:    true,
-				ForceNew:    true,
-				Description: "Possible values: [`slack`, `http`].",
+				Description: "Notification type: slack or http",
 			},
 			"source": {
-				Type:        schema.TypeList,
-				Required:    true,
-				ForceNew:    true,
-				Description: "Possible values: [`approval`, `service`, `audit`]",
-
+				Type:     schema.TypeList,
+				Optional: true,
+				ForceNew: true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
 			},
 			"configuration": {
-				Type:        schema.TypeMap,
-				Required:    true,
-				ForceNew:    true,
-				Description: "Channels as an array of Slack channels or Http as the URL where the notifications will be sent.",
+				Type:     schema.TypeList,
+				Required: true,
+				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"channels": {
-							Type:     schema.TypeSet,
+							Type:     schema.TypeList,
 							Optional: true,
 							Elem: &schema.Schema{
 								Type: schema.TypeString,
@@ -67,6 +64,11 @@ func resourceNotificationChannel() *schema.Resource {
 						},
 					},
 				},
+			},
+			"filters": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "JSON encoded filters",
 			},
 		},
 	}
@@ -98,7 +100,12 @@ func NotificationChannelCreate(d *schema.ResourceData, m any) error {
 	}
 
 	if channels, ok := config["channels"]; ok {
-		newNotificationChannel.Configuration.Channels = expandStringSet(channels.(*schema.Set))
+		channelList := channels.([]interface{})
+		strChannels := make([]string, len(channelList))
+		for i, ch := range channelList {
+			strChannels[i] = ch.(string)
+		}
+		newNotificationChannel.Configuration.Channels = strChannels
 	}
 	if url, ok := config["url"]; ok {
 		newNotificationChannel.Configuration.Url = url.(string)
@@ -110,7 +117,6 @@ func NotificationChannelCreate(d *schema.ResourceData, m any) error {
 	}
 
 	d.SetId(strconv.Itoa(channel.Id))
-
 	return NotificationChannelRead(d, m)
 }
 
@@ -159,6 +165,59 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 	return nil
 }
 
+func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
+	nullOps := m.(NullOps)
+	notificationChannelId := d.Id()
+
+	updateNotificationChannel := &NotificationChannel{}
+	needsUpdate := false
+
+	if d.HasChange("type") {
+		updateNotificationChannel.Type = d.Get("type").(string)
+		needsUpdate = true
+	}
+
+	if d.HasChange("configuration") {
+		configList := d.Get("configuration").([]interface{})
+		if len(configList) > 0 {
+			config := configList[0].(map[string]interface{})
+			updateNotificationChannel.Configuration = &NotificationChannelConfiguration{}
+
+			if channels, ok := config["channels"]; ok {
+				channelList := channels.([]interface{})
+				strChannels := make([]string, len(channelList))
+				for i, ch := range channelList {
+					strChannels[i] = ch.(string)
+				}
+				updateNotificationChannel.Configuration.Channels = strChannels
+			}
+			if url, ok := config["url"]; ok {
+				updateNotificationChannel.Configuration.Url = url.(string)
+			}
+			needsUpdate = true
+		}
+	}
+
+	if d.HasChange("filters") {
+		if filters, ok := d.GetOk("filters"); ok {
+			var filtersMap map[string]interface{}
+			if err := json.Unmarshal([]byte(filters.(string)), &filtersMap); err != nil {
+				return fmt.Errorf("invalid filters JSON: %v", err)
+			}
+			updateNotificationChannel.Filters = filtersMap
+			needsUpdate = true
+		}
+	}
+
+	if needsUpdate {
+		if err := nullOps.UpdateNotificationChannel(notificationChannelId, updateNotificationChannel); err != nil {
+			return err
+		}
+	}
+
+	return NotificationChannelRead(d, m)
+}
+
 func NotificationChannelDelete(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 	notificationChannelId := d.Id()
@@ -171,13 +230,4 @@ func NotificationChannelDelete(d *schema.ResourceData, m any) error {
 	d.SetId("")
 
 	return nil
-}
-
-func expandStringSet(set *schema.Set) []string {
-	list := set.List()
-	result := make([]string, len(list))
-	for i, v := range list {
-		result[i] = v.(string)
-	}
-	return result
 }

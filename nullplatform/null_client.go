@@ -87,6 +87,7 @@ type NullOps interface {
 
 	CreateNotificationChannel(notification *NotificationChannel) (*NotificationChannel, error)
 	GetNotificationChannel(notificationId string) (*NotificationChannel, error)
+	UpdateNotificationChannel(notificationId string, notification *NotificationChannel) error
 	DeleteNotificationChannel(notificationId string) error
 
 	CreateRuntimeConfiguration(rc *RuntimeConfiguration) (*RuntimeConfiguration, error)
