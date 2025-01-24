@@ -24,12 +24,12 @@ terraform {
 provider "nullplatform" {}
 
 resource "nullplatform_namespace" "finance" {
-  name                = "Finance"
+  name                = "Finances"
   account_id          = "43591328"
 }
 
 resource "nullplatform_namespace" "public_sites" {
-  name                = "Public Sites"
+  name                = "Public Site"
   account_id          = "43591328"
 }
 
