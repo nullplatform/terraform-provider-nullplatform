@@ -17,7 +17,7 @@ resource "nullplatform_approval_policy" "example" {
 }
 
 resource "nullplatform_approval_policy" "example" {
-  nrn    = "organization=1255165411:account=95118862:namespace=1493172477:application=113444824"
+  nrn    = "organization=1:account=2:namespace=3:application=123"
   name   = "Auto Scaling Policy - Min Instances 2"
   conditions = jsonencode({
     "scope.capabilities.auto_scaling.enabled" = true,
