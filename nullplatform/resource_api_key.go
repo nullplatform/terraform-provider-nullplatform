@@ -18,6 +18,13 @@ func resourceApiKey() *schema.Resource {
 		UpdateContext: UpdateApiKey,
 		DeleteContext: DeleteApiKey,
 
+		Importer: &schema.ResourceImporter{
+			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+				d.Set("id", d.Id())
+				return []*schema.ResourceData{d}, nil
+			},
+		},
+
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:        schema.TypeString,
