@@ -10,6 +10,10 @@ description: |-
 
 The API key resource allows you to configure an API key for the nullplatform API.
 
+> **Warning:** API Key Stored in the `tfstate` file
+>
+> When creating an API key with Terraform, the secret value will be stored in the `tfstate` file and nowhere else. Make sure to protect this file from unauthorized access.
+
 ## Example Usage
 
 ```terraform

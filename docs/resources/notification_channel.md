@@ -17,7 +17,7 @@ The notification channel resource allows you to configure a nullplatform notific
 
 ### Required
 
-- `configuration` (Block List, Min: 1, Max: 1) Channels as an array of Slack channels or Http as the URL where the notifications will be sent. (see [below for nested schema](#nestedblock--configuration))
+- `configuration` (Map of String) Channels as an array of Slack channels or Http as the URL where the notifications will be sent.
 - `nrn` (String) The NRN of the resource (including children resources) where the action will apply.
 - `source` (List of String) Possible values: [`approval`, `service`, `audit`]
 - `type` (String) Possible values: [`slack`, `http`].
@@ -25,11 +25,3 @@ The notification channel resource allows you to configure a nullplatform notific
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-
-<a id="nestedblock--configuration"></a>
-### Nested Schema for `configuration`
-
-Optional:
-
-- `channels` (Set of String)
-- `url` (String)
