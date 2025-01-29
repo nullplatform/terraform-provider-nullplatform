@@ -136,6 +136,10 @@ type NullOps interface {
 	CreateApiKey(body *CreateApiKeyRequestBody) (*CreateApiKeyResponseBody, error)
 	PatchApiKey(apiKeyId int64, body *PatchApiKeyRequestBody) error
 	DeleteApiKey(apiKeyId int64) error
+
+	CreateTechnologyTemplate(t *TechnologyTemplate) (*TechnologyTemplate, error)
+	GetTechnologyTemplate(templateId string) (*TechnologyTemplate, error)
+	PatchTechnologyTemplate(templateId string, t *TechnologyTemplate) error
 }
 
 func (c *NullClient) PrepareQueryString(params map[string]string) string {
