@@ -39,7 +39,7 @@ func (c *NullClient) GetApplication(appId string) (*Application, error) {
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Error getting application resource, got %d for %s", res.StatusCode, appId)
+		return nil, fmt.Errorf("error getting application resource, got %d for %s", res.StatusCode, appId)
 	}
 
 	return app, nil

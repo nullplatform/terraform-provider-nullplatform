@@ -146,6 +146,11 @@ type NullOps interface {
 	GetActionSpecification(specId string, parentType string, parentId string) (*ActionSpecification, error)
 	PatchActionSpecification(specId string, s *ActionSpecification, parentType string, parentId string) error
 	DeleteActionSpecification(specId string, parentType string, parentId string) error
+
+	GetApiKey(apiKeyId int64) (*ApiKey, error)
+	CreateApiKey(body *CreateApiKeyRequestBody) (*CreateApiKeyResponseBody, error)
+	PatchApiKey(apiKeyId int64, body *PatchApiKeyRequestBody) error
+	DeleteApiKey(apiKeyId int64) error
 }
 
 func (c *NullClient) PrepareQueryString(params map[string]string) string {

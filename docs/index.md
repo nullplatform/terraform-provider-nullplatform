@@ -31,3 +31,5 @@ provider "nullplatform" {}
 
 - `api_key` (String, Sensitive) Nullplatform API KEY. Can also be set with the `NULLPLATFORM_API_KEY` environment variable.
 - `host` (String) Nullplatform HOST. Can also be set with the `NULLPLATFORM_HOST` environment variable. If omitted, the default value is `api.nullplatform.com`
+- `np_api_host` (String, Deprecated) Nullplatform API HOSTNAME. Can also be set with the `NP_API_HOST` environment variable. If omitted, the default value is `api.nullplatform.com`
+- `np_apikey` (String, Sensitive, Deprecated) Nullplatform API KEY. Can also be set with the `NP_API_KEY` environment variable.

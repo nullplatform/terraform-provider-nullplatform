@@ -65,6 +65,7 @@ func Provider() *schema.Provider {
 			"nullplatform_metadata_specification": resourceMetadataSpecification(),
 			"nullplatform_dimension":              resourceDimension(),
 			"nullplatform_dimension_value":        resourceDimensionValue(),
+			"nullplatform_api_key":                resourceApiKey(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"nullplatform_dimension":         dataSourceDimension(),
