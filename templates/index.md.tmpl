@@ -1,5 +1,5 @@
 ---
-page_title: "Provider: Null Platform"
+page_title: "Provider: nullplatform"
 description: |-
 Terraform provider for interacting with nullplatform API
 ---
