@@ -1,12 +1,12 @@
 ---
 page_title: "Provider: Null Platform"
 description: |-
-Terraform provider for interacting with Nullplatform API
+Terraform provider for interacting with nullplatform API
 ---
 
 # nullplatform Provider
 
-Terraform provider for interacting with [Nullplatform API](https://docs.nullplatform.com/api/getting-started).
+Terraform provider for interacting with [nullplatform API](https://docs.nullplatform.com/api/getting-started).
 
 ## Example Usage
 

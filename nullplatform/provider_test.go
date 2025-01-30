@@ -45,10 +45,8 @@ func TestProvider_HasChildResources(t *testing.T) {
 		"nullplatform_service_specification",
 		"nullplatform_dimension",
 		"nullplatform_dimension_value",
-		"nullplatform_link_specification",
-		"nullplatform_link_specification",
-		"nullplatform_action_specification",
-		"nullplatform_service_specification",
+		"nullplatform_namespace",
+		"nullplatform_api_key",
 	}
 
 	resources := nullplatform.Provider().ResourcesMap
