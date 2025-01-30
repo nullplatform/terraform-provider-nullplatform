@@ -151,6 +151,15 @@ type NullOps interface {
 	CreateApiKey(body *CreateApiKeyRequestBody) (*CreateApiKeyResponseBody, error)
 	PatchApiKey(apiKeyId int64, body *PatchApiKeyRequestBody) error
 	DeleteApiKey(apiKeyId int64) error
+
+	CreateUser(u *User) (*User, error)
+	GetUser(userID string) (*User, error)
+	UpdateUser(userID string, u *User) error
+	DeleteUser(userID string) error
+
+	CreateAuthzGrant(grant *AuthzGrant) (*AuthzGrant, error)
+	GetAuthzGrant(grantID string) (*AuthzGrant, error)
+	DeleteAuthzGrant(grantID string) error
 }
 
 func (c *NullClient) PrepareQueryString(params map[string]string) string {

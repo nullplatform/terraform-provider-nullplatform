@@ -66,6 +66,8 @@ func Provider() *schema.Provider {
 			"nullplatform_service_specification":  resourceServiceSpecification(),
 			"nullplatform_action_specification":   resourceActionSpecification(),
 			"nullplatform_link_specification":     resourceLinkSpecification(),
+			"nullplatform_authz_grant":            resourceAuthzGrant(),
+			"nullplatform_user":                   resourceUser(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"nullplatform_dimension":         dataSourceDimension(),
