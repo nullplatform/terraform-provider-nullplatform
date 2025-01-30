@@ -1,4 +1,3 @@
-// client_authz_grant.go
 package nullplatform
 
 import (
@@ -14,7 +13,7 @@ const (
 )
 
 type AuthzGrant struct {
-	ID       string `json:"id,omitempty"`
+	ID       int    `json:"id,omitempty"`
 	UserID   int    `json:"user_id"`
 	RoleSlug string `json:"role_slug"`
 	NRN      string `json:"nrn"`

@@ -3,6 +3,7 @@ package nullplatform
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -64,7 +65,7 @@ func AuthzGrantCreate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	d.SetId(newGrant.ID)
+	d.SetId(strconv.Itoa(newGrant.ID))
 	return AuthzGrantRead(d, m)
 }
 

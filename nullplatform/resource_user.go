@@ -1,4 +1,3 @@
-// resource_user.go
 package nullplatform
 
 import (
@@ -58,16 +57,13 @@ func resourceUser() *schema.Resource {
 
 func UserCreate(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
-	client := nullOps.(*NullClient)
 
-	orgIDStr, err := client.GetOrganizationIDFromToken()
-
+	orgIDStr, err := nullOps.GetOrganizationIDFromToken()
 	if err != nil {
 		return fmt.Errorf("error getting organization ID: %v", err)
 	}
 
 	orgID, err := strconv.Atoi(orgIDStr)
-
 	if err != nil {
 		return fmt.Errorf("error converting organization ID to integer: %v", err)
 	}
@@ -80,20 +76,19 @@ func UserCreate(d *schema.ResourceData, m interface{}) error {
 		OrganizationID: orgID,
 	}
 
-	user, err := client.CreateUser(newUser)
+	user, err := nullOps.CreateUser(newUser)
 	if err != nil {
 		return err
 	}
 
-	d.SetId(user.ID)
+	d.SetId(strconv.Itoa(user.ID))
 	return UserRead(d, m)
 }
 
 func UserRead(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
-	client := nullOps.(*NullClient)
 
-	user, err := client.GetUser(d.Id())
+	user, err := nullOps.GetUser(d.Id())
 	if err != nil {
 		return err
 	}
@@ -109,7 +104,6 @@ func UserRead(d *schema.ResourceData, m interface{}) error {
 
 func UserUpdate(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
-	client := nullOps.(*NullClient)
 
 	updateUser := &User{
 		FirstName: d.Get("first_name").(string),
@@ -117,7 +111,7 @@ func UserUpdate(d *schema.ResourceData, m interface{}) error {
 		Avatar:    d.Get("avatar").(string),
 	}
 
-	err := client.UpdateUser(d.Id(), updateUser)
+	err := nullOps.UpdateUser(d.Id(), updateUser)
 	if err != nil {
 		return err
 	}
@@ -127,9 +121,8 @@ func UserUpdate(d *schema.ResourceData, m interface{}) error {
 
 func UserDelete(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
-	client := nullOps.(*NullClient)
 
-	err := client.DeleteUser(d.Id())
+	err := nullOps.DeleteUser(d.Id())
 	if err != nil {
 		return err
 	}
