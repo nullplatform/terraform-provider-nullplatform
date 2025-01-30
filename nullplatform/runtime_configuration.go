@@ -39,7 +39,7 @@ func (c *NullClient) CreateRuntimeConfiguration(rc *RuntimeConfiguration) (*Runt
 			nErr := &NullErrors{}
 			dErr := json.NewDecoder(res.Body).Decode(nErr)
 			if dErr != nil {
-				return nil, fmt.Errorf("El error es %s", dErr)
+				return nil, fmt.Errorf("the error is %s", dErr)
 			}
 		}
 		return nil, fmt.Errorf("error creating runtime configuration resource, got status code: %d", res.StatusCode)
