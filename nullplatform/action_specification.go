@@ -15,6 +15,7 @@ type ActionSpecification struct {
 	Parameters             map[string]interface{} `json:"parameters,omitempty"`
 	Results                map[string]interface{} `json:"results,omitempty"`
 	ServiceSpecificationId string                 `json:"service_specification_id,omitempty"`
+	Slug                   string                 `json:"slug,omitempty"`
 	LinkSpecificationId    string                 `json:"link_specification_id,omitempty"`
 	Retryable              bool                   `json:"retryable,omitempty"`
 }

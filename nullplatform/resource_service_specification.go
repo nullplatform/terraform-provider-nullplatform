@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -12,10 +13,10 @@ func resourceServiceSpecification() *schema.Resource {
 	return &schema.Resource{
 		Description: "The service_specification resource allows you to manage nullplatform Service Specifications",
 
-		Create: ServiceSpecificationCreate,
-		Read:   ServiceSpecificationRead,
-		Update: ServiceSpecificationUpdate,
-		Delete: ServiceSpecificationDelete,
+		CreateContext: CreateServiceSpecification,
+		ReadContext:   ReadServiceSpecification,
+		UpdateContext: UpdateServiceSpecification,
+		DeleteContext: DeleteServiceSpecification,
 
 		Importer: &schema.ResourceImporter{
 			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
@@ -30,24 +31,26 @@ func resourceServiceSpecification() *schema.Resource {
 				Required:    true,
 				Description: "Name of the service specification",
 			},
+			"slug": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The computed slug for the service specification",
+			},
 			"visible_to": {
 				Type:     schema.TypeList,
 				Required: true,
 				Elem: &schema.Schema{
-					Type: schema.TypeString,
+					Type:     schema.TypeString,
+					MinItems: 1,
 				},
 				Description: "Array representing visibility settings for the service specification",
 			},
 			"dimensions": {
-				Type:     schema.TypeMap,
-				Optional: true,
-				Elem: &schema.Schema{
-					Type: schema.TypeMap,
-					Elem: &schema.Schema{
-						Type: schema.TypeString,
-					},
-				},
-				Description: "Object defining required dimensions and their allowed values",
+				Type:             schema.TypeString,
+				Optional:         true,
+				Default:          "{}",
+				Description:      "JSON string containing dimension configurations. Example: {\"environment\": {\"required\": true}}",
+				DiffSuppressFunc: suppressEquivalentJSON,
 			},
 			"assignable_to": {
 				Type:     schema.TypeString,
@@ -77,17 +80,40 @@ func resourceServiceSpecification() *schema.Resource {
 				DiffSuppressFunc: suppressEquivalentJSON,
 			},
 			"selectors": {
-				Type:             schema.TypeString,
-				Optional:         true,
-				Default:          "{}",
-				Description:      "JSON string containing service specification selectors",
-				DiffSuppressFunc: suppressEquivalentJSON,
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"category": {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Category of the service specification",
+						},
+						"imported": {
+							Type:        schema.TypeBool,
+							Required:    true,
+							Description: "Indicates whether the service is imported",
+						},
+						"provider": {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Provider of the service (e.g., AWS, GCP)",
+						},
+						"sub_category": {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Sub-category of the service",
+						},
+					},
+				},
+				Description: "Selectors for the service specification",
 			},
 		},
 	}
 }
 
-func ServiceSpecificationCreate(d *schema.ResourceData, m interface{}) error {
+func CreateServiceSpecification(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	visibleToRaw := d.Get("visible_to").([]interface{})
@@ -96,23 +122,28 @@ func ServiceSpecificationCreate(d *schema.ResourceData, m interface{}) error {
 		visibleTo[i] = v.(string)
 	}
 
+	dimensionsStr := d.Get("dimensions").(string)
+	var dimensions map[string]interface{}
+	if err := json.Unmarshal([]byte(dimensionsStr), &dimensions); err != nil {
+		return diag.FromErr(fmt.Errorf("error parsing dimensions JSON: %v", err))
+	}
+
 	attributesStr := d.Get("attributes").(string)
 	var attributes map[string]interface{}
 	if err := json.Unmarshal([]byte(attributesStr), &attributes); err != nil {
-		return fmt.Errorf("error parsing attributes JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error parsing attributes JSON: %v", err))
 	}
 
-	selectorsStr := d.Get("selectors").(string)
-	var selectors map[string]interface{}
-	if err := json.Unmarshal([]byte(selectorsStr), &selectors); err != nil {
-		return fmt.Errorf("error parsing selectors JSON: %v", err)
-	}
-
-	// Parse dimensions
-	dimensionsRaw := d.Get("dimensions").(map[string]interface{})
-	dimensions := make(map[string]interface{})
-	for k, v := range dimensionsRaw {
-		dimensions[k] = v
+	selectorsList := d.Get("selectors").([]interface{})
+	var selectors Selectors
+	if len(selectorsList) > 0 {
+		selectorsMap := selectorsList[0].(map[string]interface{})
+		selectors = Selectors{
+			Category:    selectorsMap["category"].(string),
+			Imported:    selectorsMap["imported"].(bool),
+			Provider:    selectorsMap["provider"].(string),
+			SubCategory: selectorsMap["sub_category"].(string),
+		}
 	}
 
 	spec := &ServiceSpecification{
@@ -127,58 +158,71 @@ func ServiceSpecificationCreate(d *schema.ResourceData, m interface{}) error {
 
 	newSpec, err := nullOps.CreateServiceSpecification(spec)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(newSpec.Id)
-	return ServiceSpecificationRead(d, m)
+	return ReadServiceSpecification(context.Background(), d, m)
 }
 
-func ServiceSpecificationRead(d *schema.ResourceData, m interface{}) error {
+func ReadServiceSpecification(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	specId := d.Id()
 
 	spec, err := nullOps.GetServiceSpecification(specId)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("name", spec.Name); err != nil {
-		return err
+		return diag.FromErr(err)
+	}
+	if err := d.Set("slug", spec.Slug); err != nil {
+		return diag.FromErr(err)
 	}
 	if err := d.Set("visible_to", spec.VisibleTo); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	if err := d.Set("dimensions", spec.Dimensions); err != nil {
-		return err
+
+	dimensionsJSON, err := json.Marshal(spec.Dimensions)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("error serializing dimensions to JSON: %v", err))
 	}
+	if err := d.Set("dimensions", string(dimensionsJSON)); err != nil {
+		return diag.FromErr(err)
+	}
+
 	if err := d.Set("assignable_to", spec.AssignableTo); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if err := d.Set("type", spec.Type); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	attributesJSON, err := json.Marshal(spec.Attributes)
 	if err != nil {
-		return fmt.Errorf("error serializing attributes to JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error serializing attributes to JSON: %v", err))
 	}
 	if err := d.Set("attributes", string(attributesJSON)); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	selectorsJSON, err := json.Marshal(spec.Selectors)
-	if err != nil {
-		return fmt.Errorf("error serializing selectors to JSON: %v", err)
+	selectors := []map[string]interface{}{
+		{
+			"category":     spec.Selectors.Category,
+			"imported":     spec.Selectors.Imported,
+			"provider":     spec.Selectors.Provider,
+			"sub_category": spec.Selectors.SubCategory,
+		},
 	}
-	if err := d.Set("selectors", string(selectorsJSON)); err != nil {
-		return err
+	if err := d.Set("selectors", selectors); err != nil {
+		return diag.FromErr(err)
 	}
 
 	return nil
 }
 
-func ServiceSpecificationUpdate(d *schema.ResourceData, m interface{}) error {
+func UpdateServiceSpecification(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	specId := d.Id()
 
@@ -198,10 +242,10 @@ func ServiceSpecificationUpdate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	if d.HasChange("dimensions") {
-		dimensionsRaw := d.Get("dimensions").(map[string]interface{})
-		dimensions := make(map[string]interface{})
-		for k, v := range dimensionsRaw {
-			dimensions[k] = v
+		dimensionsStr := d.Get("dimensions").(string)
+		var dimensions map[string]interface{}
+		if err := json.Unmarshal([]byte(dimensionsStr), &dimensions); err != nil {
+			return diag.FromErr(fmt.Errorf("error parsing dimensions JSON: %v", err))
 		}
 		spec.Dimensions = dimensions
 	}
@@ -218,35 +262,39 @@ func ServiceSpecificationUpdate(d *schema.ResourceData, m interface{}) error {
 		attributesStr := d.Get("attributes").(string)
 		var attributes map[string]interface{}
 		if err := json.Unmarshal([]byte(attributesStr), &attributes); err != nil {
-			return fmt.Errorf("error parsing attributes JSON: %v", err)
+			return diag.FromErr(fmt.Errorf("error parsing attributes JSON: %v", err))
 		}
 		spec.Attributes = attributes
 	}
 
 	if d.HasChange("selectors") {
-		selectorsStr := d.Get("selectors").(string)
-		var selectors map[string]interface{}
-		if err := json.Unmarshal([]byte(selectorsStr), &selectors); err != nil {
-			return fmt.Errorf("error parsing selectors JSON: %v", err)
+		selectorsList := d.Get("selectors").([]interface{})
+		if len(selectorsList) > 0 {
+			selectorsMap := selectorsList[0].(map[string]interface{})
+			spec.Selectors = Selectors{
+				Category:    selectorsMap["category"].(string),
+				Imported:    selectorsMap["imported"].(bool),
+				Provider:    selectorsMap["provider"].(string),
+				SubCategory: selectorsMap["sub_category"].(string),
+			}
 		}
-		spec.Selectors = selectors
 	}
 
 	err := nullOps.PatchServiceSpecification(specId, spec)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	return ServiceSpecificationRead(d, m)
+	return ReadServiceSpecification(ctx, d, m)
 }
 
-func ServiceSpecificationDelete(d *schema.ResourceData, m interface{}) error {
+func DeleteServiceSpecification(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	specId := d.Id()
 
 	err := nullOps.DeleteServiceSpecification(specId)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")

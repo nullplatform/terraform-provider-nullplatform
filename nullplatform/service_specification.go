@@ -12,15 +12,23 @@ const (
 	SERVICE_SPECIFICATION_PATH = "/service_specification"
 )
 
+type Selectors struct {
+	Category    string `json:"category"`
+	Imported    bool   `json:"imported"`
+	Provider    string `json:"provider"`
+	SubCategory string `json:"sub_category"`
+}
+
 type ServiceSpecification struct {
 	Id           string                 `json:"id,omitempty"`
-	Name         string                 `json:"name"`
-	VisibleTo    []string               `json:"visible_to"`
+	Name         string                 `json:"name,omitempty"`
+	Slug         string                 `json:"slug,omitempty"`
+	VisibleTo    []string               `json:"visible_to,omitempty"`
 	Dimensions   map[string]interface{} `json:"dimensions,omitempty"`
 	AssignableTo string                 `json:"assignable_to,omitempty"`
 	Type         string                 `json:"type,omitempty"`
 	Attributes   map[string]interface{} `json:"attributes,omitempty"`
-	Selectors    map[string]interface{} `json:"selectors,omitempty"`
+	Selectors    Selectors              `json:"selectors,omitempty"` // Use the new struct
 }
 
 func (c *NullClient) CreateServiceSpecification(s *ServiceSpecification) (*ServiceSpecification, error) {

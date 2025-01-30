@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -12,10 +13,10 @@ func resourceLinkSpecification() *schema.Resource {
 	return &schema.Resource{
 		Description: "The link_specification resource allows you to manage nullplatform Link Specifications",
 
-		Create: LinkSpecificationCreate,
-		Read:   LinkSpecificationRead,
-		Update: LinkSpecificationUpdate,
-		Delete: LinkSpecificationDelete,
+		CreateContext: CreateLinkSpecification,
+		ReadContext:   ReadLinkSpecification,
+		UpdateContext: UpdateLinkSpecification,
+		DeleteContext: DeleteLinkSpecification,
 
 		Importer: &schema.ResourceImporter{
 			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
@@ -29,6 +30,11 @@ func resourceLinkSpecification() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 				Description: "Name of the link specification",
+			},
+			"slug": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The computed slug for the link specification",
 			},
 			"unique": {
 				Type:        schema.TypeBool,
@@ -44,20 +50,17 @@ func resourceLinkSpecification() *schema.Resource {
 				Type:     schema.TypeList,
 				Optional: true,
 				Elem: &schema.Schema{
-					Type: schema.TypeString,
+					Type:     schema.TypeString,
+					MinItems: 1,
 				},
 				Description: "Array representing visibility settings for the link specification",
 			},
 			"dimensions": {
-				Type:     schema.TypeMap,
-				Optional: true,
-				Elem: &schema.Schema{
-					Type: schema.TypeMap,
-					Elem: &schema.Schema{
-						Type: schema.TypeString,
-					},
-				},
-				Description: "Object defining required dimensions and their allowed values",
+				Type:             schema.TypeString,
+				Optional:         true,
+				Default:          "{}",
+				Description:      "JSON string containing dimension configurations. Example: {\"environment\": {\"required\": true}}",
+				DiffSuppressFunc: suppressEquivalentJSON,
 			},
 			"assignable_to": {
 				Type:     schema.TypeString,
@@ -81,20 +84,42 @@ func resourceLinkSpecification() *schema.Resource {
 				DiffSuppressFunc: suppressEquivalentJSON,
 			},
 			"selectors": {
-				Type:             schema.TypeString,
-				Optional:         true,
-				Default:          "{}",
-				Description:      "JSON string containing link specification selectors",
-				DiffSuppressFunc: suppressEquivalentJSON,
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"category": {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Category of the service specification",
+						},
+						"imported": {
+							Type:        schema.TypeBool,
+							Required:    true,
+							Description: "Indicates whether the service is imported",
+						},
+						"provider": {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Provider of the service (e.g., AWS, GCP)",
+						},
+						"sub_category": {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Sub-category of the service",
+						},
+					},
+				},
+				Description: "Selectors for the service specification",
 			},
 		},
 	}
 }
 
-func LinkSpecificationCreate(d *schema.ResourceData, m interface{}) error {
+func CreateLinkSpecification(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
-	// Handle visible_to if present
 	var visibleTo []string
 	if v, ok := d.GetOk("visible_to"); ok {
 		visibleToRaw := v.([]interface{})
@@ -104,25 +129,28 @@ func LinkSpecificationCreate(d *schema.ResourceData, m interface{}) error {
 		}
 	}
 
-	// Parse attributes JSON
+	dimensionsStr := d.Get("dimensions").(string)
+	var dimensions map[string]interface{}
+	if err := json.Unmarshal([]byte(dimensionsStr), &dimensions); err != nil {
+		return diag.FromErr(fmt.Errorf("error parsing dimensions JSON: %v", err))
+	}
+
 	attributesStr := d.Get("attributes").(string)
 	var attributes map[string]interface{}
 	if err := json.Unmarshal([]byte(attributesStr), &attributes); err != nil {
-		return fmt.Errorf("error parsing attributes JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error parsing attributes JSON: %v", err))
 	}
 
-	// Parse selectors JSON
-	selectorsStr := d.Get("selectors").(string)
-	var selectors map[string]interface{}
-	if err := json.Unmarshal([]byte(selectorsStr), &selectors); err != nil {
-		return fmt.Errorf("error parsing selectors JSON: %v", err)
-	}
-
-	// Parse dimensions
-	dimensionsRaw := d.Get("dimensions").(map[string]interface{})
-	dimensions := make(map[string]interface{})
-	for k, v := range dimensionsRaw {
-		dimensions[k] = v
+	selectorsList := d.Get("selectors").([]interface{})
+	var selectors Selectors
+	if len(selectorsList) > 0 {
+		selectorsMap := selectorsList[0].(map[string]interface{})
+		selectors = Selectors{
+			Category:    selectorsMap["category"].(string),
+			Imported:    selectorsMap["imported"].(bool),
+			Provider:    selectorsMap["provider"].(string),
+			SubCategory: selectorsMap["sub_category"].(string),
+		}
 	}
 
 	spec := &LinkSpecification{
@@ -138,61 +166,74 @@ func LinkSpecificationCreate(d *schema.ResourceData, m interface{}) error {
 
 	newSpec, err := nullOps.CreateLinkSpecification(spec)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(newSpec.Id)
-	return LinkSpecificationRead(d, m)
+	return ReadLinkSpecification(context.Background(), d, m)
 }
 
-func LinkSpecificationRead(d *schema.ResourceData, m interface{}) error {
+func ReadLinkSpecification(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	specId := d.Id()
 
 	spec, err := nullOps.GetLinkSpecification(specId)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("name", spec.Name); err != nil {
-		return err
+		return diag.FromErr(err)
+	}
+	if err := d.Set("slug", spec.Slug); err != nil {
+		return diag.FromErr(err)
 	}
 	if err := d.Set("unique", spec.Unique); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if err := d.Set("specification_id", spec.SpecificationId); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if err := d.Set("visible_to", spec.VisibleTo); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	if err := d.Set("dimensions", spec.Dimensions); err != nil {
-		return err
+
+	dimensionsJSON, err := json.Marshal(spec.Dimensions)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("error serializing dimensions to JSON: %v", err))
 	}
+	if err := d.Set("dimensions", string(dimensionsJSON)); err != nil {
+		return diag.FromErr(err)
+	}
+
 	if err := d.Set("assignable_to", spec.AssignableTo); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	attributesJSON, err := json.Marshal(spec.Attributes)
 	if err != nil {
-		return fmt.Errorf("error serializing attributes to JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error serializing attributes to JSON: %v", err))
 	}
 	if err := d.Set("attributes", string(attributesJSON)); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	selectorsJSON, err := json.Marshal(spec.Selectors)
-	if err != nil {
-		return fmt.Errorf("error serializing selectors to JSON: %v", err)
+	selectors := []map[string]interface{}{
+		{
+			"category":     spec.Selectors.Category,
+			"imported":     spec.Selectors.Imported,
+			"provider":     spec.Selectors.Provider,
+			"sub_category": spec.Selectors.SubCategory,
+		},
 	}
-	if err := d.Set("selectors", string(selectorsJSON)); err != nil {
-		return err
+	if err := d.Set("selectors", selectors); err != nil {
+		return diag.FromErr(err)
 	}
 
 	return nil
 }
 
-func LinkSpecificationUpdate(d *schema.ResourceData, m interface{}) error {
+func UpdateLinkSpecification(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	specId := d.Id()
 
@@ -202,24 +243,24 @@ func LinkSpecificationUpdate(d *schema.ResourceData, m interface{}) error {
 		spec.Name = d.Get("name").(string)
 	}
 
-	if d.HasChange("unique") {
-		spec.Unique = d.Get("unique").(bool)
-	}
+	spec.Unique = d.Get("unique").(bool)
 
 	if d.HasChange("visible_to") {
-		visibleToRaw := d.Get("visible_to").([]interface{})
-		visibleTo := make([]string, len(visibleToRaw))
-		for i, v := range visibleToRaw {
-			visibleTo[i] = v.(string)
+		if v, ok := d.GetOk("visible_to"); ok {
+			visibleToRaw := v.([]interface{})
+			visibleTo := make([]string, len(visibleToRaw))
+			for i, v := range visibleToRaw {
+				visibleTo[i] = v.(string)
+			}
+			spec.VisibleTo = visibleTo
 		}
-		spec.VisibleTo = visibleTo
 	}
 
 	if d.HasChange("dimensions") {
-		dimensionsRaw := d.Get("dimensions").(map[string]interface{})
-		dimensions := make(map[string]interface{})
-		for k, v := range dimensionsRaw {
-			dimensions[k] = v
+		dimensionsStr := d.Get("dimensions").(string)
+		var dimensions map[string]interface{}
+		if err := json.Unmarshal([]byte(dimensionsStr), &dimensions); err != nil {
+			return diag.FromErr(fmt.Errorf("error parsing dimensions JSON: %v", err))
 		}
 		spec.Dimensions = dimensions
 	}
@@ -232,35 +273,39 @@ func LinkSpecificationUpdate(d *schema.ResourceData, m interface{}) error {
 		attributesStr := d.Get("attributes").(string)
 		var attributes map[string]interface{}
 		if err := json.Unmarshal([]byte(attributesStr), &attributes); err != nil {
-			return fmt.Errorf("error parsing attributes JSON: %v", err)
+			return diag.FromErr(fmt.Errorf("error parsing attributes JSON: %v", err))
 		}
 		spec.Attributes = attributes
 	}
 
 	if d.HasChange("selectors") {
-		selectorsStr := d.Get("selectors").(string)
-		var selectors map[string]interface{}
-		if err := json.Unmarshal([]byte(selectorsStr), &selectors); err != nil {
-			return fmt.Errorf("error parsing selectors JSON: %v", err)
+		selectorsList := d.Get("selectors").([]interface{})
+		if len(selectorsList) > 0 {
+			selectorsMap := selectorsList[0].(map[string]interface{})
+			spec.Selectors = Selectors{
+				Category:    selectorsMap["category"].(string),
+				Imported:    selectorsMap["imported"].(bool),
+				Provider:    selectorsMap["provider"].(string),
+				SubCategory: selectorsMap["sub_category"].(string),
+			}
 		}
-		spec.Selectors = selectors
 	}
 
 	err := nullOps.PatchLinkSpecification(specId, spec)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	return LinkSpecificationRead(d, m)
+	return ReadLinkSpecification(ctx, d, m)
 }
 
-func LinkSpecificationDelete(d *schema.ResourceData, m interface{}) error {
+func DeleteLinkSpecification(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	specId := d.Id()
 
 	err := nullOps.DeleteLinkSpecification(specId)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")

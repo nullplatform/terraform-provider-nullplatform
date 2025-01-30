@@ -5,17 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
 func resourceActionSpecification() *schema.Resource {
 	return &schema.Resource{
 		Description: "The action_specification resource allows you to manage nullplatform Action Specifications",
 
-		Create: ActionSpecificationCreate,
-		Read:   ActionSpecificationRead,
-		Update: ActionSpecificationUpdate,
-		Delete: ActionSpecificationDelete,
+		CreateContext: ActionSpecificationCreate,
+		ReadContext:   ActionSpecificationRead,
+		UpdateContext: ActionSpecificationUpdate,
+		DeleteContext: ActionSpecificationDelete,
 
 		Importer: &schema.ResourceImporter{
 			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
@@ -30,11 +32,19 @@ func resourceActionSpecification() *schema.Resource {
 				Required:    true,
 				Description: "Name of the action specification",
 			},
-			"type": {
+			"slug": {
 				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "custom",
-				Description: "Type of the action",
+				Computed:    true,
+				Description: "The computed slug for the action specification",
+			},
+			"type": {
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+				ValidateFunc: validation.StringInSlice([]string{
+					"custom", "create", "update", "delete",
+				}, false),
+				Description: "Type of the action. Must be one of: custom, create, update, delete",
 			},
 			"service_specification_id": {
 				Type:         schema.TypeString,
@@ -52,15 +62,13 @@ func resourceActionSpecification() *schema.Resource {
 			},
 			"parameters": {
 				Type:             schema.TypeString,
-				Optional:         true,
-				Default:          "{}",
+				Required:         true,
 				Description:      "JSON string containing the parameters schema and values",
 				DiffSuppressFunc: suppressEquivalentJSON,
 			},
 			"results": {
 				Type:             schema.TypeString,
-				Optional:         true,
-				Default:          "{}",
+				Required:         true,
 				Description:      "JSON string containing the expected results schema",
 				DiffSuppressFunc: suppressEquivalentJSON,
 			},
@@ -74,21 +82,19 @@ func resourceActionSpecification() *schema.Resource {
 	}
 }
 
-func ActionSpecificationCreate(d *schema.ResourceData, m interface{}) error {
+func ActionSpecificationCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
-	// Parse parameters JSON
 	parametersStr := d.Get("parameters").(string)
 	var parameters map[string]interface{}
 	if err := json.Unmarshal([]byte(parametersStr), &parameters); err != nil {
-		return fmt.Errorf("error parsing parameters JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error parsing parameters JSON: %v", err))
 	}
 
-	// Parse results JSON
 	resultsStr := d.Get("results").(string)
 	var results map[string]interface{}
 	if err := json.Unmarshal([]byte(resultsStr), &results); err != nil {
-		return fmt.Errorf("error parsing results JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error parsing results JSON: %v", err))
 	}
 
 	spec := &ActionSpecification{
@@ -103,20 +109,19 @@ func ActionSpecificationCreate(d *schema.ResourceData, m interface{}) error {
 
 	newSpec, err := nullOps.CreateActionSpecification(spec)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(newSpec.Id)
-	return ActionSpecificationRead(d, m)
+	return ActionSpecificationRead(ctx, d, m)
 }
 
-func ActionSpecificationRead(d *schema.ResourceData, m interface{}) error {
+func ActionSpecificationRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	specId := d.Id()
 
-	// Determine the parent type
-	var parentType string
-	var parentId string
+	var parentType, parentId string
+
 	if v := d.Get("service_specification_id").(string); v != "" {
 		parentType = "service"
 		parentId = v
@@ -127,45 +132,48 @@ func ActionSpecificationRead(d *schema.ResourceData, m interface{}) error {
 
 	spec, err := nullOps.GetActionSpecification(specId, parentType, parentId)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("name", spec.Name); err != nil {
-		return err
+		return diag.FromErr(err)
+	}
+	if err := d.Set("slug", spec.Slug); err != nil {
+		return diag.FromErr(err)
 	}
 	if err := d.Set("type", spec.Type); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if err := d.Set("service_specification_id", spec.ServiceSpecificationId); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if err := d.Set("link_specification_id", spec.LinkSpecificationId); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if err := d.Set("retryable", spec.Retryable); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	parametersJSON, err := json.Marshal(spec.Parameters)
 	if err != nil {
-		return fmt.Errorf("error serializing parameters to JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error serializing parameters to JSON: %v", err))
 	}
 	if err := d.Set("parameters", string(parametersJSON)); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	resultsJSON, err := json.Marshal(spec.Results)
 	if err != nil {
-		return fmt.Errorf("error serializing results to JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error serializing results to JSON: %v", err))
 	}
 	if err := d.Set("results", string(resultsJSON)); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	return nil
 }
 
-func ActionSpecificationUpdate(d *schema.ResourceData, m interface{}) error {
+func ActionSpecificationUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	specId := d.Id()
 
@@ -194,7 +202,7 @@ func ActionSpecificationUpdate(d *schema.ResourceData, m interface{}) error {
 		parametersStr := d.Get("parameters").(string)
 		var parameters map[string]interface{}
 		if err := json.Unmarshal([]byte(parametersStr), &parameters); err != nil {
-			return fmt.Errorf("error parsing parameters JSON: %v", err)
+			return diag.FromErr(fmt.Errorf("error parsing parameters JSON: %v", err))
 		}
 		spec.Parameters = parameters
 	}
@@ -203,7 +211,7 @@ func ActionSpecificationUpdate(d *schema.ResourceData, m interface{}) error {
 		resultsStr := d.Get("results").(string)
 		var results map[string]interface{}
 		if err := json.Unmarshal([]byte(resultsStr), &results); err != nil {
-			return fmt.Errorf("error parsing results JSON: %v", err)
+			return diag.FromErr(fmt.Errorf("error parsing results JSON: %v", err))
 		}
 		spec.Results = results
 	}
@@ -214,13 +222,13 @@ func ActionSpecificationUpdate(d *schema.ResourceData, m interface{}) error {
 
 	err := nullOps.PatchActionSpecification(specId, spec, parentType, parentId)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	return ActionSpecificationRead(d, m)
+	return ActionSpecificationRead(ctx, d, m)
 }
 
-func ActionSpecificationDelete(d *schema.ResourceData, m interface{}) error {
+func ActionSpecificationDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	specId := d.Id()
 
@@ -237,7 +245,7 @@ func ActionSpecificationDelete(d *schema.ResourceData, m interface{}) error {
 
 	err := nullOps.DeleteActionSpecification(specId, parentType, parentId)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")
