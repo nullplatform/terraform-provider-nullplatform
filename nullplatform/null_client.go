@@ -141,6 +141,10 @@ type NullOps interface {
 	GetUser(userID string) (*User, error)
 	UpdateUser(userID string, u *User) error
 	DeleteUser(userID string) error
+
+	CreateAuthzGrant(grant *AuthzGrant) (*AuthzGrant, error)
+	GetAuthzGrant(grantID string) (*AuthzGrant, error)
+	DeleteAuthzGrant(grantID string) error
 }
 
 func (c *NullClient) PrepareQueryString(params map[string]string) string {
