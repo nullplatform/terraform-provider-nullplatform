@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -12,9 +13,9 @@ func resourceAuthzGrant() *schema.Resource {
 	return &schema.Resource{
 		Description: "The authz_grant resource allows you to manage authorization grants in nullplatform",
 
-		Create: AuthzGrantCreate,
-		Read:   AuthzGrantRead,
-		Delete: AuthzGrantDelete,
+		CreateContext: CreateAuthzGrant,
+		ReadContext:   ReadAuthzGrant,
+		DeleteContext: DeleteAuthzGrant,
 
 		Importer: &schema.ResourceImporter{
 			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
@@ -40,7 +41,7 @@ func resourceAuthzGrant() *schema.Resource {
 	}
 }
 
-func AuthzGrantCreate(d *schema.ResourceData, m interface{}) error {
+func CreateAuthzGrant(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	var nrn string
@@ -50,7 +51,7 @@ func AuthzGrantCreate(d *schema.ResourceData, m interface{}) error {
 	} else {
 		nrn, err = ConstructNRNFromComponents(d, nullOps)
 		if err != nil {
-			return fmt.Errorf("error constructing NRN: %v %s", err, nrn)
+			return diag.FromErr(fmt.Errorf("error constructing NRN: %v %s", err, nrn))
 		}
 	}
 
@@ -62,34 +63,40 @@ func AuthzGrantCreate(d *schema.ResourceData, m interface{}) error {
 
 	newGrant, err := nullOps.CreateAuthzGrant(grant)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(strconv.Itoa(newGrant.ID))
-	return AuthzGrantRead(d, m)
+	return ReadAuthzGrant(context.Background(), d, m)
 }
 
-func AuthzGrantRead(d *schema.ResourceData, m interface{}) error {
+func ReadAuthzGrant(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	grant, err := nullOps.GetAuthzGrant(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	d.Set("user_id", grant.UserID)
-	d.Set("role_slug", grant.RoleSlug)
-	d.Set("nrn", grant.NRN)
+	if err := d.Set("user_id", grant.UserID); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("role_slug", grant.RoleSlug); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("nrn", grant.NRN); err != nil {
+		return diag.FromErr(err)
+	}
 
 	return nil
 }
 
-func AuthzGrantDelete(d *schema.ResourceData, m interface{}) error {
+func DeleteAuthzGrant(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	err := nullOps.DeleteAuthzGrant(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")

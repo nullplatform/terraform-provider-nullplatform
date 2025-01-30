@@ -1,0 +1,18 @@
+---
+page_title: "{{.Name}} Resource - {{.ProviderName}}"
+subcategory: ""
+description: |-
+  The authz_grant resource allows you to manage authorization grants in nullplatform.
+---
+
+# {{.Name}} (Resource)
+
+The authz_grant resource allows you to manage authorization grants in nullplatform. Grants give users access to resources with specific roles.
+
+## Example Usage
+
+### Basic Example
+
+{{ tffile "examples/resources/nullplatform_authz_grant/resource.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}

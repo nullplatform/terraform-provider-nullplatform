@@ -1,0 +1,18 @@
+---
+page_title: "{{.Name}} Resource - {{.ProviderName}}"
+subcategory: ""
+description: |-
+  The user resource allows you to manage users in nullplatform.
+---
+
+# {{.Name}} (Resource)
+
+The user resource allows you to manage users in nullplatform. Users can be created, updated, and deactivated through the platform.
+
+## Example Usage
+
+### Basic Example
+
+{{ tffile "examples/resources/nullplatform_user/resource.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}

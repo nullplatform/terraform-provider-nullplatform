@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -12,10 +13,10 @@ func resourceUser() *schema.Resource {
 	return &schema.Resource{
 		Description: "The user resource allows you to manage users in nullplatform",
 
-		Create: UserCreate,
-		Read:   UserRead,
-		Update: UserUpdate,
-		Delete: UserDelete,
+		CreateContext: CreateUser,
+		ReadContext:   ReadUser,
+		UpdateContext: UpdateUser,
+		DeleteContext: DeleteUser,
 
 		Importer: &schema.ResourceImporter{
 			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
@@ -55,17 +56,17 @@ func resourceUser() *schema.Resource {
 	}
 }
 
-func UserCreate(d *schema.ResourceData, m interface{}) error {
+func CreateUser(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	orgIDStr, err := nullOps.GetOrganizationIDFromToken()
 	if err != nil {
-		return fmt.Errorf("error getting organization ID: %v", err)
+		return diag.FromErr(fmt.Errorf("error getting organization ID: %v", err))
 	}
 
 	orgID, err := strconv.Atoi(orgIDStr)
 	if err != nil {
-		return fmt.Errorf("error converting organization ID to integer: %v", err)
+		return diag.FromErr(fmt.Errorf("error converting organization ID to integer: %v", err))
 	}
 
 	newUser := &User{
@@ -78,31 +79,41 @@ func UserCreate(d *schema.ResourceData, m interface{}) error {
 
 	user, err := nullOps.CreateUser(newUser)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(strconv.Itoa(user.ID))
-	return UserRead(d, m)
+	return ReadUser(context.Background(), d, m)
 }
 
-func UserRead(d *schema.ResourceData, m interface{}) error {
+func ReadUser(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	user, err := nullOps.GetUser(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	d.Set("email", user.Email)
-	d.Set("first_name", user.FirstName)
-	d.Set("last_name", user.LastName)
-	d.Set("avatar", user.Avatar)
-	d.Set("organization_id", user.OrganizationID)
+	if err := d.Set("email", user.Email); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("first_name", user.FirstName); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("last_name", user.LastName); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("avatar", user.Avatar); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("organization_id", user.OrganizationID); err != nil {
+		return diag.FromErr(err)
+	}
 
 	return nil
 }
 
-func UserUpdate(d *schema.ResourceData, m interface{}) error {
+func UpdateUser(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	updateUser := &User{
@@ -113,18 +124,18 @@ func UserUpdate(d *schema.ResourceData, m interface{}) error {
 
 	err := nullOps.UpdateUser(d.Id(), updateUser)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	return UserRead(d, m)
+	return ReadUser(ctx, d, m)
 }
 
-func UserDelete(d *schema.ResourceData, m interface{}) error {
+func DeleteUser(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	err := nullOps.DeleteUser(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")
