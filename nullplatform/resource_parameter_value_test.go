@@ -75,26 +75,6 @@ func testAccCheckParameterValueExists(n string, parameterValue *nullplatform.Par
 	}
 }
 
-func testAccCheckParameterValueDestroy(s *terraform.State) error {
-	client := testAccProviders["nullplatform"].Meta().(nullplatform.NullOps)
-	if client == nil {
-		return fmt.Errorf("provider meta is nil, ensure the provider is properly configured and initialized")
-	}
-
-	for _, rs := range s.RootModule().Resources {
-		if rs.Type != "nullplatform_parameter_value" {
-			continue
-		}
-
-		_, err := client.GetParameterValue(rs.Primary.Attributes["parameter_id"], rs.Primary.ID, nil)
-		if err == nil {
-			return fmt.Errorf("Parameter still exists")
-		}
-	}
-
-	return nil
-}
-
 func testAccResourceParameterValueConfig_basic(applicationID string) string {
 	return fmt.Sprintf(`
 data "nullplatform_application" "app" {
