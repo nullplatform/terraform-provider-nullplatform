@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -12,10 +13,10 @@ func resourceTechnologyTemplate() *schema.Resource {
 	return &schema.Resource{
 		Description: "The technology_template resource allows you to manage nullplatform Technology Templates",
 
-		Create: TechnologyTemplateCreate,
-		Read:   TechnologyTemplateRead,
-		Update: TechnologyTemplateUpdate,
-		Delete: TechnologyTemplateDelete,
+		CreateContext: TechnologyTemplateCreate,
+		ReadContext:   TechnologyTemplateRead,
+		UpdateContext: TechnologyTemplateUpdate,
+		DeleteContext: TechnologyTemplateDelete,
 
 		Importer: &schema.ResourceImporter{
 			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
@@ -105,31 +106,27 @@ func resourceTechnologyTemplate() *schema.Resource {
 	}
 }
 
-func TechnologyTemplateCreate(d *schema.ResourceData, m interface{}) error {
+func TechnologyTemplateCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
-	// Get organization ID from token
 	client := nullOps.(*NullClient)
 	organizationID, err := client.GetOrganizationIDFromToken()
 	if err != nil {
-		return fmt.Errorf("error getting organization ID from token: %v", err)
+		return diag.FromErr(fmt.Errorf("error getting organization ID from token: %v", err))
 	}
 
-	// Parse metadata JSON
 	metadataStr := d.Get("metadata").(string)
 	var metadata map[string]interface{}
 	if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
-		return fmt.Errorf("error parsing metadata JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error parsing metadata JSON: %v", err))
 	}
 
-	// Parse rules JSON
 	rulesStr := d.Get("rules").(string)
 	var rules map[string]interface{}
 	if err := json.Unmarshal([]byte(rulesStr), &rules); err != nil {
-		return fmt.Errorf("error parsing rules JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error parsing rules JSON: %v", err))
 	}
 
-	// Handle components
 	componentsRaw := d.Get("components").([]interface{})
 	components := make([]map[string]interface{}, len(componentsRaw))
 	for i, c := range componentsRaw {
@@ -137,7 +134,7 @@ func TechnologyTemplateCreate(d *schema.ResourceData, m interface{}) error {
 		componentMetadata := map[string]interface{}{}
 		if metadataStr, ok := comp["metadata"].(string); ok && metadataStr != "" {
 			if err := json.Unmarshal([]byte(metadataStr), &componentMetadata); err != nil {
-				return fmt.Errorf("error parsing component metadata JSON: %v", err)
+				return diag.FromErr(fmt.Errorf("error parsing component metadata JSON: %v", err))
 			}
 		}
 
@@ -149,7 +146,6 @@ func TechnologyTemplateCreate(d *schema.ResourceData, m interface{}) error {
 		}
 	}
 
-	// Handle tags
 	tagsRaw := d.Get("tags").([]interface{})
 	tags := make([]string, len(tagsRaw))
 	for i, t := range tagsRaw {
@@ -170,44 +166,43 @@ func TechnologyTemplateCreate(d *schema.ResourceData, m interface{}) error {
 
 	newTemplate, err := nullOps.CreateTechnologyTemplate(template)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(newTemplate.Id)
-	return TechnologyTemplateRead(d, m)
+	return TechnologyTemplateRead(ctx, d, m)
 }
 
-func TechnologyTemplateRead(d *schema.ResourceData, m interface{}) error {
+func TechnologyTemplateRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	templateId := d.Id()
 
 	template, err := nullOps.GetTechnologyTemplate(templateId)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("name", template.Name); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if err := d.Set("url", template.URL); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if err := d.Set("account", template.Account); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if err := d.Set("provider", template.Provider); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if err := d.Set("tags", template.Tags); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	// Handle components with their metadata
 	components := make([]map[string]interface{}, len(template.Components))
 	for i, comp := range template.Components {
 		metadata, err := json.Marshal(comp["metadata"])
 		if err != nil {
-			return fmt.Errorf("error serializing component metadata to JSON: %v", err)
+			return diag.FromErr(fmt.Errorf("error serializing component metadata to JSON: %v", err))
 		}
 
 		components[i] = map[string]interface{}{
@@ -218,29 +213,29 @@ func TechnologyTemplateRead(d *schema.ResourceData, m interface{}) error {
 		}
 	}
 	if err := d.Set("components", components); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	metadataJSON, err := json.Marshal(template.Metadata)
 	if err != nil {
-		return fmt.Errorf("error serializing metadata to JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error serializing metadata to JSON: %v", err))
 	}
 	if err := d.Set("metadata", string(metadataJSON)); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	rulesJSON, err := json.Marshal(template.Rules)
 	if err != nil {
-		return fmt.Errorf("error serializing rules to JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error serializing rules to JSON: %v", err))
 	}
 	if err := d.Set("rules", string(rulesJSON)); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	return nil
 }
 
-func TechnologyTemplateUpdate(d *schema.ResourceData, m interface{}) error {
+func TechnologyTemplateUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	templateId := d.Id()
 
@@ -266,7 +261,7 @@ func TechnologyTemplateUpdate(d *schema.ResourceData, m interface{}) error {
 			componentMetadata := map[string]interface{}{}
 			if metadataStr, ok := comp["metadata"].(string); ok && metadataStr != "" {
 				if err := json.Unmarshal([]byte(metadataStr), &componentMetadata); err != nil {
-					return fmt.Errorf("error parsing component metadata JSON: %v", err)
+					return diag.FromErr(fmt.Errorf("error parsing component metadata JSON: %v", err))
 				}
 			}
 
@@ -293,7 +288,7 @@ func TechnologyTemplateUpdate(d *schema.ResourceData, m interface{}) error {
 		metadataStr := d.Get("metadata").(string)
 		var metadata map[string]interface{}
 		if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
-			return fmt.Errorf("error parsing metadata JSON: %v", err)
+			return diag.FromErr(fmt.Errorf("error parsing metadata JSON: %v", err))
 		}
 		template.Metadata = metadata
 	}
@@ -302,20 +297,20 @@ func TechnologyTemplateUpdate(d *schema.ResourceData, m interface{}) error {
 		rulesStr := d.Get("rules").(string)
 		var rules map[string]interface{}
 		if err := json.Unmarshal([]byte(rulesStr), &rules); err != nil {
-			return fmt.Errorf("error parsing rules JSON: %v", err)
+			return diag.FromErr(fmt.Errorf("error parsing rules JSON: %v", err))
 		}
 		template.Rules = rules
 	}
 
 	err := nullOps.PatchTechnologyTemplate(templateId, template)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
-	return TechnologyTemplateRead(d, m)
+	return TechnologyTemplateRead(ctx, d, m)
 }
 
-func TechnologyTemplateDelete(d *schema.ResourceData, m interface{}) error {
+func TechnologyTemplateDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	templateId := d.Id()
 
@@ -325,7 +320,7 @@ func TechnologyTemplateDelete(d *schema.ResourceData, m interface{}) error {
 
 	err := nullOps.PatchTechnologyTemplate(templateId, template)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")
