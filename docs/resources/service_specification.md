@@ -16,7 +16,6 @@ The service_specification resource allows you to manage nullplatform Service Spe
 terraform {
   required_providers {
     nullplatform = {
-      version = "0.0.14"
       source  = "nullplatform/nullplatform"
     }
   }
