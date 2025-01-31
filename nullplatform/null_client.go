@@ -132,10 +132,38 @@ type NullOps interface {
 	UpdateMetadataSpecification(specId string, spec *MetadataSpecification) (*MetadataSpecification, error)
 	DeleteMetadataSpecification(specId string) error
 
+	CreateServiceSpecification(s *ServiceSpecification) (*ServiceSpecification, error)
+	GetServiceSpecification(specId string) (*ServiceSpecification, error)
+	PatchServiceSpecification(specId string, s *ServiceSpecification) error
+	DeleteServiceSpecification(specId string) error
+
+	CreateLinkSpecification(s *LinkSpecification) (*LinkSpecification, error)
+	GetLinkSpecification(specId string) (*LinkSpecification, error)
+	PatchLinkSpecification(specId string, s *LinkSpecification) error
+	DeleteLinkSpecification(specId string) error
+
+	CreateActionSpecification(s *ActionSpecification) (*ActionSpecification, error)
+	GetActionSpecification(specId string, parentType string, parentId string) (*ActionSpecification, error)
+	PatchActionSpecification(specId string, s *ActionSpecification, parentType string, parentId string) error
+	DeleteActionSpecification(specId string, parentType string, parentId string) error
+
 	GetApiKey(apiKeyId int64) (*ApiKey, error)
 	CreateApiKey(body *CreateApiKeyRequestBody) (*CreateApiKeyResponseBody, error)
 	PatchApiKey(apiKeyId int64, body *PatchApiKeyRequestBody) error
 	DeleteApiKey(apiKeyId int64) error
+
+	CreateUser(u *User) (*User, error)
+	GetUser(userID string) (*User, error)
+	UpdateUser(userID string, u *User) error
+	DeleteUser(userID string) error
+
+	CreateAuthzGrant(grant *AuthzGrant) (*AuthzGrant, error)
+	GetAuthzGrant(grantID string) (*AuthzGrant, error)
+	DeleteAuthzGrant(grantID string) error
+
+	CreateTechnologyTemplate(t *TechnologyTemplate) (*TechnologyTemplate, error)
+	GetTechnologyTemplate(templateId string) (*TechnologyTemplate, error)
+	PatchTechnologyTemplate(templateId string, t *TechnologyTemplate) error
 
 	CreateMetadata(entity, entityId, metadataType string, m *Metadata) error
 	GetMetadata(entity, entityId, metadataType string) (*Metadata, error)

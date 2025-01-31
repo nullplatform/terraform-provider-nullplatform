@@ -44,7 +44,7 @@ func (c *NullClient) CreateLink(link *Link) (*Link, error) {
 		dErr := json.NewDecoder(res.Body).Decode(nErr)
 		if res.StatusCode == http.StatusBadRequest {
 			if dErr != nil {
-				return nil, fmt.Errorf("An error happened: %s", dErr)
+				return nil, fmt.Errorf("an error happened: %s", dErr)
 			}
 		}
 		return nil, fmt.Errorf("error creating link resource, got status code: %d", nErr.Id)

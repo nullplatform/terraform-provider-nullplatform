@@ -16,7 +16,6 @@ The link resource allows you to configure a Nullplatform Link
 terraform {
   required_providers {
     nullplatform = {
-      version = "0.0.14"
       source  = "nullplatform/nullplatform"
     }
   }
