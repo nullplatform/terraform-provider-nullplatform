@@ -13,11 +13,11 @@ const (
 )
 
 type TechnologyTemplate struct {
-	Id           string                   `json:"id,omitempty"`
+	Id           json.Number              `json:"id,omitempty"`
 	Name         string                   `json:"name"`
 	Status       string                   `json:"status,omitempty"`
-	Organization string                   `json:"organization,omitempty"`
-	Account      string                   `json:"account,omitempty"`
+	Organization json.Number              `json:"organization,omitempty"`
+	Account      json.Number              `json:"account,omitempty"`
 	URL          string                   `json:"url"`
 	Provider     map[string]interface{}   `json:"provider"`
 	Components   []map[string]interface{} `json:"components"`
@@ -26,6 +26,27 @@ type TechnologyTemplate struct {
 	Rules        map[string]interface{}   `json:"rules,omitempty"`
 	CreatedAt    string                   `json:"created_at,omitempty"`
 	UpdatedAt    string                   `json:"updated_at,omitempty"`
+}
+
+func (t *TechnologyTemplate) GetId() string {
+	if t.Id == "" {
+		return ""
+	}
+	return t.Id.String()
+}
+
+func (t *TechnologyTemplate) GetOrganization() string {
+	if t.Organization == "" {
+		return ""
+	}
+	return t.Organization.String()
+}
+
+func (t *TechnologyTemplate) GetAccount() string {
+	if t.Account == "" {
+		return ""
+	}
+	return t.Account.String()
 }
 
 func (c *NullClient) CreateTechnologyTemplate(t *TechnologyTemplate) (*TechnologyTemplate, error) {

@@ -41,7 +41,7 @@ func resourceTechnologyTemplate() *schema.Resource {
 				Optional:    true,
 				Description: "Account ID the template belongs to. If not specified, it will be a global template",
 			},
-			"provider": {
+			"provider_config": {
 				Type:     schema.TypeMap,
 				Required: true,
 				Elem: &schema.Schema{
@@ -154,10 +154,11 @@ func TechnologyTemplateCreate(ctx context.Context, d *schema.ResourceData, m int
 
 	template := &TechnologyTemplate{
 		Name:         d.Get("name").(string),
-		Organization: organizationID,
-		Account:      d.Get("account").(string),
+		Organization: json.Number(organizationID),
+		Account:      json.Number(d.Get("account").(string)),
 		URL:          d.Get("url").(string),
-		Provider:     d.Get("provider").(map[string]interface{}),
+		Provider:     d.Get("provider_config").(map[string]interface{}),
+		Status:       "active",
 		Components:   components,
 		Tags:         tags,
 		Metadata:     metadata,
@@ -169,7 +170,8 @@ func TechnologyTemplateCreate(ctx context.Context, d *schema.ResourceData, m int
 		return diag.FromErr(err)
 	}
 
-	d.SetId(newTemplate.Id)
+	d.SetId(newTemplate.GetId())
+
 	return TechnologyTemplateRead(ctx, d, m)
 }
 
@@ -188,10 +190,10 @@ func TechnologyTemplateRead(ctx context.Context, d *schema.ResourceData, m inter
 	if err := d.Set("url", template.URL); err != nil {
 		return diag.FromErr(err)
 	}
-	if err := d.Set("account", template.Account); err != nil {
+	if err := d.Set("account", template.GetAccount()); err != nil {
 		return diag.FromErr(err)
 	}
-	if err := d.Set("provider", template.Provider); err != nil {
+	if err := d.Set("provider_config", template.Provider); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := d.Set("tags", template.Tags); err != nil {
@@ -249,8 +251,8 @@ func TechnologyTemplateUpdate(ctx context.Context, d *schema.ResourceData, m int
 		template.URL = d.Get("url").(string)
 	}
 
-	if d.HasChange("provider") {
-		template.Provider = d.Get("provider").(map[string]interface{})
+	if d.HasChange("provider_config") {
+		template.Provider = d.Get("provider_config").(map[string]interface{})
 	}
 
 	if d.HasChange("components") {
