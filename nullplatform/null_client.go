@@ -160,6 +160,10 @@ type NullOps interface {
 	CreateAuthzGrant(grant *AuthzGrant) (*AuthzGrant, error)
 	GetAuthzGrant(grantID string) (*AuthzGrant, error)
 	DeleteAuthzGrant(grantID string) error
+
+	CreateTechnologyTemplate(t *TechnologyTemplate) (*TechnologyTemplate, error)
+	GetTechnologyTemplate(templateId string) (*TechnologyTemplate, error)
+	PatchTechnologyTemplate(templateId string, t *TechnologyTemplate) error
 }
 
 func (c *NullClient) PrepareQueryString(params map[string]string) string {
