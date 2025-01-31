@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -12,10 +14,10 @@ func resourceMetadata() *schema.Resource {
 	return &schema.Resource{
 		Description: "The metadata resource allows you to manage metadata for nullplatform entities",
 
-		Create: MetadataCreate,
-		Read:   MetadataRead,
-		Update: MetadataUpdate,
-		Delete: MetadataDelete,
+		CreateContext: MetadataCreate,
+		ReadContext:   MetadataRead,
+		UpdateContext: MetadataUpdate,
+		DeleteContext: MetadataDelete,
 
 		Importer: &schema.ResourceImporter{
 			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
@@ -37,7 +39,7 @@ func resourceMetadata() *schema.Resource {
 				ForceNew:    true,
 				Description: "ID of the entity that holds the metadata",
 			},
-			"metadata_type": {
+			"type": {
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,
@@ -58,25 +60,32 @@ func buildMetadataId(entity, entityId, metadataType string) string {
 }
 
 func parseMetadataId(id string) (string, string, string, error) {
-	var entity, entityId, metadataType string
-	_, err := fmt.Sscanf(id, "%s/%s/%s", &entity, &entityId, &metadataType)
-	if err != nil {
-		return "", "", "", fmt.Errorf("invalid ID format: %s", id)
+	parts := strings.Split(strings.TrimSpace(id), "/")
+	if len(parts) != 3 {
+		return "", "", "", fmt.Errorf("invalid ID format: %s (expected format: entity/entityId/type)", id)
 	}
+
+	entity := strings.TrimSpace(parts[0])
+	entityId := strings.TrimSpace(parts[1])
+	metadataType := strings.TrimSpace(parts[2])
+
+	if entity == "" || entityId == "" || metadataType == "" {
+		return "", "", "", fmt.Errorf("invalid ID format: %s (entity, entityId, and type cannot be empty)", id)
+	}
+
 	return entity, entityId, metadataType, nil
 }
-
-func MetadataCreate(d *schema.ResourceData, m interface{}) error {
+func MetadataCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	entity := d.Get("entity").(string)
 	entityId := d.Get("entity_id").(string)
-	metadataType := d.Get("metadata_type").(string)
+	metadataType := d.Get("type").(string)
 
 	valueStr := d.Get("value").(string)
 	var value interface{}
 	if err := json.Unmarshal([]byte(valueStr), &value); err != nil {
-		return fmt.Errorf("error parsing metadata value JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error parsing metadata value JSON: %v", err))
 	}
 
 	metadata := &Metadata{
@@ -85,60 +94,60 @@ func MetadataCreate(d *schema.ResourceData, m interface{}) error {
 
 	err := nullOps.CreateMetadata(entity, entityId, metadataType, metadata)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(buildMetadataId(entity, entityId, metadataType))
-	return MetadataRead(d, m)
+	return MetadataRead(ctx, d, m)
 }
 
-func MetadataRead(d *schema.ResourceData, m interface{}) error {
+func MetadataRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	entity, entityId, metadataType, err := parseMetadataId(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	metadata, err := nullOps.GetMetadata(entity, entityId, metadataType)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("entity", entity); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 	if err := d.Set("entity_id", entityId); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
-	if err := d.Set("metadata_type", metadataType); err != nil {
-		return err
+	if err := d.Set("type", metadataType); err != nil {
+		return diag.FromErr(err)
 	}
 
 	valueJSON, err := json.Marshal(metadata.Value)
 	if err != nil {
-		return fmt.Errorf("error serializing metadata value to JSON: %v", err)
+		return diag.FromErr(fmt.Errorf("error serializing metadata value to JSON: %v", err))
 	}
 	if err := d.Set("value", string(valueJSON)); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	return nil
 }
 
-func MetadataUpdate(d *schema.ResourceData, m interface{}) error {
+func MetadataUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	entity, entityId, metadataType, err := parseMetadataId(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if d.HasChange("value") {
 		valueStr := d.Get("value").(string)
 		var value interface{}
 		if err := json.Unmarshal([]byte(valueStr), &value); err != nil {
-			return fmt.Errorf("error parsing metadata value JSON: %v", err)
+			return diag.FromErr(fmt.Errorf("error parsing metadata value JSON: %v", err))
 		}
 
 		metadata := &Metadata{
@@ -147,24 +156,24 @@ func MetadataUpdate(d *schema.ResourceData, m interface{}) error {
 
 		err := nullOps.UpdateMetadata(entity, entityId, metadataType, metadata)
 		if err != nil {
-			return err
+			return diag.FromErr(err)
 		}
 	}
 
-	return MetadataRead(d, m)
+	return MetadataRead(ctx, d, m)
 }
 
-func MetadataDelete(d *schema.ResourceData, m interface{}) error {
+func MetadataDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	entity, entityId, metadataType, err := parseMetadataId(d.Id())
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	err = nullOps.DeleteMetadata(entity, entityId, metadataType)
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")

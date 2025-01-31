@@ -13,7 +13,7 @@ type Metadata struct {
 }
 
 func getMetadataPath(entity, entityId, metadataType string) string {
-	return fmt.Sprintf("/%s/%s/%s", entity, entityId, metadataType)
+	return fmt.Sprintf("/metadata/%s/%s/%s", entity, entityId, metadataType)
 }
 
 func (c *NullClient) CreateMetadata(entity, entityId, metadataType string, m *Metadata) error {
