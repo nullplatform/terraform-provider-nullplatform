@@ -164,6 +164,11 @@ type NullOps interface {
 	CreateTechnologyTemplate(t *TechnologyTemplate) (*TechnologyTemplate, error)
 	GetTechnologyTemplate(templateId string) (*TechnologyTemplate, error)
 	PatchTechnologyTemplate(templateId string, t *TechnologyTemplate) error
+
+	CreateMetadata(entity, entityId, metadataType string, m *Metadata) error
+	GetMetadata(entity, entityId, metadataType string) (*Metadata, error)
+	UpdateMetadata(entity, entityId, metadataType string, m *Metadata) error
+	DeleteMetadata(entity, entityId, metadataType string) error
 }
 
 func (c *NullClient) PrepareQueryString(params map[string]string) string {
