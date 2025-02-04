@@ -13,6 +13,8 @@ func resourceAuthzGrant() *schema.Resource {
 	return &schema.Resource{
 		Description: "The authz_grant resource allows you to manage authorization grants in nullplatform",
 
+		DeprecationMessage: "This resource is deprecated and will be removed in a future version. Please use the `nullplatform_user_role` resource instead.",
+
 		CreateContext: CreateAuthzGrant,
 		ReadContext:   ReadAuthzGrant,
 		DeleteContext: DeleteAuthzGrant,
