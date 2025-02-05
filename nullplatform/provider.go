@@ -11,7 +11,6 @@ import (
 
 const API_KEY = "api_key"
 const HOST = "host"
-const NP_API_KEY = "np_apikey"
 const NP_API_HOST = "np_api_host"
 
 func Provider() *schema.Provider {
@@ -29,14 +28,6 @@ func Provider() *schema.Provider {
 				DefaultFunc: schema.EnvDefaultFunc("NULLPLATFORM_HOST", "api.nullplatform.com"),
 				Optional:    true,
 				Description: "Nullplatform HOST. Can also be set with the `NULLPLATFORM_HOST` environment variable. If omitted, the default value is `api.nullplatform.com`",
-			},
-			NP_API_KEY: {
-				Type:        schema.TypeString,
-				DefaultFunc: schema.EnvDefaultFunc("NP_API_KEY", nil),
-				Optional:    true,
-				Sensitive:   true,
-				Description: "Nullplatform API KEY. Can also be set with the `NP_API_KEY` environment variable.",
-				Deprecated:  "The 'np_apikey' attribute is deprecated and will be removed in a future version. Please use 'api_key' instead.",
 			},
 			NP_API_HOST: {
 				Type:        schema.TypeString,
@@ -109,14 +100,7 @@ func getAPIKey(d *schema.ResourceData) (string, diag.Diagnostics) {
 	if v, ok := d.GetOk(API_KEY); ok {
 		return v.(string), diags
 	}
-	if v, ok := d.GetOk(NP_API_KEY); ok {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Warning,
-			Summary:  "Deprecated API Key Usage",
-			Detail:   "You are using the deprecated 'np_apikey'. Please update your configuration to use 'api_key' instead.",
-		})
-		return v.(string), diags
-	}
+
 	diags = append(diags, diag.Diagnostic{
 		Severity: diag.Error,
 		Summary:  "Missing API Key",
