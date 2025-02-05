@@ -8,7 +8,7 @@ import (
 
 func resourceUserRole() *schema.Resource {
 	return &schema.Resource{
-		Description: "The authz_grant resource allows you to manage authorization grants in nullplatform",
+		Description: "The user_role resource allows you to manage authorization grants in nullplatform",
 
 		CreateContext: CreateAuthzGrant,
 		ReadContext:   ReadAuthzGrant,
