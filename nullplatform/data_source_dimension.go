@@ -2,8 +2,8 @@ package nullplatform
 
 import (
 	"context"
+	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -72,7 +72,6 @@ func dataSourceDimension() *schema.Resource {
 		},
 	}
 }
-
 func dataSourceDimensionRead(_ context.Context, d *schema.ResourceData, unWrappedNullOps any) diag.Diagnostics {
 	nullOps := unWrappedNullOps.(NullOps)
 
@@ -99,8 +98,13 @@ func dataSourceDimensionRead(_ context.Context, d *schema.ResourceData, unWrappe
 	}
 
 	if err = d.Set("nrn", dimension.NRN); err != nil {
+		fmt.Printf("Error setting nrn: %v\n", err)
 		return diag.FromErr(err)
 	}
+
+	// Process dimension values
+	fmt.Printf("\nProcessing dimension values...\n")
+	fmt.Printf("Number of values: %d\n", len(dimension.Values))
 
 	value := make([]map[string]any, len(dimension.Values))
 	for i, v := range dimension.Values {
@@ -112,23 +116,11 @@ func dataSourceDimensionRead(_ context.Context, d *schema.ResourceData, unWrappe
 			"status": v.Status,
 		}
 	}
+
 	if err = d.Set("values", value); err != nil {
 		return diag.FromErr(err)
 	}
 
-	/*We don't have a unique ID for this data resource so we create one using a
-	timestamp format. I've seen people use a hash of the returned API data as
-	a unique key.
-
-	NOTE:
-	That hashcode helper is no longer available! It has been moved into an
-	internal directory meaning it's not supposed to be consumed.
-
-	Reference:
-	https://github.com/hashicorp/terraform-plugin-sdk/blob/master/internal/helper/hashcode/hashcode.go
-	*/
-
-	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-
+	d.SetId(strconv.FormatInt(int64(dimension.ID), 10))
 	return nil
 }
