@@ -2,7 +2,6 @@ package nullplatform
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -98,13 +97,8 @@ func dataSourceDimensionRead(_ context.Context, d *schema.ResourceData, unWrappe
 	}
 
 	if err = d.Set("nrn", dimension.NRN); err != nil {
-		fmt.Printf("Error setting nrn: %v\n", err)
 		return diag.FromErr(err)
 	}
-
-	// Process dimension values
-	fmt.Printf("\nProcessing dimension values...\n")
-	fmt.Printf("Number of values: %d\n", len(dimension.Values))
 
 	value := make([]map[string]any, len(dimension.Values))
 	for i, v := range dimension.Values {
