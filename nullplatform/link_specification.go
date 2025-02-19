@@ -18,9 +18,9 @@ type LinkSpecification struct {
 	Slug            string                 `json:"slug,omitempty"`
 	Unique          bool                   `json:"unique"`
 	SpecificationId string                 `json:"specification_id,omitempty"`
-	VisibleTo       []string               `json:"visible_to,omitempty"`
+	VisibleTo       []string               `json:"visible_to"`
 	Dimensions      map[string]interface{} `json:"dimensions,omitempty"`
-	AssignableTo    string                 `json:"assignable_to,omitempty"`
+	AssignableTo    string                 `json:"assignable_to"`
 	Attributes      map[string]interface{} `json:"attributes,omitempty"`
 	Selectors       Selectors              `json:"selectors,omitempty"`
 }
