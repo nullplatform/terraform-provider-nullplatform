@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
+	"math/rand/v2"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang-jwt/jwt"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -185,29 +189,102 @@ func (c *NullClient) PrepareQueryString(params map[string]string) string {
 	return "?" + query
 }
 
+type RetryConfig struct {
+	MaxRetries      int           // Maximum number of retry attempts
+	InitialInterval time.Duration // Initial interval between retries
+	MaxInterval     time.Duration // Maximum interval between retries
+	Multiplier      float64       // Multiplier for exponential backoff
+	RandomFactor    float64       // Random factor for jitter
+}
+
+// DefaultRetryConfig returns the default retry configuration
+func DefaultRetryConfig() *RetryConfig {
+	return &RetryConfig{
+		MaxRetries:      3,
+		InitialInterval: 1 * time.Second,
+		MaxInterval:     30 * time.Second,
+		Multiplier:      2.0,
+		RandomFactor:    0.1,
+	}
+}
+
+func isRetryableClientError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if netErr, ok := err.(net.Error); ok {
+		return netErr.Timeout() || netErr.Temporary()
+	}
+
+	switch err.(type) {
+	case *net.OpError:
+		return true
+	case *net.DNSError:
+		return true
+	default:
+		return false
+	}
+}
+
+func (rc *RetryConfig) calculateBackoff(attempt int) time.Duration {
+	backoff := float64(rc.InitialInterval) * math.Pow(rc.Multiplier, float64(attempt))
+
+	if backoff > float64(rc.MaxInterval) {
+		backoff = float64(rc.MaxInterval)
+	}
+
+	delta := rc.RandomFactor * backoff
+	minBackoff := backoff - delta
+	maxBackoff := backoff + delta
+
+	return time.Duration(minBackoff + rand.Float64()*(maxBackoff-minBackoff))
+}
+
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {
 	if err := c.ensureValidToken(); err != nil {
 		return nil, err
 	}
 
-	var req *http.Request
-	var err error
-	url := fmt.Sprintf("https://%s%s", c.ApiURL, path)
+	retryConfig := DefaultRetryConfig()
+	var lastErr error
 
-	if body != nil {
-		req, err = http.NewRequest(method, url, body)
-	} else {
-		req, err = http.NewRequest(method, url, nil)
+	for attempt := 0; attempt <= retryConfig.MaxRetries; attempt++ {
+		if attempt > 0 {
+			backoff := retryConfig.calculateBackoff(attempt - 1)
+			time.Sleep(backoff)
+		}
+
+		var req *http.Request
+		var err error
+		url := fmt.Sprintf("https://%s%s", c.ApiURL, path)
+
+		if body != nil {
+			bodyCopy := bytes.NewBuffer(body.Bytes())
+			req, err = http.NewRequest(method, url, bodyCopy)
+		} else {
+			req, err = http.NewRequest(method, url, nil)
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %v", err)
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
+
+		resp, err := c.Client.Do(req)
+		if err == nil {
+			return resp, nil
+		}
+
+		lastErr = err
+		if !isRetryableClientError(err) {
+			return nil, fmt.Errorf("non-retryable error: %v", err)
+		}
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
-
-	return c.Client.Do(req)
+	return nil, fmt.Errorf("max retries exceeded, last error: %v", lastErr)
 }
 
 func (c *NullClient) ensureValidToken() error {
