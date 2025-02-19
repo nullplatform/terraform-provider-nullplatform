@@ -23,9 +23,9 @@ type ServiceSpecification struct {
 	Id           string                 `json:"id,omitempty"`
 	Name         string                 `json:"name,omitempty"`
 	Slug         string                 `json:"slug,omitempty"`
-	VisibleTo    []string               `json:"visible_to,omitempty"`
+	VisibleTo    []string               `json:"visible_to"`
 	Dimensions   map[string]interface{} `json:"dimensions,omitempty"`
-	AssignableTo string                 `json:"assignable_to,omitempty"`
+	AssignableTo string                 `json:"assignable_to"`
 	Type         string                 `json:"type,omitempty"`
 	Attributes   map[string]interface{} `json:"attributes,omitempty"`
 	Selectors    Selectors              `json:"selectors,omitempty"` // Use the new struct
