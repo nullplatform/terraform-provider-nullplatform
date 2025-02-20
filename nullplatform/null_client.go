@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/rand/v2"
 	"net"
 	"net/http"
 	"strings"
@@ -229,16 +228,15 @@ func isRetryableClientError(err error) bool {
 
 func (rc *RetryConfig) calculateBackoff(attempt int) time.Duration {
 	backoff := float64(rc.InitialInterval) * math.Pow(rc.Multiplier, float64(attempt))
+	delta := math.Abs(rc.RandomFactor * backoff)
+	finalBackoff := backoff * (delta + 1)
 
-	if backoff > float64(rc.MaxInterval) {
-		backoff = float64(rc.MaxInterval)
+	// Apply MaxInterval cap after jitter
+	if finalBackoff > float64(rc.MaxInterval) {
+		finalBackoff = float64(rc.MaxInterval)
 	}
 
-	delta := rc.RandomFactor * backoff
-	minBackoff := backoff - delta
-	maxBackoff := backoff + delta
-
-	return time.Duration(minBackoff + rand.Float64()*(maxBackoff-minBackoff))
+	return time.Duration(finalBackoff)
 }
 
 func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http.Response, error) {
@@ -248,30 +246,28 @@ func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http
 
 	retryConfig := DefaultRetryConfig()
 	var lastErr error
+	var req *http.Request
+	var err error
+	url := fmt.Sprintf("https://%s%s", c.ApiURL, path)
+	if body != nil {
+		bodyCopy := bytes.NewBuffer(body.Bytes())
+		req, err = http.NewRequest(method, url, bodyCopy)
+	} else {
+		req, err = http.NewRequest(method, url, nil)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
 
 	for attempt := 0; attempt <= retryConfig.MaxRetries; attempt++ {
 		if attempt > 0 {
 			backoff := retryConfig.calculateBackoff(attempt - 1)
 			time.Sleep(backoff)
 		}
-
-		var req *http.Request
-		var err error
-		url := fmt.Sprintf("https://%s%s", c.ApiURL, path)
-
-		if body != nil {
-			bodyCopy := bytes.NewBuffer(body.Bytes())
-			req, err = http.NewRequest(method, url, bodyCopy)
-		} else {
-			req, err = http.NewRequest(method, url, nil)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to create request: %v", err)
-		}
-
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
 
 		resp, err := c.Client.Do(req)
 		if err == nil {
