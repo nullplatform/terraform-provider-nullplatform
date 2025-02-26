@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang-jwt/jwt"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -22,6 +25,11 @@ type TokenRequest struct {
 type Token struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+}
+
+type LoggingTransport struct {
+	Transport http.RoundTripper
+	Logger    *log.Logger
 }
 
 type NullClient struct {
@@ -169,6 +177,43 @@ type NullOps interface {
 	GetMetadata(entity, entityId, metadataType string) (*Metadata, error)
 	UpdateMetadata(entity, entityId, metadataType string, m *Metadata) error
 	DeleteMetadata(entity, entityId, metadataType string) error
+}
+
+func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+
+	// Log request
+	reqDump, err := httputil.DumpRequestOut(req, true)
+	if err != nil {
+		return nil, err
+	}
+	authRegex := regexp.MustCompile(`(?i)(Authorization:)(\s*)(Bearer|Basic|Digest|\S+)?(\s*)(.*)(\r?\n)`)
+	replacement := []byte("$1$2$3$4REDACTED$6")
+
+	// Replace the auth header line with an empty string
+	t.Logger.Printf("REQUEST:\n%s\n", string(authRegex.ReplaceAll(reqDump, replacement)))
+
+	// Set up timing
+	startTime := time.Now()
+
+	// Perform the request
+	resp, err := t.Transport.RoundTrip(req)
+	if err != nil {
+		t.Logger.Printf("REQUEST ERROR: %v\n", err)
+		return nil, err
+	}
+
+	// Calculate duration
+	duration := time.Since(startTime)
+
+	// Log response
+	respDump, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		t.Logger.Printf("ERROR DUMPING RESPONSE: %v\n", err)
+	} else {
+		t.Logger.Printf("RESPONSE (%s):\n%s\n", duration, string(respDump))
+	}
+
+	return resp, err
 }
 
 func (c *NullClient) PrepareQueryString(params map[string]string) string {

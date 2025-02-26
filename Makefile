@@ -17,6 +17,9 @@ build:
 release:
 	goreleaser release --rm-dist --snapshot --skip-publish  --skip-sign
 
+debug: build
+	go install .
+
 install: build
 	mkdir -p ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
 	mv ${BINARY} ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
