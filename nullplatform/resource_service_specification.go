@@ -153,7 +153,7 @@ func CreateServiceSpecification(_ context.Context, d *schema.ResourceData, m int
 		AssignableTo: d.Get("assignable_to").(string),
 		Type:         d.Get("type").(string),
 		Attributes:   attributes,
-		Selectors:    selectors,
+		Selectors:    &selectors,
 	}
 
 	newSpec, err := nullOps.CreateServiceSpecification(spec)
@@ -271,7 +271,7 @@ func UpdateServiceSpecification(ctx context.Context, d *schema.ResourceData, m i
 		selectorsList := d.Get("selectors").([]interface{})
 		if len(selectorsList) > 0 {
 			selectorsMap := selectorsList[0].(map[string]interface{})
-			spec.Selectors = Selectors{
+			spec.Selectors = &Selectors{
 				Category:    selectorsMap["category"].(string),
 				Imported:    selectorsMap["imported"].(bool),
 				Provider:    selectorsMap["provider"].(string),

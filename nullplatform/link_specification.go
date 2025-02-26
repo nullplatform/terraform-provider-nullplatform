@@ -22,7 +22,7 @@ type LinkSpecification struct {
 	Dimensions      map[string]interface{} `json:"dimensions,omitempty"`
 	AssignableTo    string                 `json:"assignable_to,omitempty"`
 	Attributes      map[string]interface{} `json:"attributes,omitempty"`
-	Selectors       Selectors              `json:"selectors,omitempty"`
+	Selectors       *Selectors             `json:"selectors,omitempty"`
 }
 
 func (c *NullClient) CreateLinkSpecification(s *LinkSpecification) (*LinkSpecification, error) {
