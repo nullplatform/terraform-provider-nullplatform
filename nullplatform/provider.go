@@ -2,11 +2,12 @@ package nullplatform
 
 import (
 	"context"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/motemen/go-loghttp"
 )
 
 const API_KEY = "api_key"
@@ -92,7 +93,10 @@ func Provider() *schema.Provider {
 
 		c := &NullClient{
 			Client: &http.Client{
-				Transport: &loghttp.Transport{},
+				Transport: &LoggingTransport{
+					Transport: http.DefaultTransport,
+					Logger:    log.New(os.Stdout, "HTTP: \n\n", log.Ldate|log.Ltime),
+				},
 			},
 			ApiKey: apiKey,
 			ApiURL: apiUrl,
