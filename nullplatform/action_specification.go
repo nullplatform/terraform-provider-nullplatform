@@ -10,7 +10,7 @@ import (
 
 type ActionSpecification struct {
 	Id                     string                 `json:"id,omitempty"`
-	Name                   string                 `json:"name"`
+	Name                   string                 `json:"name,omitempty"`
 	Type                   string                 `json:"type,omitempty"`
 	Parameters             map[string]interface{} `json:"parameters,omitempty"`
 	Results                map[string]interface{} `json:"results,omitempty"`

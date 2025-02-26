@@ -28,7 +28,7 @@ type ServiceSpecification struct {
 	AssignableTo string                 `json:"assignable_to,omitempty"`
 	Type         string                 `json:"type,omitempty"`
 	Attributes   map[string]interface{} `json:"attributes,omitempty"`
-	Selectors    Selectors              `json:"selectors,omitempty"` // Use the new struct
+	Selectors    *Selectors             `json:"selectors,omitempty"` // Use the new struct
 }
 
 func (c *NullClient) CreateServiceSpecification(s *ServiceSpecification) (*ServiceSpecification, error) {
