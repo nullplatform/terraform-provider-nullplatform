@@ -211,7 +211,7 @@ func (c *NullClient) DeleteDimension(dimensionID string) error {
 		return fmt.Errorf("error reading response body: %v", err)
 	}
 
-	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusNotFound {
 		var errResp ErrorResponse
 		if err := json.Unmarshal(body, &errResp); err == nil {
 			return fmt.Errorf("API error deleting dimension: %s (Code: %s)", errResp.Message, errResp.Code)

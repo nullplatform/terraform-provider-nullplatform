@@ -116,7 +116,7 @@ func (c *NullClient) DeleteProviderConfig(providerConfigId string) error {
 	}
 	defer res.Body.Close()
 
-	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
+	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) && (res.StatusCode != http.StatusNotFound) {
 		bodyBytes, _ := io.ReadAll(res.Body)
 		return fmt.Errorf("failed to delete provider config resource: status code %d, response: %s", res.StatusCode, string(bodyBytes))
 	}
