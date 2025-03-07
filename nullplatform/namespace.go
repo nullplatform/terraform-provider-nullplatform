@@ -112,7 +112,7 @@ func (c *NullClient) DeleteNamespace(namespaceId string) error {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusNotFound {
 		var nErr NullErrors
 		if err := json.NewDecoder(res.Body).Decode(&nErr); err != nil {
 			return fmt.Errorf("failed to decode error response: %w", err)
