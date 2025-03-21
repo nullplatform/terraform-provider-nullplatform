@@ -45,11 +45,11 @@ resource "nullplatform_notification_channel" "github" {
  
  configuration {
    github {
-     account         = "GalactusPlatform"
+     account         = "my-github-org"
      reference       = "main"
-     repository      = "demo-nullplatform-services-manager"
-     workflow_id     = "service-action.yml"
-     installation_id = "57594772"
+     repository      = "my-awesome-repo"
+     workflow_id     = "provisioning.yml"
+     installation_id = "12345678"
    }
  }
 }
