@@ -58,8 +58,9 @@ func resourceNotificationChannel() *schema.Resource {
 							Elem: &schema.Resource{
 								Schema: map[string]*schema.Schema{
 									"api_key": {
-										Type:     schema.TypeString,
-										Required: true,
+										Type:      schema.TypeString,
+										Required:  true,
+										Sensitive: true,
 									},
 									"command": {
 										Type:     schema.TypeList,
