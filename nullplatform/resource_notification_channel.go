@@ -51,6 +51,48 @@ func resourceNotificationChannel() *schema.Resource {
 								},
 							},
 						},
+						"agent": {
+							Type:     schema.TypeList,
+							Optional: true,
+							MaxItems: 1,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"api_key": {
+										Type:      schema.TypeString,
+										Required:  true,
+										Sensitive: true,
+									},
+									"command": {
+										Type:     schema.TypeList,
+										Required: true,
+										MaxItems: 1,
+										Elem: &schema.Resource{
+											Schema: map[string]*schema.Schema{
+												"data": {
+													Type:     schema.TypeMap,
+													Required: true,
+													Elem: &schema.Schema{
+														Type: schema.TypeString,
+													},
+												},
+												"type": {
+													Type:     schema.TypeString,
+													Required: true,
+												},
+											},
+										},
+									},
+									"selector": {
+										Type:     schema.TypeMap,
+										Optional: true,
+										Elem: &schema.Schema{
+											Type: schema.TypeString,
+										},
+										Description: "Selector for agent",
+									},
+								},
+							},
+						},
 						"http": {
 							Type:     schema.TypeList,
 							Optional: true,
@@ -158,6 +200,17 @@ func NotificationChannelCreate(d *schema.ResourceData, m any) error {
 
 	flatConfig := make(map[string]interface{})
 	switch d.Get("type").(string) {
+	case "agent":
+		if agent, ok := config["agent"].([]interface{}); ok && len(agent) > 0 {
+			agentMap := agent[0].(map[string]any)
+			flatConfig["api_key"] = agentMap["api_key"]
+			if command, ok := agentMap["command"].([]any); ok {
+				flatConfig["command"] = command[0]
+			}
+			if selector, ok := agentMap["selector"].(map[string]any); ok {
+				flatConfig["selector"] = selector
+			}
+		}
 	case "slack":
 		if slackConfig, ok := config["slack"].([]interface{}); ok && len(slackConfig) > 0 {
 			slackMap := slackConfig[0].(map[string]interface{})
@@ -265,6 +318,17 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 
 	config := make(map[string]interface{})
 	switch channel.Type {
+	case "agent":
+		agentMap := channel.Configuration
+		config["agent"] = []map[string]any{
+			{
+				"api_key": agentMap["api_key"],
+				"command": []map[string]any{
+					agentMap["command"].(map[string]any),
+				},
+				"selector": agentMap["selector"],
+			},
+		}
 	case "slack":
 		if channels, ok := channel.Configuration["channels"]; ok {
 			config["slack"] = []interface{}{
@@ -334,6 +398,17 @@ func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 
 		flatConfig := make(map[string]interface{})
 		switch d.Get("type").(string) {
+		case "agent":
+			if agent, ok := config["agent"].([]interface{}); ok && len(agent) > 0 {
+				agentMap := agent[0].(map[string]any)
+				flatConfig["api_key"] = agentMap["api_key"]
+				if command, ok := agentMap["command"].([]any); ok {
+					flatConfig["command"] = command[0]
+				}
+				if selector, ok := agentMap["selector"].(map[string]any); ok {
+					flatConfig["selector"] = selector
+				}
+			}
 		case "slack":
 			if slackConfig, ok := config["slack"].([]interface{}); ok && len(slackConfig) > 0 {
 				slackMap := slackConfig[0].(map[string]interface{})

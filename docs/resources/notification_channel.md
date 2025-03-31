@@ -30,7 +30,7 @@ resource "nullplatform_notification_channel" "slack" {
  nrn    = "organization=1:account=2:namespace=3:application=123"
  type   = "slack"
  source = ["approval"]
- 
+
  configuration {
    slack {
      channels = ["alerts", "platform-notifications"] # Multiple channels can be specified
@@ -42,7 +42,7 @@ resource "nullplatform_notification_channel" "webhook" {
  nrn  = "organization=1:account=2:namespace=3:application=123"
  type = "http"
  source = ["approval"]
- 
+
  configuration {
    http {
      url = "https://hooks.example.com/webhook/xyz" # Custom webhook URL - can contain headers
@@ -57,7 +57,7 @@ resource "nullplatform_notification_channel" "github" {
  nrn    = "organization=1:account=2:namespace=3:application=123"
  type   = "github"
  source = ["service"]
- 
+
  configuration {
    github {
      account         = "my-github-org"
@@ -67,6 +67,27 @@ resource "nullplatform_notification_channel" "github" {
      installation_id = "12345678"
    }
  }
+}
+
+resource "nullplatform_notification_channel" "agent" {
+  nrn    = "organization=1:account=2:namespace=3:application=123"
+  type   = "agent"
+  source = ["service"]
+
+  configuration {
+    agent {
+      api_key     = "my-agent-api-key"
+      command {
+        data = {
+          cmdline = "get-current-connections '$${NOTIFICATION_CONTEXT}'"
+        }
+        type = "exec"
+      }
+      selector = {
+        environment = "dev"
+      }
+    }
+  }
 }
 
 output "slack_channel_source" {
@@ -79,6 +100,10 @@ output "webhook_channel_url" {
 
 output "github_channel_repository" {
  value = nullplatform_notification_channel.github.configuration[0].github[0].repository
+}
+
+output "agent_channel_command" {
+ value = nullplatform_notification_channel.custom_agent.configuration[0].agent[0].command[0].data.cmdline
 }
 ```
 
@@ -109,11 +134,34 @@ output "github_channel_repository" {
 
 Optional:
 
+- `agent` (Block List, Max: 1) (see [below for nested schema](#nestedblock--configuration--agent))
 - `azure` (Block List, Max: 1) (see [below for nested schema](#nestedblock--configuration--azure))
 - `github` (Block List, Max: 1) (see [below for nested schema](#nestedblock--configuration--github))
 - `gitlab` (Block List, Max: 1) (see [below for nested schema](#nestedblock--configuration--gitlab))
 - `http` (Block List, Max: 1) (see [below for nested schema](#nestedblock--configuration--http))
 - `slack` (Block List, Max: 1) (see [below for nested schema](#nestedblock--configuration--slack))
+
+<a id="nestedblock--configuration--agent"></a>
+### Nested Schema for `configuration.agent`
+
+Required:
+
+- `api_key` (String, Sensitive)
+- `command` (Block List, Min: 1, Max: 1) (see [below for nested schema](#nestedblock--configuration--agent--command))
+
+Optional:
+
+- `selector` (Map of String) Selector for agent
+
+<a id="nestedblock--configuration--agent--command"></a>
+### Nested Schema for `configuration.agent.command`
+
+Required:
+
+- `data` (Map of String)
+- `type` (String)
+
+
 
 <a id="nestedblock--configuration--azure"></a>
 ### Nested Schema for `configuration.azure`
