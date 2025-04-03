@@ -205,30 +205,21 @@ func NotificationChannelCreate(d *schema.ResourceData, m any) error {
 			agentMap := agent[0].(map[string]any)
 			if command, ok := agentMap["command"].([]any); ok {
 				if dataMap, ok := command[0].(map[string]any)["data"].(map[string]any); ok {
-					dataConfig := map[string]any{
-						"cmdline": dataMap["cmdline"],
-					}
-
-					if dataMap["arguments"] != nil {
-						var argumentsList []string
-						if err := json.Unmarshal([]byte(dataMap["arguments"].(string)), &argumentsList); err != nil {
-							return fmt.Errorf("invalid arguments JSON: %v", err)
+					dataConfig := make(map[string]any)
+					for key, value := range dataMap {
+						if value != nil {
+							formattedValue, err := deserializeHelper(dataMap[key].(string))
+							if err != nil {
+								return fmt.Errorf("invalid arguments JSON: %v", err)
+							}
+							dataConfig[key] = formattedValue
 						}
-						dataConfig["arguments"] = argumentsList
 					}
 
-					if dataMap["environment"] != nil {
-						var environmentMap map[string]string
-						if err := json.Unmarshal([]byte(dataMap["environment"].(string)), &environmentMap); err != nil {
-							return fmt.Errorf("invalid environment JSON: %v", err)
-						}
-						dataConfig["environment"] = environmentMap
-					}
-
+					flatConfig["api_key"] = agentMap["api_key"]
 					flatConfig["command"] = map[string]any{
-						"api_key": agentMap["api_key"],
-						"data":    dataConfig,
-						"type":    command[0].(map[string]any)["type"],
+						"data": dataConfig,
+						"type": command[0].(map[string]any)["type"],
 					}
 				}
 			}
@@ -353,21 +344,14 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 
 		if commandDataMap, ok := commandResult["data"].(map[string]any); ok {
 			if data, ok := command["data"].(map[string]any); ok {
-				commandDataMap["cmdline"] = data["cmdline"]
-				if data["environment"] != nil {
-					environmentJson, err := json.Marshal(data["environment"])
-					if err != nil {
-						return err
+				for key, value := range data {
+					if value != nil {
+						objectJson, err := serializeHelper(value)
+						if err != nil {
+							return err
+						}
+						commandDataMap[key] = objectJson
 					}
-					commandDataMap["environment"] = string(environmentJson)
-				}
-
-				if data["arguments"] != nil {
-					argumentsJson, err := json.Marshal(data["arguments"])
-					if err != nil {
-						return err
-					}
-					commandDataMap["arguments"] = string(argumentsJson)
 				}
 			}
 
@@ -449,37 +433,27 @@ func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 		config := configList[0].(map[string]interface{})
 
 		flatConfig := make(map[string]interface{})
-
 		switch d.Get("type").(string) {
 		case "agent":
 			if agent, ok := config["agent"].([]interface{}); ok && len(agent) > 0 {
 				agentMap := agent[0].(map[string]any)
 				if command, ok := agentMap["command"].([]any); ok {
 					if dataMap, ok := command[0].(map[string]any)["data"].(map[string]any); ok {
-						dataConfig := map[string]any{
-							"cmdline": dataMap["cmdline"],
-						}
-
-						if dataMap["arguments"] != nil {
-							var argumentsList []string
-							if err := json.Unmarshal([]byte(dataMap["arguments"].(string)), &argumentsList); err != nil {
-								return fmt.Errorf("invalid arguments JSON: %v", err)
+						dataConfig := make(map[string]any)
+						for key, value := range dataMap {
+							if value != nil {
+								formattedValue, err := deserializeHelper(dataMap[key].(string))
+								if err != nil {
+									return fmt.Errorf("invalid arguments JSON: %v", err)
+								}
+								dataConfig[key] = formattedValue
 							}
-							dataConfig["arguments"] = argumentsList
 						}
 
-						if dataMap["environment"] != nil {
-							var environmentMap map[string]string
-							if err := json.Unmarshal([]byte(dataMap["environment"].(string)), &environmentMap); err != nil {
-								return fmt.Errorf("invalid environment JSON: %v", err)
-							}
-							dataConfig["environment"] = environmentMap
-						}
-
+						flatConfig["api_key"] = agentMap["api_key"]
 						flatConfig["command"] = map[string]any{
-							"api_key": agentMap["api_key"],
-							"data":    dataConfig,
-							"type":    command[0].(map[string]any)["type"],
+							"data": dataConfig,
+							"type": command[0].(map[string]any)["type"],
 						}
 					}
 				}
