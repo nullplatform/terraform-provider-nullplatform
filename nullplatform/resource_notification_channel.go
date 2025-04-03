@@ -203,9 +203,34 @@ func NotificationChannelCreate(d *schema.ResourceData, m any) error {
 	case "agent":
 		if agent, ok := config["agent"].([]interface{}); ok && len(agent) > 0 {
 			agentMap := agent[0].(map[string]any)
-			flatConfig["api_key"] = agentMap["api_key"]
 			if command, ok := agentMap["command"].([]any); ok {
-				flatConfig["command"] = command[0]
+				if dataMap, ok := command[0].(map[string]any)["data"].(map[string]any); ok {
+					dataConfig := map[string]any{
+						"cmdline": dataMap["cmdline"],
+					}
+
+					if dataMap["arguments"] != nil {
+						var argumentsList []string
+						if err := json.Unmarshal([]byte(dataMap["arguments"].(string)), &argumentsList); err != nil {
+							return fmt.Errorf("invalid arguments JSON: %v", err)
+						}
+						dataConfig["arguments"] = argumentsList
+					}
+
+					if dataMap["environment"] != nil {
+						var environmentMap map[string]string
+						if err := json.Unmarshal([]byte(dataMap["environment"].(string)), &environmentMap); err != nil {
+							return fmt.Errorf("invalid environment JSON: %v", err)
+						}
+						dataConfig["environment"] = environmentMap
+					}
+
+					flatConfig["command"] = map[string]any{
+						"api_key": agentMap["api_key"],
+						"data":    dataConfig,
+						"type":    command[0].(map[string]any)["type"],
+					}
+				}
 			}
 			if selector, ok := agentMap["selector"].(map[string]any); ok {
 				flatConfig["selector"] = selector
@@ -320,14 +345,41 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 	switch channel.Type {
 	case "agent":
 		agentMap := channel.Configuration
-		config["agent"] = []map[string]any{
-			{
-				"api_key": agentMap["api_key"],
-				"command": []map[string]any{
-					agentMap["command"].(map[string]any),
+		command := agentMap["command"].(map[string]any)
+		commandResult := map[string]any{
+			"type": command["type"],
+			"data": make(map[string]any),
+		}
+
+		if commandDataMap, ok := commandResult["data"].(map[string]any); ok {
+			if data, ok := command["data"].(map[string]any); ok {
+				commandDataMap["cmdline"] = data["cmdline"]
+				if data["environment"] != nil {
+					environmentJson, err := json.Marshal(data["environment"])
+					if err != nil {
+						return err
+					}
+					commandDataMap["environment"] = string(environmentJson)
+				}
+
+				if data["arguments"] != nil {
+					argumentsJson, err := json.Marshal(data["arguments"])
+					if err != nil {
+						return err
+					}
+					commandDataMap["arguments"] = string(argumentsJson)
+				}
+			}
+
+			config["agent"] = []map[string]any{
+				{
+					"api_key": agentMap["api_key"],
+					"command": []map[string]any{
+						commandResult,
+					},
+					"selector": agentMap["selector"],
 				},
-				"selector": agentMap["selector"],
-			},
+			}
 		}
 	case "slack":
 		if channels, ok := channel.Configuration["channels"]; ok {
@@ -397,13 +449,39 @@ func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 		config := configList[0].(map[string]interface{})
 
 		flatConfig := make(map[string]interface{})
+
 		switch d.Get("type").(string) {
 		case "agent":
 			if agent, ok := config["agent"].([]interface{}); ok && len(agent) > 0 {
 				agentMap := agent[0].(map[string]any)
-				flatConfig["api_key"] = agentMap["api_key"]
 				if command, ok := agentMap["command"].([]any); ok {
-					flatConfig["command"] = command[0]
+					if dataMap, ok := command[0].(map[string]any)["data"].(map[string]any); ok {
+						dataConfig := map[string]any{
+							"cmdline": dataMap["cmdline"],
+						}
+
+						if dataMap["arguments"] != nil {
+							var argumentsList []string
+							if err := json.Unmarshal([]byte(dataMap["arguments"].(string)), &argumentsList); err != nil {
+								return fmt.Errorf("invalid arguments JSON: %v", err)
+							}
+							dataConfig["arguments"] = argumentsList
+						}
+
+						if dataMap["environment"] != nil {
+							var environmentMap map[string]string
+							if err := json.Unmarshal([]byte(dataMap["environment"].(string)), &environmentMap); err != nil {
+								return fmt.Errorf("invalid environment JSON: %v", err)
+							}
+							dataConfig["environment"] = environmentMap
+						}
+
+						flatConfig["command"] = map[string]any{
+							"api_key": agentMap["api_key"],
+							"data":    dataConfig,
+							"type":    command[0].(map[string]any)["type"],
+						}
+					}
 				}
 				if selector, ok := agentMap["selector"].(map[string]any); ok {
 					flatConfig["selector"] = selector
