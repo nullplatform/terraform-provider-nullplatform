@@ -201,16 +201,22 @@ func NotificationChannelCreate(d *schema.ResourceData, m any) error {
 	flatConfig := make(map[string]interface{})
 	switch d.Get("type").(string) {
 	case "agent":
-		if agent, ok := config["agent"].([]interface{}); ok && len(agent) > 0 {
-			agentMap := agent[0].(map[string]any)
-			if command, ok := agentMap["command"].([]any); ok {
-				if dataMap, ok := command[0].(map[string]any)["data"].(map[string]any); ok {
+		if agents, ok := config["agent"].([]interface{}); ok {
+			if len(agents) != 1 {
+				return fmt.Errorf("agent must be exactly one for agent")
+			}
+			agentMap := agents[0].(map[string]any)
+			if commands, ok := agentMap["command"].([]any); ok {
+				if len(commands) != 1 {
+					return fmt.Errorf("command must be exactly one for agent")
+				}
+				if dataMap, ok := commands[0].(map[string]any)["data"].(map[string]any); ok {
 					dataConfig := make(map[string]any)
 					for key, value := range dataMap {
 						if value != nil {
 							formattedValue, err := deserializeHelper(dataMap[key].(string))
 							if err != nil {
-								return fmt.Errorf("invalid arguments JSON: %v", err)
+								return fmt.Errorf("invalid arguments JSON: %w", err)
 							}
 							dataConfig[key] = formattedValue
 						}
@@ -219,7 +225,7 @@ func NotificationChannelCreate(d *schema.ResourceData, m any) error {
 					flatConfig["api_key"] = agentMap["api_key"]
 					flatConfig["command"] = map[string]any{
 						"data": dataConfig,
-						"type": command[0].(map[string]any)["type"],
+						"type": commands[0].(map[string]any)["type"],
 					}
 				}
 			}
@@ -444,7 +450,7 @@ func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 							if value != nil {
 								formattedValue, err := deserializeHelper(dataMap[key].(string))
 								if err != nil {
-									return fmt.Errorf("invalid arguments JSON: %v", err)
+									return fmt.Errorf("invalid arguments JSON: %w", err)
 								}
 								dataConfig[key] = formattedValue
 							}

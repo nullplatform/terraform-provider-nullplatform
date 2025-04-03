@@ -48,7 +48,7 @@ func deserializeHelper(value string) (any, error) {
 		// Not a basic type, so serialize it
 		var formattedValue any
 		if err := json.Unmarshal([]byte(value), &formattedValue); err != nil {
-			return nil, fmt.Errorf("invalid arguments JSON: %v", err)
+			return nil, fmt.Errorf("invalid arguments JSON: %w", err)
 		}
 		return formattedValue, nil
 	}
