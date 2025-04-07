@@ -79,6 +79,12 @@ func resourceServiceSpecification() *schema.Resource {
 				Description:      "JSON string containing the attributes schema and values",
 				DiffSuppressFunc: suppressEquivalentJSON,
 			},
+			"use_default_actions": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Indicates whether to use default actions for the service specification",
+			},
 			"selectors": {
 				Type:     schema.TypeList,
 				Optional: true,
@@ -147,13 +153,14 @@ func CreateServiceSpecification(_ context.Context, d *schema.ResourceData, m int
 	}
 
 	spec := &ServiceSpecification{
-		Name:         d.Get("name").(string),
-		VisibleTo:    visibleTo,
-		Dimensions:   dimensions,
-		AssignableTo: d.Get("assignable_to").(string),
-		Type:         d.Get("type").(string),
-		Attributes:   attributes,
-		Selectors:    &selectors,
+		Name:              d.Get("name").(string),
+		VisibleTo:         visibleTo,
+		Dimensions:        dimensions,
+		AssignableTo:      d.Get("assignable_to").(string),
+		Type:              d.Get("type").(string),
+		Attributes:        attributes,
+		Selectors:         &selectors,
+		UseDefaultActions: d.Get("use_default_actions").(bool),
 	}
 
 	newSpec, err := nullOps.CreateServiceSpecification(spec)
@@ -181,6 +188,9 @@ func ReadServiceSpecification(_ context.Context, d *schema.ResourceData, m inter
 		return diag.FromErr(err)
 	}
 	if err := d.Set("visible_to", spec.VisibleTo); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("use_default_actions", spec.UseDefaultActions); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -239,6 +249,10 @@ func UpdateServiceSpecification(ctx context.Context, d *schema.ResourceData, m i
 			visibleTo[i] = v.(string)
 		}
 		spec.VisibleTo = visibleTo
+	}
+
+	if d.HasChange("use_default_actions") {
+		spec.UseDefaultActions = d.Get("use_default_actions").(bool)
 	}
 
 	if d.HasChange("dimensions") {
