@@ -18,6 +18,8 @@ resource "nullplatform_service_specification" "redis_service_spec" {
     "organization=1255165411:account=*",
   ]
 
+  use_default_actions = true
+
   dimensions = jsonencode({
     environment = {
       required = true
