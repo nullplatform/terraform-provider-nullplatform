@@ -20,15 +20,16 @@ type Selectors struct {
 }
 
 type ServiceSpecification struct {
-	Id           string                 `json:"id,omitempty"`
-	Name         string                 `json:"name,omitempty"`
-	Slug         string                 `json:"slug,omitempty"`
-	VisibleTo    []string               `json:"visible_to,omitempty"`
-	Dimensions   map[string]interface{} `json:"dimensions,omitempty"`
-	AssignableTo string                 `json:"assignable_to,omitempty"`
-	Type         string                 `json:"type,omitempty"`
-	Attributes   map[string]interface{} `json:"attributes,omitempty"`
-	Selectors    *Selectors             `json:"selectors,omitempty"` // Use the new struct
+	Id                string                 `json:"id,omitempty"`
+	Name              string                 `json:"name,omitempty"`
+	Slug              string                 `json:"slug,omitempty"`
+	VisibleTo         []string               `json:"visible_to,omitempty"`
+	Dimensions        map[string]interface{} `json:"dimensions,omitempty"`
+	AssignableTo      string                 `json:"assignable_to,omitempty"`
+	Type              string                 `json:"type,omitempty"`
+	Attributes        map[string]interface{} `json:"attributes,omitempty"`
+	Selectors         *Selectors             `json:"selectors,omitempty"` // Use the new struct
+	UseDefaultActions bool                   `json:"use_default_actions,omitempty"`
 }
 
 func (c *NullClient) CreateServiceSpecification(s *ServiceSpecification) (*ServiceSpecification, error) {
