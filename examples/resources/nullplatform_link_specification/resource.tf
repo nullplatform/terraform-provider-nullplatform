@@ -17,6 +17,8 @@ resource "nullplatform_link_specification" "redis_link_spec" {
     "organization=1255165411:account=*",
   ]
 
+  use_default_actions = true
+
   dimensions = jsonencode({}) # No specific dimensions
 
   attributes = jsonencode({

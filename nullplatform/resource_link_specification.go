@@ -83,6 +83,12 @@ func resourceLinkSpecification() *schema.Resource {
 				Description:      "JSON string containing the attributes schema and values",
 				DiffSuppressFunc: suppressEquivalentJSON,
 			},
+			"use_default_actions": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Indicates whether to use default actions for the link specification",
+			},
 			"selectors": {
 				Type:     schema.TypeList,
 				Optional: true,
@@ -154,14 +160,15 @@ func CreateLinkSpecification(_ context.Context, d *schema.ResourceData, m interf
 	}
 
 	spec := &LinkSpecification{
-		Name:            d.Get("name").(string),
-		Unique:          d.Get("unique").(bool),
-		SpecificationId: d.Get("specification_id").(string),
-		VisibleTo:       visibleTo,
-		Dimensions:      dimensions,
-		AssignableTo:    d.Get("assignable_to").(string),
-		Attributes:      attributes,
-		Selectors:       &selectors,
+		Name:              d.Get("name").(string),
+		Unique:            d.Get("unique").(bool),
+		SpecificationId:   d.Get("specification_id").(string),
+		VisibleTo:         visibleTo,
+		Dimensions:        dimensions,
+		AssignableTo:      d.Get("assignable_to").(string),
+		Attributes:        attributes,
+		Selectors:         &selectors,
+		UseDefaultActions: d.Get("use_default_actions").(bool),
 	}
 
 	newSpec, err := nullOps.CreateLinkSpecification(spec)
@@ -195,6 +202,9 @@ func ReadLinkSpecification(_ context.Context, d *schema.ResourceData, m interfac
 		return diag.FromErr(err)
 	}
 	if err := d.Set("visible_to", spec.VisibleTo); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("use_default_actions", spec.UseDefaultActions); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -254,6 +264,10 @@ func UpdateLinkSpecification(ctx context.Context, d *schema.ResourceData, m inte
 			}
 			spec.VisibleTo = visibleTo
 		}
+	}
+
+	if d.HasChange("use_default_actions") {
+		spec.UseDefaultActions = d.Get("use_default_actions").(bool)
 	}
 
 	if d.HasChange("dimensions") {

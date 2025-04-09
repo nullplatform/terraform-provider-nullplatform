@@ -13,16 +13,17 @@ const (
 )
 
 type LinkSpecification struct {
-	Id              string                 `json:"id,omitempty"`
-	Name            string                 `json:"name,omitempty"`
-	Slug            string                 `json:"slug,omitempty"`
-	Unique          bool                   `json:"unique"`
-	SpecificationId string                 `json:"specification_id,omitempty"`
-	VisibleTo       []string               `json:"visible_to,omitempty"`
-	Dimensions      map[string]interface{} `json:"dimensions,omitempty"`
-	AssignableTo    string                 `json:"assignable_to,omitempty"`
-	Attributes      map[string]interface{} `json:"attributes,omitempty"`
-	Selectors       *Selectors             `json:"selectors,omitempty"`
+	Id                string                 `json:"id,omitempty"`
+	Name              string                 `json:"name,omitempty"`
+	Slug              string                 `json:"slug,omitempty"`
+	Unique            bool                   `json:"unique"`
+	SpecificationId   string                 `json:"specification_id,omitempty"`
+	VisibleTo         []string               `json:"visible_to,omitempty"`
+	Dimensions        map[string]interface{} `json:"dimensions,omitempty"`
+	AssignableTo      string                 `json:"assignable_to,omitempty"`
+	Attributes        map[string]interface{} `json:"attributes,omitempty"`
+	Selectors         *Selectors             `json:"selectors,omitempty"`
+	UseDefaultActions bool                   `json:"use_default_actions,omitempty"`
 }
 
 func (c *NullClient) CreateLinkSpecification(s *LinkSpecification) (*LinkSpecification, error) {
