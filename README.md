@@ -65,7 +65,9 @@ provider_installation {
 }
 ```
 ### Documenting the Provider
-If it is the first time you are documenting a resource, you need to run the following command to install the `tfplugindocs` tool:
+First, update examples in the folder `examples/resources` to reflect the latest changes in the provider. This is important because the documentation is generated from examples.
+
+If it is the first time you are generating docs, you need to run the following command to install the `tfplugindocs` tool:
 ```bash 
 export GOBIN=$PWD/bin
 export PATH=$GOBIN:$PATH
