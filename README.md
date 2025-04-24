@@ -64,3 +64,16 @@ provider_installation {
   direct {}
 }
 ```
+### Documenting the Provider
+If it is the first time you are documenting a resource, you need to run the following command to install the `tfplugindocs` tool:
+```bash 
+export GOBIN=$PWD/bin
+export PATH=$GOBIN:$PATH
+go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
+which tfplugindocs
+```
+
+After that, you can run the following command to autogenerate the documentation for the provider:
+```bash
+make update-docs
+```
