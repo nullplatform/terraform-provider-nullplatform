@@ -33,6 +33,8 @@ resource "nullplatform_service_specification" "redis_service_spec" {
     "organization=1255165411:account=*",
   ]
 
+  use_default_actions = true
+
   dimensions = jsonencode({
     environment = {
       required = true
@@ -87,6 +89,7 @@ resource "nullplatform_service_specification" "redis_service_spec" {
 - `dimensions` (String) JSON string containing dimension configurations. Example: {"environment": {"required": true}}
 - `selectors` (Block List, Max: 1) Selectors for the service specification (see [below for nested schema](#nestedblock--selectors))
 - `type` (String) Type of the service specification
+- `use_default_actions` (Boolean) Indicates whether to use default actions for the service specification
 
 ### Read-Only
 
