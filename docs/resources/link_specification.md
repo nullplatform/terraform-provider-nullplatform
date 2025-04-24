@@ -32,6 +32,8 @@ resource "nullplatform_link_specification" "redis_link_spec" {
     "organization=1255165411:account=*",
   ]
 
+  use_default_actions = true
+
   dimensions = jsonencode({}) # No specific dimensions
 
   attributes = jsonencode({
@@ -63,6 +65,7 @@ resource "nullplatform_link_specification" "redis_link_spec" {
 - `attributes` (String) JSON string containing the attributes schema and values
 - `dimensions` (String) JSON string containing dimension configurations. Example: {"environment": {"required": true}}
 - `selectors` (Block List, Max: 1) Selectors for the service specification (see [below for nested schema](#nestedblock--selectors))
+- `use_default_actions` (Boolean) Indicates whether to use default actions for the link specification
 - `visible_to` (List of String) Array representing visibility settings for the link specification
 
 ### Read-Only
