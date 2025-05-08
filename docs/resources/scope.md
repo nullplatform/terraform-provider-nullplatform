@@ -94,6 +94,7 @@ output "scope" {
 - `lambda_function_warm_alias` (String, Deprecated) The Lambda function ALIAS name used to warmup the function (NRN key).
 - `log_reader_role` (String, Deprecated) The ARN of the IAM Role to read CloudWatch logs (NRN key).
 - `s3_assets_bucket` (String, Deprecated) The AWS S3 bucket name where the assets are stored (NRN key).
+- `scope_asset_name` (String) The asset name for the scope.
 - `scope_type` (String) Possible values: [`web_pool`, `scheduled_tasks`, `serverless`]. Defaults to `serverless`.
 - `scope_workflow_role` (String, Deprecated) The ARN of the IAM Role to deploy new versions of the Scope (NRN key).
 
