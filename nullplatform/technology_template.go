@@ -119,3 +119,23 @@ func (c *NullClient) PatchTechnologyTemplate(templateId string, t *TechnologyTem
 
 	return nil
 }
+
+func (c *NullClient) DeleteTechnologyTemplate(templateId string) error {
+	path := fmt.Sprintf("%s/%s", TECHNOLOGY_TEMPLATE_PATH, templateId)
+
+	res, err := c.MakeRequest("DELETE", path, nil)
+	if err != nil {
+		return fmt.Errorf("error making DELETE request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusNotFound {
+		var nErr NullErrors
+		if err := json.NewDecoder(res.Body).Decode(&nErr); err != nil {
+			return fmt.Errorf("failed to decode error response: %w", err)
+		}
+		return fmt.Errorf("error deleting technology template, got status code: %d, message: %s", res.StatusCode, nErr.Message)
+	}
+
+	return nil
+}
