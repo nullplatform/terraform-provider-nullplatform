@@ -1,0 +1,25 @@
+---
+page_title: "{{.Name}} Resource - {{.ProviderName}}"
+subcategory: ""
+description: |-
+  The user_role resource allows you to manage user role assignments in nullplatform.
+---
+
+# {{.Name}} (Resource)
+
+The user_role resource allows you to manage user role assignments in nullplatform. Roles determine what actions users can perform on specific resources. For a comprehensive list of available roles and their permissions, please refer to the [nullplatform Roles Documentation](https://docs.nullplatform.io/docs/authorization/roles).
+
+## Example Usage
+
+### Basic Example
+
+{{ tffile "examples/resources/nullplatform_user_role/resource.tf" }}
+
+The example above demonstrates:
+* Assigning an organization admin role
+* Granting account developer access
+* Setting namespace operations permissions
+
+For details on available roles and their capabilities, see the [authorization documentation](https://docs.nullplatform.io/docs/authorization/roles).
+
+{{ .SchemaMarkdown | trimspace }}

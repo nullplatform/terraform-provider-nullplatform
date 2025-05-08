@@ -67,8 +67,9 @@ func Provider() *schema.Provider {
 			"nullplatform_service_specification":  resourceServiceSpecification(),
 			"nullplatform_action_specification":   resourceActionSpecification(),
 			"nullplatform_link_specification":     resourceLinkSpecification(),
-			"nullplatform_authz_grant":            resourceAuthzGrant(),
+			"nullplatform_authz_grant":            resourceAuthzGrant(), // This resource is deprecated in favor of the user_role resource
 			"nullplatform_user":                   resourceUser(),
+			"nullplatform_user_role":              resourceUserRole(),
 			"nullplatform_technology_template":    resourceTechnologyTemplate(),
 			"nullplatform_metadata":               resourceMetadata(),
 		},
