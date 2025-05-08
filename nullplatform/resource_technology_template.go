@@ -316,13 +316,9 @@ func TechnologyTemplateDelete(ctx context.Context, d *schema.ResourceData, m int
 	nullOps := m.(NullOps)
 	templateId := d.Id()
 
-	template := &TechnologyTemplate{
-		Status: "inactive",
-	}
-
-	err := nullOps.PatchTechnologyTemplate(templateId, template)
+	err := nullOps.DeleteTechnologyTemplate(templateId)
 	if err != nil {
-		return diag.FromErr(err)
+		return diag.FromErr(fmt.Errorf("failed to delete technology template with ID '%s': %w", templateId, err))
 	}
 
 	d.SetId("")
