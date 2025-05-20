@@ -2,7 +2,7 @@ HOSTNAME=nullplatform
 NAMESPACE=com
 NAME=nullplatform
 BINARY=terraform-provider-${NAME}
-VERSION=0.0.59
+VERSION=0.0.60
 TEST := ./...
 
 OS := $(shell uname -o | tr '[:upper:]' '[:lower:]')
