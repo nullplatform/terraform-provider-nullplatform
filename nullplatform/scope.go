@@ -118,7 +118,7 @@ func (c *NullClient) GetScope(scopeId string) (*Scope, error) {
 
 	if res.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(res.Body)
-		return nil, fmt.Errorf("failed to get scope resource: status code %d, response: %s", res.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("failed to get scope resource: status code %d, response: %s, scope id: %s", res.StatusCode, string(bodyBytes), scopeId)
 	}
 
 	return s, nil
