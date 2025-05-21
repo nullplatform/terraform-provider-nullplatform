@@ -178,6 +178,11 @@ type NullOps interface {
 	GetMetadata(entity, entityId, metadataType string) (*Metadata, error)
 	UpdateMetadata(entity, entityId, metadataType string, m *Metadata) error
 	DeleteMetadata(entity, entityId, metadataType string) error
+
+	CreateScopeType(s *ScopeType) (*ScopeType, error)
+	GetScopeType(scopeTypeId string) (*ScopeType, error)
+	PatchScopeType(scopeTypeId string, s *ScopeType) error
+	DeleteScopeType(scopeTypeId string) error
 }
 
 func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {

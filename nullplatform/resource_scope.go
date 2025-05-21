@@ -272,7 +272,7 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 	s, err := nullOps.GetScope(scopeID)
 
 	if err != nil {
-		if s.Status == "deleted" || s.Status == "deleting" {
+		if s != nil && (s.Status == "deleted" || s.Status == "deleting") {
 			d.SetId("")
 			return nil
 		}
