@@ -172,6 +172,7 @@ type NullOps interface {
 	CreateTechnologyTemplate(t *TechnologyTemplate) (*TechnologyTemplate, error)
 	GetTechnologyTemplate(templateId string) (*TechnologyTemplate, error)
 	PatchTechnologyTemplate(templateId string, t *TechnologyTemplate) error
+	DeleteTechnologyTemplate(templateId string) error
 
 	CreateMetadata(entity, entityId, metadataType string, m *Metadata) error
 	GetMetadata(entity, entityId, metadataType string) (*Metadata, error)
