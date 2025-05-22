@@ -14,6 +14,7 @@ type ApprovalPolicy struct {
 	Nrn        string      `json:"nrn,omitempty"`
 	Name       string      `json:"name,omitempty"`
 	Conditions interface{} `json:"conditions,omitempty"`
+	Selector   interface{} `json:"selector,omitempty"`
 	Status     string      `json:"status,omitempty"`
 }
 
