@@ -37,6 +37,12 @@ func resourceApprovalPolicy() *schema.Resource {
 				Required:    true,
 				Description: "The conditions that the policy applies to, as a JSON object.",
 			},
+			"selector": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "{}",
+				Description: "The selector criteria that determines which policies apply, as a JSON object. Defaults to an empty object.",
+			},
 		}),
 	}
 }
@@ -56,16 +62,23 @@ func ApprovalPolicyCreate(d *schema.ResourceData, m any) error {
 	}
 	name := d.Get("name").(string)
 	conditionsJSON := d.Get("conditions").(string)
+	selectorJSON := d.Get("selector").(string)
 
-	var conditions map[string]interface{}
+	var conditions interface{}
 	if err := json.Unmarshal([]byte(conditionsJSON), &conditions); err != nil {
 		return fmt.Errorf("error parsing conditions JSON: %v", err)
+	}
+
+	var selector interface{}
+	if err := json.Unmarshal([]byte(selectorJSON), &selector); err != nil {
+		return fmt.Errorf("error parsing selector JSON: %v", err)
 	}
 
 	newApprovalPolicy := &ApprovalPolicy{
 		Nrn:        nrn,
 		Name:       name,
 		Conditions: conditions,
+		Selector:   selector,
 	}
 
 	approvalPolicy, err := nullOps.CreateApprovalPolicy(newApprovalPolicy)
@@ -108,6 +121,20 @@ func ApprovalPolicyRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
+	var selectorJSON []byte
+	if approvalPolicy.Selector == nil {
+		selectorJSON = []byte("{}")
+	} else {
+		selectorJSON, err = json.Marshal(approvalPolicy.Selector)
+		if err != nil {
+			return fmt.Errorf("error serializing selector to JSON: %v", err)
+		}
+	}
+
+	if err := d.Set("selector", string(selectorJSON)); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -127,14 +154,23 @@ func ApprovalPolicyUpdate(d *schema.ResourceData, m any) error {
 
 	if d.HasChange("conditions") {
 		conditionsJSON := d.Get("conditions").(string)
-		var conditions map[string]interface{}
+		var conditions interface{}
 		if err := json.Unmarshal([]byte(conditionsJSON), &conditions); err != nil {
 			return fmt.Errorf("error parsing conditions JSON: %v", err)
 		}
 		approvalPolicy.Conditions = conditions
 	}
 
-	if !reflect.DeepEqual(*approvalPolicy, Scope{}) {
+	if d.HasChange("selector") {
+		selectorJSON := d.Get("selector").(string)
+		var selector interface{}
+		if err := json.Unmarshal([]byte(selectorJSON), &selector); err != nil {
+			return fmt.Errorf("error parsing selector JSON: %v", err)
+		}
+		approvalPolicy.Selector = selector
+	}
+
+	if !reflect.DeepEqual(*approvalPolicy, ApprovalPolicy{}) {
 		err := nullOps.PatchApprovalPolicy(approvalPolicyId, approvalPolicy)
 		if err != nil {
 			return err
