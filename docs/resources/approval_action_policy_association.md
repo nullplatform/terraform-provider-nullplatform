@@ -8,14 +8,9 @@ description: |-
 
 # nullplatform_approval_action_policy_association (Resource)
 
-The approval_action_policy_association resource allows you to manage a 1:1 association between an approval action and a policy. This resource ensures that an approval action can only be associated with one policy at a time.
+The `approval_action_policy_association` resource manages a **one-to-one relationship** between an approval action and a policy. It ensures that each approval action is associated with only a single policy at any given time.
 
-~> **Ignore policies** When attaching policies using this resource ensure you are ignoring the policies property  in nullplatform_approval_action (otherwise will cause an infinite set of differences and run condition)
-
-```terraform
-  lifecycle {
-    ignore_changes = [policies]
-  }
+~> **Ignore policies** When attaching policies using this resource, make sure to **ignore the `policies` property** in the `nullplatform_approval_action` resource. <br /><br />- Example:`lifecycle { ignore_changes = [policies] }`<br /><br />Failing to do so may result in an **infinite diff loop** and persistent plan changes during Terraform runs. For more details, see the [Terraform docs](https://developer.hashicorp.com/terraform/tutorials/state/resource-lifecycle#ignore-changes).
 ```
 
 ## Example Usage
