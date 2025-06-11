@@ -233,13 +233,8 @@ func generateParameterValueID(value *ParameterValue, parameterId int) string {
 	var concatenatedString string
 
 	// Use a specific order for dimensions that matches the test cases
-	if value.Dimensions != nil {
-		if env, ok := value.Dimensions["environment"]; ok {
-			concatenatedString += "environment:" + env + ";"
-		}
-		if country, ok := value.Dimensions["country"]; ok {
-			concatenatedString += "country:" + country + ";"
-		}
+	for key, value := range value.Dimensions {
+		concatenatedString += key + ":" + value + ";"
 	}
 
 	concatenatedString += value.Nrn + ";"
