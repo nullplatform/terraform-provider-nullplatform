@@ -34,6 +34,7 @@ func TestProvider_HasChildResources(t *testing.T) {
 		"nullplatform_api_key",
 		"nullplatform_approval_action",
 		"nullplatform_approval_policy",
+		"nullplatform_approval_action_policy_association",
 		"nullplatform_dimension",
 		"nullplatform_dimension_value",
 		"nullplatform_link",

@@ -91,5 +91,4 @@ func TestGenerateParameterValueID(t *testing.T) {
 	if expectedHash7 != "972d76cb3b1db5b9a145dea7aa72395ae6459f02e05ac18f7f6439904a93326f" {
 		t.Errorf("Expected hash: 972d76cb3b1db5b9a145dea7aa72395ae6459f02e05ac18f7f6439904a93326f, got: %s", expectedHash7)
 	}
-
 }

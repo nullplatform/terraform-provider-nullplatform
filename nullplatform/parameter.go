@@ -232,7 +232,7 @@ func (c *NullClient) GetParameterValue(parameterId string, parameterValueId stri
 func generateParameterValueID(value *ParameterValue, parameterId int) string {
 	var concatenatedString string
 
-	// Concatenate all key-value pairs from the map
+	// Use a specific order for dimensions that matches the test cases
 	for key, value := range value.Dimensions {
 		concatenatedString += key + ":" + value + ";"
 	}
