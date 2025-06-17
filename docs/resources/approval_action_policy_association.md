@@ -3,15 +3,14 @@
 page_title: "nullplatform_approval_action_policy_association Resource - nullplatform"
 subcategory: ""
 description: |-
-  The approval_action_policy_association resource allows you to manage a 1:1 association between an approval action and a policy
+  The approvalactionpolicy_association resource allows you to manage a 1:1 association between an approval action and a policy
 ---
 
 # nullplatform_approval_action_policy_association (Resource)
 
-The `approval_action_policy_association` resource manages a **one-to-one relationship** between an approval action and a policy. It ensures that each approval action is associated with only a single policy at any given time.
+The approval_action_policy_association resource allows you to manage a 1:1 association between an approval action and a policy
 
 ~> **Ignore policies** When attaching policies using this resource, make sure to **ignore the `policies` property** in the `nullplatform_approval_action` resource. <br /><br />- Example:`lifecycle { ignore_changes = [policies] }`<br /><br />Failing to do so may result in an **infinite diff loop** and persistent plan changes during Terraform runs. For more details, see the [Terraform docs](https://developer.hashicorp.com/terraform/tutorials/state/resource-lifecycle#ignore-changes).
-```
 
 ## Example Usage
 
@@ -26,33 +25,38 @@ terraform {
 
 provider "nullplatform" {}
 
-resource "nullplatform_approval_action" "action" {
-  nrn        = "organization=1:account=2:namespace=3:application=123"
-  entity     = "deployment"
-  action     = "deployment:create"
+# First, create an approval policy
+resource "nullplatform_approval_policy" "example" {
+  nrn    = "organization=1:account=2:namespace=3:application=123"
+  name   = "Auto Scaling Policy - Min Instances 2"
+  conditions = jsonencode({
+    "scope.capabilities.auto_scaling.enabled" = true,
+    "scope.capabilities.auto_scaling.instances.min_amount" = 2
+  })
+}
+
+# Then, create an approval action
+resource "nullplatform_approval_action" "deployment_create" {
+  nrn = "organization=1:account=2:namespace=3:application=123"
+  entity = "deployment"
+  action = "deployment:create"
+
   dimensions = {
-    environment = "prod"
+    environment = "production"
   }
+
   on_policy_success = "approve"
-  on_policy_fail    = "deny"
+  on_policy_fail = "manual"
+
   lifecycle {
     ignore_changes = [policies]
   }
 }
 
-resource "nullplatform_approval_policy" "policy" {
-  nrn        = "organization=1:account=2:namespace=3:application=123"
-  name       = "Memory <= 4Gb"
-  conditions = jsonencode({
-    "scope.requested_spec.memory_in_gb" = {
-      "$lte" = 4
-    }
-  })
-}
-
-resource "nullplatform_approval_action_policy_association" "association" {
-  approval_action_id = nullplatform_approval_action.action.id
-  approval_policy_id = nullplatform_approval_policy.policy.id
+# Finally, create the association between the action and policy
+resource "nullplatform_approval_action_policy_association" "example" {
+  approval_action_id  = nullplatform_approval_action.deployment_create.id
+  approval_policy_id  = nullplatform_approval_policy.example.id
 }
 ```
 

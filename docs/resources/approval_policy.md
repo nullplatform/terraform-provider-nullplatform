@@ -56,6 +56,7 @@ resource "nullplatform_approval_policy" "example" {
 - `namespace` (String) The slug of the namespace NRN component.
 - `nrn` (String) A system-wide unique ID representing the resource.
 - `scope` (String) The slug of the scope NRN component.
+- `selector` (String) The selector criteria that determines which policies apply, as a JSON object. Defaults to an empty object.
 
 ### Read-Only
 

@@ -21,7 +21,7 @@ type Service struct {
 	Status                 string                 `json:"status,omitempty"`
 	Slug                   string                 `json:"slug,omitempty"`
 	Messages               []interface{}          `json:"messages,omitempty"`
-	Selectors              map[string]interface{} `json:"selectors,omitempty"`
+	Selectors              *Selectors             `json:"selectors,omitempty"` // Use the new struct
 	Dimensions             map[string]interface{} `json:"dimensions,omitempty"`
 	Attributes             map[string]interface{} `json:"attributes,omitempty"`
 }
@@ -94,7 +94,7 @@ func (c *NullClient) DeleteService(serviceId string) error {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusNotFound {
 		io.Copy(os.Stdout, res.Body)
 		return fmt.Errorf("error deleting service resource, got %d for %s", res.StatusCode, serviceId)
 	}
@@ -118,7 +118,7 @@ func (c *NullClient) GetService(serviceId string) (*Service, error) {
 		return nil, derr
 	}
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
 		io.Copy(os.Stdout, res.Body)
 		return nil, fmt.Errorf("error getting service resource, got %d for %s", res.StatusCode, serviceId)
 	}
