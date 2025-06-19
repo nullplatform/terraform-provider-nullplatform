@@ -98,10 +98,20 @@ output "open_weather" {
 - `desired_specification_id` (String) Desired unique identifier for the associated specification.
 - `dimensions` (Map of String) Object representing dimensions with key-value pairs.
 - `linkable_to` (List of String) A list of NRN representing the visibility settings for the entity. Specifies what/who can see this entity. Value must match regular expression `^organization=[0-9]+(:account=[0-9]+)?(:namespace=[0-9]+)?(:application=[0-9]+)?(:scope=[0-9]+)?$`.
-- `selectors` (Map of String) Key-value object representing instance selectors.
+- `selectors` (Block List, Max: 1) Selectors for the service specification (see [below for nested schema](#nestedblock--selectors))
 - `status` (String) Status of the service. Should be one of: [`pending_create`, `pending`, `creating`, `updating`, `deleting`, `active`, `deleted`, `failed`]
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
 - `messages` (List of Map of String) A message and its severity level
+
+<a id="nestedblock--selectors"></a>
+### Nested Schema for `selectors`
+
+Required:
+
+- `category` (String) Category of the service specification
+- `imported` (Boolean) Indicates whether the service is imported
+- `provider` (String) Provider of the service (e.g., AWS, GCP)
+- `sub_category` (String) Sub-category of the service

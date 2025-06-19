@@ -74,12 +74,34 @@ func resourceService() *schema.Resource {
 				Description: "Object representing dimensions with key-value pairs.",
 			},
 			"selectors": {
-				Type:     schema.TypeMap,
+				Type:     schema.TypeList,
 				Optional: true,
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"category": {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Category of the service specification",
+						},
+						"imported": {
+							Type:        schema.TypeBool,
+							Required:    true,
+							Description: "Indicates whether the service is imported",
+						},
+						"provider": {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Provider of the service (e.g., AWS, GCP)",
+						},
+						"sub_category": {
+							Type:        schema.TypeString,
+							Required:    true,
+							Description: "Sub-category of the service",
+						},
+					},
 				},
-				Description: "Key-value object representing instance selectors.",
+				Description: "Selectors for the service specification",
 			},
 			"status": {
 				Type:        schema.TypeString,
@@ -103,7 +125,17 @@ func ServiceCreate(d *schema.ResourceData, m any) error {
 	messages := d.Get("messages").([]interface{})
 	attributes := d.Get("attributes").(map[string]interface{})
 	dimensions := d.Get("dimensions").(map[string]interface{})
-	selectors := d.Get("selectors").(map[string]interface{})
+	selectorsList := d.Get("selectors").([]interface{})
+	var selectors Selectors
+	if len(selectorsList) > 0 {
+		selectorsMap := selectorsList[0].(map[string]interface{})
+		selectors = Selectors{
+			Category:    selectorsMap["category"].(string),
+			Imported:    selectorsMap["imported"].(bool),
+			Provider:    selectorsMap["provider"].(string),
+			SubCategory: selectorsMap["sub_category"].(string),
+		}
+	}
 
 	newService := &Service{
 		Name:                   name,
@@ -113,7 +145,7 @@ func ServiceCreate(d *schema.ResourceData, m any) error {
 		LinkableTo:             linkableTo,
 		Status:                 status,
 		Messages:               messages,
-		Selectors:              selectors,
+		Selectors:              &selectors,
 		Attributes:             attributes,
 		Dimensions:             dimensions,
 	}
@@ -172,7 +204,15 @@ func ServiceRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	if err := d.Set("selectors", s.Selectors); err != nil {
+	selectors := []map[string]interface{}{
+		{
+			"category":     s.Selectors.Category,
+			"imported":     s.Selectors.Imported,
+			"provider":     s.Selectors.Provider,
+			"sub_category": s.Selectors.SubCategory,
+		},
+	}
+	if err := d.Set("selectors", selectors); err != nil {
 		return err
 	}
 
@@ -225,9 +265,16 @@ func ServiceUpdate(d *schema.ResourceData, m any) error {
 	}
 
 	if d.HasChange("selectors") {
-		selectors := d.Get("selectors").(map[string]interface{})
-
-		ps.Selectors = selectors
+		selectorsList := d.Get("selectors").([]interface{})
+		if len(selectorsList) > 0 {
+			selectorsMap := selectorsList[0].(map[string]interface{})
+			ps.Selectors = &Selectors{
+				Category:    selectorsMap["category"].(string),
+				Imported:    selectorsMap["imported"].(bool),
+				Provider:    selectorsMap["provider"].(string),
+				SubCategory: selectorsMap["sub_category"].(string),
+			}
+		}
 	}
 
 	if !reflect.DeepEqual(*ps, Service{}) {
