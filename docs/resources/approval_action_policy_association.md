@@ -12,6 +12,7 @@ The approval_action_policy_association resource allows you to manage a 1:1 assoc
 
 ~> **Ignore policies** When attaching policies using this resource, make sure to **ignore the `policies` property** in the `nullplatform_approval_action` resource. <br /><br />- Example:`lifecycle { ignore_changes = [policies] }`<br /><br />Failing to do so may result in an **infinite diff loop** and persistent plan changes during Terraform runs. For more details, see the [Terraform docs](https://developer.hashicorp.com/terraform/tutorials/state/resource-lifecycle#ignore-changes).
 
+
 ## Example Usage
 
 ```terraform
