@@ -173,6 +173,7 @@ func ParameterValueUpdate(d *schema.ResourceData, m any) error {
 			OriginVersion: d.Get("origin_version").(int),
 			Nrn:           d.Get("nrn").(string),
 			Value:         d.Get("value").(string),
+			Dimensions:    dimensions,
 		}
 
 		// Updating the value means creating a new version of it
