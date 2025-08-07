@@ -43,6 +43,12 @@ func resourceScope() *schema.Resource {
 				Optional:    true,
 				Description: "Possible values: [`web_pool`, `scheduled_tasks`, `serverless`]. Defaults to `serverless`.",
 			},
+			"scope_asset_name": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+				Description: "The asset name for the scope.",
+			},
 			"null_application_id": {
 				Type:        schema.TypeInt,
 				Required:    true,
@@ -167,6 +173,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 	applicationId := d.Get("null_application_id").(int)
 	scopeName := d.Get("scope_name").(string)
 	scopeType := d.Get("scope_type").(string)
+	scopeAssetName := d.Get("scope_asset_name").(string)
 	serverless_runtime := d.Get("capabilities_serverless_runtime_id").(string)
 	serverless_platform := d.Get("capabilities_serverless_runtime_platform").(string)
 	serverless_handler := d.Get("capabilities_serverless_handler_name").(string)
@@ -185,6 +192,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 		Name:            scopeName,
 		ApplicationId:   applicationId,
 		Type:            scopeType,
+		AssetName:       scopeAssetName,
 		ExternalCreated: true,
 		RequestedSpec: &RequestSpec{
 			MemoryInGb:   0.5,
@@ -296,6 +304,10 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
+	if err := d.Set("scope_asset_name", s.AssetName); err != nil {
+		return err
+	}
+
 	if err := d.Set("null_application_id", s.ApplicationId); err != nil {
 		return err
 	}
@@ -386,6 +398,10 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 
 	if d.HasChange("scope_type") {
 		ps.Type = d.Get("scope_type").(string)
+	}
+
+	if d.HasChange("scope_asset_name") {
+		ps.AssetName = d.Get("scope_asset_name").(string)
 	}
 
 	if d.HasChange("dimensions") {

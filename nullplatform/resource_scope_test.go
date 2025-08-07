@@ -62,6 +62,14 @@ func TestResourceScope(t *testing.T) {
 					resource.TestCheckResourceAttr("nullplatform_scope.test", "capabilities_serverless_runtime_platform", "arm_64"),
 				),
 			},
+			{
+				Config: testAccScopeConfig_basicWithAssetName(applicationID),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceScopeExists("nullplatform_scope.test", &scopeID),
+					resource.TestCheckResourceAttr("nullplatform_scope.test", "scope_name", "acc-test-scope"),
+					resource.TestCheckResourceAttr("nullplatform_scope.test", "scope_asset_name", "the-secret-algo-lambda-asset"),
+				),
+			},
 		},
 	})
 }
@@ -134,6 +142,26 @@ resource "nullplatform_scope" "test" {
   scope_name                                = "acc-test-scope"
   capabilities_serverless_runtime_id        = "provided.al2"
   capabilities_serverless_runtime_platform  = "arm_64"
+  capabilities_serverless_handler_name      = "handler"
+  capabilities_serverless_timeout           = 10
+  capabilities_serverless_memory            = 1024
+  capabilities_serverless_ephemeral_storage = 512
+  log_group_name                            = "/aws/lambda/acc-test-lambda"
+  lambda_function_name                      = "acc-test-lambda"
+  lambda_current_function_version           = "1"
+  lambda_function_role                      = "arn:aws:iam::123456789012:role/lambda-role"
+  lambda_function_main_alias                = "DEV"
+}
+`, applicationID)
+}
+
+func testAccScopeConfig_basicWithAssetName(applicationID string) string {
+	return fmt.Sprintf(`
+resource "nullplatform_scope" "test" {
+  null_application_id                       = %s
+  scope_name                                = "acc-test-scope"
+  scope_asset_name                          = "the-secret-algo-lambda-asset"
+  capabilities_serverless_runtime_id        = "provided.al2"
   capabilities_serverless_handler_name      = "handler"
   capabilities_serverless_timeout           = 10
   capabilities_serverless_memory            = 1024
