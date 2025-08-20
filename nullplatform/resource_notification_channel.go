@@ -304,7 +304,11 @@ func NotificationChannelCreate(d *schema.ResourceData, m any) error {
 		if err := json.Unmarshal([]byte(v.(string)), &filtersMap); err != nil {
 			return fmt.Errorf("invalid filters JSON: %v", err)
 		}
-		newChannel.Filters = filtersMap
+		if pruned, keep := pruneNulls(filtersMap); keep {
+			newChannel.Filters = pruned.(map[string]interface{})
+		} else {
+			newChannel.Filters = make(map[string]interface{})
+		}
 	} else {
 		newChannel.Filters = make(map[string]interface{})
 	}
@@ -518,7 +522,9 @@ func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 			if err := json.Unmarshal([]byte(v.(string)), &filtersMap); err != nil {
 				return fmt.Errorf("invalid filters JSON: %v", err)
 			}
-			updateChannel.Filters = filtersMap
+			if pruned, keep := pruneNulls(filtersMap); keep {
+				updateChannel.Filters = pruned.(map[string]interface{})
+			}
 		}
 
 		if err := nullOps.UpdateNotificationChannel(d.Id(), updateChannel); err != nil {
