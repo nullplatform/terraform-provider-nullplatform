@@ -18,6 +18,8 @@ type ActionSpecification struct {
 	Slug                   string                 `json:"slug,omitempty"`
 	LinkSpecificationId    string                 `json:"link_specification_id,omitempty"`
 	Retryable              bool                   `json:"retryable,omitempty"`
+	Icon                   string                 `json:"icon,omitempty"`
+	Annotations            map[string]interface{} `json:"annotations,omitempty"`
 }
 
 func getActionSpecificationPath(parentType, parentId string) string {
