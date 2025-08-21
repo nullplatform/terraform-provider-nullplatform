@@ -78,6 +78,17 @@ func resourceActionSpecification() *schema.Resource {
 				Default:     false,
 				Description: "Whether the action can be retried if the instance is in a failed state",
 			},
+			"icon": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Icon for the action specification",
+			},
+			"annotations": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				Description:      "JSON string containing annotations for the action specification",
+				DiffSuppressFunc: suppressEquivalentJSON,
+			},
 		},
 	}
 }
@@ -105,6 +116,16 @@ func ActionSpecificationCreate(ctx context.Context, d *schema.ResourceData, m in
 		Retryable:              d.Get("retryable").(bool),
 		ServiceSpecificationId: d.Get("service_specification_id").(string),
 		LinkSpecificationId:    d.Get("link_specification_id").(string),
+		Icon:                   d.Get("icon").(string),
+	}
+
+	// Handle annotations if provided
+	if annotationsStr, ok := d.GetOk("annotations"); ok {
+		var annotations map[string]interface{}
+		if err := json.Unmarshal([]byte(annotationsStr.(string)), &annotations); err != nil {
+			return diag.FromErr(fmt.Errorf("error parsing annotations JSON: %v", err))
+		}
+		spec.Annotations = annotations
 	}
 
 	newSpec, err := nullOps.CreateActionSpecification(spec)
@@ -170,6 +191,20 @@ func ActionSpecificationRead(ctx context.Context, d *schema.ResourceData, m inte
 		return diag.FromErr(err)
 	}
 
+	if err := d.Set("icon", spec.Icon); err != nil {
+		return diag.FromErr(err)
+	}
+
+	if spec.Annotations != nil {
+		annotationsJSON, err := json.Marshal(spec.Annotations)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("error serializing annotations to JSON: %v", err))
+		}
+		if err := d.Set("annotations", string(annotationsJSON)); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
 	return nil
 }
 
@@ -218,6 +253,22 @@ func ActionSpecificationUpdate(ctx context.Context, d *schema.ResourceData, m in
 
 	if d.HasChange("retryable") {
 		spec.Retryable = d.Get("retryable").(bool)
+	}
+
+	if d.HasChange("icon") {
+		spec.Icon = d.Get("icon").(string)
+	}
+
+	if d.HasChange("annotations") {
+		if annotationsStr, ok := d.GetOk("annotations"); ok {
+			var annotations map[string]interface{}
+			if err := json.Unmarshal([]byte(annotationsStr.(string)), &annotations); err != nil {
+				return diag.FromErr(fmt.Errorf("error parsing annotations JSON: %v", err))
+			}
+			spec.Annotations = annotations
+		} else {
+			spec.Annotations = nil
+		}
 	}
 
 	err := nullOps.PatchActionSpecification(specId, spec, parentType, parentId)

@@ -138,6 +138,8 @@ resource "nullplatform_action_specification" "delete_redis_action" {
 
 ### Optional
 
+- `annotations` (String) JSON string containing annotations for the action specification
+- `icon` (String) Icon for the action specification
 - `link_specification_id` (String) ID of the associated link specification
 - `retryable` (Boolean) Whether the action can be retried if the instance is in a failed state
 - `service_specification_id` (String) ID of the associated service specification
