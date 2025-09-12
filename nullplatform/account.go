@@ -17,6 +17,7 @@ type Account struct {
 	RepositoryProvider string `json:"repository_provider,omitempty"`
 	Slug               string `json:"slug,omitempty"`
 	Status             string `json:"status,omitempty"`
+	Nrn                string `json:"nrn,omitempty"`
 }
 
 func (c *NullClient) CreateAccount(account *Account) (*Account, error) {

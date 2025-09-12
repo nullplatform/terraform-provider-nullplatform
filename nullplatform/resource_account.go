@@ -51,6 +51,11 @@ func resourceAccount() *schema.Resource {
 				Required:    true,
 				Description: "The unique slug identifier for the account",
 			},
+			"nrn": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The Nullplatform Resource Name (NRN) for the account",
+			},
 		},
 	}
 }
@@ -118,6 +123,9 @@ func AccountRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 	if err := d.Set("slug", account.Slug); err != nil {
+		return err
+	}
+	if err := d.Set("nrn", account.Nrn); err != nil {
 		return err
 	}
 
