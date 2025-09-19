@@ -13,6 +13,13 @@ resource "nullplatform_account" "github_account" {
   repository_prefix   = "my-org"
   repository_provider = "github"
   slug                = "github-account"
+  
+  settings {
+    url_overrides {
+      home_url          = "https://home.mycompany.com"
+      documentation_url = "https://docs.mycompany.com"
+    }
+  }
 }
 
 resource "nullplatform_account" "gitlab_account" {
@@ -20,6 +27,13 @@ resource "nullplatform_account" "gitlab_account" {
   repository_prefix   = "my-company"
   repository_provider = "gitlab"
   slug                = "gitlab-account"
+  
+  settings {
+    url_overrides {
+      home_url          = "https://gitlab.mycompany.com"
+      documentation_url = "https://gitlab-docs.mycompany.com"
+    }
+  }
 }
 
 output "github_account_id" {

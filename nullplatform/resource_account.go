@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -56,6 +57,36 @@ func resourceAccount() *schema.Resource {
 				Computed:    true,
 				Description: "The Nullplatform Resource Name (NRN) for the account",
 			},
+			"settings": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				MaxItems:    1,
+				Description: "Configuration settings for the account",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"url_overrides": {
+							Type:        schema.TypeList,
+							Optional:    true,
+							MaxItems:    1,
+							Description: "URL override settings",
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"home_url": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "Override URL for home page",
+									},
+									"documentation_url": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "Override URL for documentation",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -81,6 +112,30 @@ func AccountCreate(d *schema.ResourceData, m any) error {
 		RepositoryPrefix:   d.Get("repository_prefix").(string),
 		RepositoryProvider: d.Get("repository_provider").(string),
 		Slug:               d.Get("slug").(string),
+	}
+
+	// Handle settings with nested structure
+	if settings, ok := d.GetOk("settings"); ok {
+		settingsList := settings.([]interface{})
+		if len(settingsList) > 0 && settingsList[0] != nil {
+			settingsMap := settingsList[0].(map[string]interface{})
+			flatSettings := make(map[string]interface{})
+			
+			// Handle url_overrides nested object
+			if urlOverrides, exists := settingsMap["url_overrides"]; exists && urlOverrides != nil {
+				urlOverridesList := urlOverrides.([]interface{})
+				if len(urlOverridesList) > 0 && urlOverridesList[0] != nil {
+					urlOverridesMap := urlOverridesList[0].(map[string]interface{})
+					for key, value := range urlOverridesMap {
+						if value != nil {
+							flatSettings["url_overrides."+key] = value
+						}
+					}
+				}
+			}
+			
+			newAccount.Settings = flatSettings
+		}
 	}
 
 	account, err := nullOps.CreateAccount(newAccount)
@@ -128,6 +183,28 @@ func AccountRead(d *schema.ResourceData, m any) error {
 	if err := d.Set("nrn", account.Nrn); err != nil {
 		return err
 	}
+	// Convert flat settings back to nested structure
+	if account.Settings != nil && len(account.Settings) > 0 {
+		urlOverridesMap := make(map[string]interface{})
+		
+		for key, value := range account.Settings {
+			if strings.HasPrefix(key, "url_overrides.") {
+				// Extract nested key
+				nestedKey := strings.TrimPrefix(key, "url_overrides.")
+				urlOverridesMap[nestedKey] = value
+			}
+		}
+		
+		// Build settings structure
+		if len(urlOverridesMap) > 0 {
+			settingsMap := map[string]interface{}{
+				"url_overrides": []interface{}{urlOverridesMap},
+			}
+			if err := d.Set("settings", []interface{}{settingsMap}); err != nil {
+				return err
+			}
+		}
+	}
 
 	return nil
 }
@@ -149,6 +226,34 @@ func AccountUpdate(d *schema.ResourceData, m any) error {
 	}
 	if d.HasChange("slug") {
 		account.Slug = d.Get("slug").(string)
+	}
+	if d.HasChange("settings") {
+		if settings, ok := d.GetOk("settings"); ok {
+			settingsList := settings.([]interface{})
+			if len(settingsList) > 0 && settingsList[0] != nil {
+				settingsMap := settingsList[0].(map[string]interface{})
+				flatSettings := make(map[string]interface{})
+				
+				// Handle url_overrides nested object
+				if urlOverrides, exists := settingsMap["url_overrides"]; exists && urlOverrides != nil {
+					urlOverridesList := urlOverrides.([]interface{})
+					if len(urlOverridesList) > 0 && urlOverridesList[0] != nil {
+						urlOverridesMap := urlOverridesList[0].(map[string]interface{})
+						for key, value := range urlOverridesMap {
+							if value != nil {
+								flatSettings["url_overrides."+key] = value
+							}
+						}
+					}
+				}
+				
+				account.Settings = flatSettings
+			} else {
+				account.Settings = make(map[string]interface{})
+			}
+		} else {
+			account.Settings = nil
+		}
 	}
 
 	err := nullOps.PatchAccount(accountId, account)
