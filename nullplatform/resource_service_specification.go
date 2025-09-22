@@ -85,6 +85,13 @@ func resourceServiceSpecification() *schema.Resource {
 				Default:     false,
 				Description: "Indicates whether to use default actions for the service specification",
 			},
+			"scopes": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				Default:          "{}",
+				Description:      "JSON string containing scope configurations. Example: {\"provider\": {\"values\": [\"AWS:SERVERLESS:LAMBDA\"]}}",
+				DiffSuppressFunc: suppressEquivalentJSON,
+			},
 			"selectors": {
 				Type:     schema.TypeList,
 				Optional: true,
@@ -140,6 +147,12 @@ func CreateServiceSpecification(_ context.Context, d *schema.ResourceData, m int
 		return diag.FromErr(fmt.Errorf("error parsing attributes JSON: %v", err))
 	}
 
+	scopesStr := d.Get("scopes").(string)
+	var scopes map[string]interface{}
+	if err := json.Unmarshal([]byte(scopesStr), &scopes); err != nil {
+		return diag.FromErr(fmt.Errorf("error parsing scopes JSON: %v", err))
+	}
+
 	selectorsList := d.Get("selectors").([]interface{})
 	var selectors Selectors
 	if len(selectorsList) > 0 {
@@ -161,6 +174,7 @@ func CreateServiceSpecification(_ context.Context, d *schema.ResourceData, m int
 		Attributes:        attributes,
 		Selectors:         &selectors,
 		UseDefaultActions: d.Get("use_default_actions").(bool),
+		Scopes:            scopes,
 	}
 
 	newSpec, err := nullOps.CreateServiceSpecification(spec)
@@ -214,6 +228,14 @@ func ReadServiceSpecification(_ context.Context, d *schema.ResourceData, m inter
 		return diag.FromErr(fmt.Errorf("error serializing attributes to JSON: %v", err))
 	}
 	if err := d.Set("attributes", string(attributesJSON)); err != nil {
+		return diag.FromErr(err)
+	}
+
+	scopesJSON, err := json.Marshal(spec.Scopes)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("error serializing scopes to JSON: %v", err))
+	}
+	if err := d.Set("scopes", string(scopesJSON)); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -279,6 +301,15 @@ func UpdateServiceSpecification(ctx context.Context, d *schema.ResourceData, m i
 			return diag.FromErr(fmt.Errorf("error parsing attributes JSON: %v", err))
 		}
 		spec.Attributes = attributes
+	}
+
+	if d.HasChange("scopes") {
+		scopesStr := d.Get("scopes").(string)
+		var scopes map[string]interface{}
+		if err := json.Unmarshal([]byte(scopesStr), &scopes); err != nil {
+			return diag.FromErr(fmt.Errorf("error parsing scopes JSON: %v", err))
+		}
+		spec.Scopes = scopes
 	}
 
 	if d.HasChange("selectors") {

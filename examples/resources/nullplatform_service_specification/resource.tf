@@ -20,6 +20,16 @@ resource "nullplatform_service_specification" "redis_service_spec" {
 
   use_default_actions = true
 
+  scopes = jsonencode({
+    provider = {
+      values = [
+        "AWS:SERVERLESS:LAMBDA",
+        "AWS:WEB_POOL:EC2INSTANCES",
+        "uuid-of-a-specific-scope-specification",
+      ]
+    }
+  })
+
   dimensions = jsonencode({
     environment = {
       required = true

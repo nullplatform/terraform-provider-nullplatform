@@ -66,7 +66,7 @@ output "by_slug" {
 
 Read-Only:
 
-- `id` (Number)
+- `id` (Number) The ID of this resource.
 - `name` (String)
 - `nrn` (String)
 - `slug` (String)
