@@ -61,4 +61,5 @@ output "github_account_org_id" {
 ### Read-Only
 
 - `id` (String) The ID of this resource.
+- `nrn` (String) The Nullplatform Resource Name (NRN) for the account
 - `organization_id` (Number) The ID of the organization this account belongs to (computed from authentication token)

@@ -30,6 +30,7 @@ type ServiceSpecification struct {
 	Attributes        map[string]interface{} `json:"attributes,omitempty"`
 	Selectors         *Selectors             `json:"selectors,omitempty"` // Use the new struct
 	UseDefaultActions bool                   `json:"use_default_actions,omitempty"`
+	Scopes            map[string]interface{} `json:"scopes,omitempty"`
 }
 
 func (c *NullClient) CreateServiceSpecification(s *ServiceSpecification) (*ServiceSpecification, error) {

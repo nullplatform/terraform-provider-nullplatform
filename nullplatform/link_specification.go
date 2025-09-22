@@ -24,6 +24,7 @@ type LinkSpecification struct {
 	Attributes        map[string]interface{} `json:"attributes,omitempty"`
 	Selectors         *Selectors             `json:"selectors,omitempty"`
 	UseDefaultActions bool                   `json:"use_default_actions,omitempty"`
+	Scopes            map[string]interface{} `json:"scopes,omitempty"`
 }
 
 func (c *NullClient) CreateLinkSpecification(s *LinkSpecification) (*LinkSpecification, error) {

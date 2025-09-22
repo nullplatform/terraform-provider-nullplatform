@@ -34,6 +34,16 @@ resource "nullplatform_link_specification" "redis_link_spec" {
 
   use_default_actions = true
 
+  scopes = jsonencode({
+    provider = {
+      values = [
+        "AWS:SERVERLESS:LAMBDA",
+        "AWS:WEB_POOL:EC2INSTANCES",
+        "uuid-of-a-specific-scope-specification",
+      ]
+    }
+  })
+
   dimensions = jsonencode({}) # No specific dimensions
 
   attributes = jsonencode({
@@ -64,6 +74,7 @@ resource "nullplatform_link_specification" "redis_link_spec" {
 - `assignable_to` (String) Specifies if the service can be assigned to any entity, only dimensions, or only scopes
 - `attributes` (String) JSON string containing the attributes schema and values
 - `dimensions` (String) JSON string containing dimension configurations. Example: {"environment": {"required": true}}
+- `scopes` (String) JSON string containing scope configurations. Example: {"provider": {"values": ["AWS:SERVERLESS:LAMBDA"]}}
 - `selectors` (Block List, Max: 1) Selectors for the service specification (see [below for nested schema](#nestedblock--selectors))
 - `use_default_actions` (Boolean) Indicates whether to use default actions for the link specification
 - `visible_to` (List of String) Array representing visibility settings for the link specification
