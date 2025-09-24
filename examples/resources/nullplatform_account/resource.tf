@@ -13,6 +13,12 @@ resource "nullplatform_account" "github_account" {
   repository_prefix   = "my-org"
   repository_provider = "github"
   slug                = "github-account"
+  
+  settings = jsonencode({
+    url_overrides = {
+      home_url = "https://example.com"
+    }
+  })
 }
 
 resource "nullplatform_account" "gitlab_account" {
@@ -20,6 +26,12 @@ resource "nullplatform_account" "gitlab_account" {
   repository_prefix   = "my-company"
   repository_provider = "gitlab"
   slug                = "gitlab-account"
+  
+  settings = jsonencode({
+    url_overrides = {
+      home_url = "https://example.com"
+    }
+  })
 }
 
 output "github_account_id" {
