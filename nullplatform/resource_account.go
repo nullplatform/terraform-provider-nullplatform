@@ -2,6 +2,7 @@ package nullplatform
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -56,6 +57,13 @@ func resourceAccount() *schema.Resource {
 				Computed:    true,
 				Description: "The Nullplatform Resource Name (NRN) for the account",
 			},
+			"settings": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				Default:          "{}",
+				Description:      "JSON string containing variable account settings and configurations",
+				DiffSuppressFunc: suppressEquivalentJSON,
+			},
 		},
 	}
 }
@@ -75,12 +83,20 @@ func AccountCreate(d *schema.ResourceData, m any) error {
 		return fmt.Errorf("error getting organization ID from token: %w", err)
 	}
 
+	var settings map[string]interface{}
+	if settingsStr := d.Get("settings").(string); settingsStr != "" {
+		if err := json.Unmarshal([]byte(settingsStr), &settings); err != nil {
+			return fmt.Errorf("error parsing settings JSON: %w", err)
+		}
+	}
+
 	newAccount := &Account{
 		Name:               d.Get("name").(string),
 		OrganizationId:     organizationID,
 		RepositoryPrefix:   d.Get("repository_prefix").(string),
 		RepositoryProvider: d.Get("repository_provider").(string),
 		Slug:               d.Get("slug").(string),
+		Settings:           settings,
 	}
 
 	account, err := nullOps.CreateAccount(newAccount)
@@ -129,6 +145,20 @@ func AccountRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
+	if account.Settings != nil {
+		settingsJSON, err := json.Marshal(account.Settings)
+		if err != nil {
+			return fmt.Errorf("error serializing settings to JSON: %w", err)
+		}
+		if err := d.Set("settings", string(settingsJSON)); err != nil {
+			return err
+		}
+	} else {
+		if err := d.Set("settings", "{}"); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -149,6 +179,15 @@ func AccountUpdate(d *schema.ResourceData, m any) error {
 	}
 	if d.HasChange("slug") {
 		account.Slug = d.Get("slug").(string)
+	}
+	if d.HasChange("settings") {
+		var settings map[string]interface{}
+		if settingsStr := d.Get("settings").(string); settingsStr != "" {
+			if err := json.Unmarshal([]byte(settingsStr), &settings); err != nil {
+				return fmt.Errorf("error parsing settings JSON: %w", err)
+			}
+		}
+		account.Settings = settings
 	}
 
 	err := nullOps.PatchAccount(accountId, account)

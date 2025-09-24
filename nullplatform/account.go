@@ -10,14 +10,15 @@ import (
 const ACCOUNT_PATH = "/account"
 
 type Account struct {
-	Id                 int    `json:"id,omitempty"`
-	Name               string `json:"name,omitempty"`
-	OrganizationId     int    `json:"organization_id,omitempty"`
-	RepositoryPrefix   string `json:"repository_prefix,omitempty"`
-	RepositoryProvider string `json:"repository_provider,omitempty"`
-	Slug               string `json:"slug,omitempty"`
-	Status             string `json:"status,omitempty"`
-	Nrn                string `json:"nrn,omitempty"`
+	Id                 int                    `json:"id,omitempty"`
+	Name               string                 `json:"name,omitempty"`
+	OrganizationId     int                    `json:"organization_id,omitempty"`
+	RepositoryPrefix   string                 `json:"repository_prefix,omitempty"`
+	RepositoryProvider string                 `json:"repository_provider,omitempty"`
+	Slug               string                 `json:"slug,omitempty"`
+	Status             string                 `json:"status,omitempty"`
+	Nrn                string                 `json:"nrn,omitempty"`
+	Settings           map[string]interface{} `json:"settings,omitempty"`
 }
 
 func (c *NullClient) CreateAccount(account *Account) (*Account, error) {
