@@ -107,9 +107,21 @@ func (c *NullClient) GetAccount(accountId string) (*Account, error) {
 }
 
 func (c *NullClient) DeleteAccount(accountId string) error {
-	account := &Account{
-		Status: "inactive",
+	path := fmt.Sprintf("%s/%s", ACCOUNT_PATH, accountId)
+
+	res, err := c.MakeRequest("DELETE", path, nil)
+	if err != nil {
+		return fmt.Errorf("error making DELETE request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		var nErr NullErrors
+		if err := json.NewDecoder(res.Body).Decode(&nErr); err != nil {
+			return fmt.Errorf("failed to decode error response: %w", err)
+		}
+		return fmt.Errorf("error deleting account, got status code: %d, message: %s", res.StatusCode, nErr.Message)
 	}
 
-	return c.PatchAccount(accountId, account)
+	return nil
 }

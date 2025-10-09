@@ -89,8 +89,8 @@ func testAccCheckAccountDestroy(s *terraform.State) error {
 		}
 
 		account, err := client.GetAccount(rs.Primary.ID)
-		if err == nil && account.Status != "inactive" {
-			return fmt.Errorf("Account with ID %s still exists and is not inactive", rs.Primary.ID)
+		if err == nil && account != nil {
+			return fmt.Errorf("Account with ID %s still exists and was not deleted", rs.Primary.ID)
 		}
 	}
 
