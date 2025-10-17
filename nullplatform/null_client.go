@@ -164,6 +164,7 @@ type NullOps interface {
 	GetUser(userID string) (*User, error)
 	UpdateUser(userID string, u *User) error
 	DeleteUser(userID string) error
+	LookupUser(user *User) (*User, error)
 
 	CreateAuthzGrant(grant *AuthzGrant) (*AuthzGrant, error)
 	GetAuthzGrant(grantID string) (*AuthzGrant, error)
