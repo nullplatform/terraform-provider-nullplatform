@@ -22,6 +22,16 @@ type User struct {
 	OrganizationID int    `json:"organization_id"`
 }
 
+type ListPaging struct {
+	Offset int `json:"offset"`
+	Limit  int `json:"limit"`
+}
+
+type UserList struct {
+	Paging  ListPaging `json:"paging"`
+	Results []User     `json:"results"`
+}
+
 type createUserRequest struct {
 	Email          string        `json:"email"`
 	FirstName      string        `json:"first_name"`
@@ -153,7 +163,7 @@ func (c *NullClient) DeleteUser(userID string) error {
 }
 
 func (c *NullClient) LookupUser(userValues *User) (*User, error) {
-	path := fmt.Sprintf("%s?organization_id=%d&email=%s", USER_PATH, userValues.OrganizationID, user.Email)
+	path := fmt.Sprintf("%s?organization_id=%d&email=%s", USER_PATH, userValues.OrganizationID, userValues.Email)
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
@@ -166,16 +176,17 @@ func (c *NullClient) LookupUser(userValues *User) (*User, error) {
 		return nil, fmt.Errorf("failed to lookup user: status code %d, response: %s", res.StatusCode, string(bodyBytes))
 	}
 
-	users := &[]User{}
-	if err := json.NewDecoder(res.Body).Decode(users); err != nil {
+	listResult := &UserList{}
+	if err := json.NewDecoder(res.Body).Decode(listResult); err != nil {
 		return nil, fmt.Errorf("failed to decode API response: %v", err)
 	}
 
-	if len(*users) == 0 {
+	users := listResult.Results
+	if len(users) == 0 {
 		return nil, &ResourceNotFoundError{ApiType: "user", ID: 0, Message: "user not found"}
 	}
 
-	user := (*users)[0]
+	user := (users)[0]
 
 	return &user, nil
 }
