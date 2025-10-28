@@ -70,12 +70,9 @@ func (c *NullClient) CreateUser(u *User) (*User, error) {
 	if res.StatusCode != http.StatusOK {
 		apiError := &ApiError{}
 		if err := json.NewDecoder(res.Body).Decode(apiError); err == nil {
-			bodyBytes, _ := io.ReadAll(res.Body)
-			return nil, fmt.Errorf("failed to create user: status code %d, response: %s", res.StatusCode, string(bodyBytes))
-		}
-
-		if apiError.Message == "The user already exists" {
-			return nil, &ResourceExistsError{"user", apiError.ID, apiError.Message}
+			if apiError.Message == "The user already exists" {
+				return nil, &ResourceExistsError{"user", apiError.ID, apiError.Message}
+			}
 		}
 
 		bodyBytes, _ := io.ReadAll(res.Body)
