@@ -1,6 +1,7 @@
 package nullplatform
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -15,6 +16,13 @@ func resourceNotificationChannel() *schema.Resource {
 		Read:        NotificationChannelRead,
 		Update:      NotificationChannelUpdate,
 		Delete:      NotificationChannelDelete,
+
+		Importer: &schema.ResourceImporter{
+			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+				d.Set("id", d.Id())
+				return []*schema.ResourceData{d}, nil
+			},
+		},
 
 		Schema: AddNRNSchema(map[string]*schema.Schema{
 			"type": {
