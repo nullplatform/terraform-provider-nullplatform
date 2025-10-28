@@ -22,6 +22,16 @@ type User struct {
 	OrganizationID int    `json:"organization_id"`
 }
 
+type ListPaging struct {
+	Offset int `json:"offset"`
+	Limit  int `json:"limit"`
+}
+
+type UserList struct {
+	Paging  ListPaging `json:"paging"`
+	Results []User     `json:"results"`
+}
+
 type createUserRequest struct {
 	Email          string        `json:"email"`
 	FirstName      string        `json:"first_name"`
@@ -58,6 +68,16 @@ func (c *NullClient) CreateUser(u *User) (*User, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
+		apiError := &ApiError{}
+		if err := json.NewDecoder(res.Body).Decode(apiError); err != nil {
+			bodyBytes, _ := io.ReadAll(res.Body)
+			return nil, fmt.Errorf("failed to create user: status code %d, response: %s", res.StatusCode, string(bodyBytes))
+		}
+
+		if apiError.Message == "The user already exists" {
+			return nil, &ResourceExistsError{"user", apiError.ID, apiError.Message}
+		}
+
 		bodyBytes, _ := io.ReadAll(res.Body)
 		return nil, fmt.Errorf("failed to create user: status code %d, response: %s", res.StatusCode, string(bodyBytes))
 	}
@@ -140,4 +160,33 @@ func (c *NullClient) DeleteUser(userID string) error {
 	}
 
 	return nil
+}
+
+func (c *NullClient) LookupUser(userValues *User) (*User, error) {
+	path := fmt.Sprintf("%s?organization_id=%d&email=%s", USER_PATH, userValues.OrganizationID, userValues.Email)
+
+	res, err := c.MakeRequest("GET", path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make API request: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("failed to lookup user: status code %d, response: %s", res.StatusCode, string(bodyBytes))
+	}
+
+	listResult := &UserList{}
+	if err := json.NewDecoder(res.Body).Decode(listResult); err != nil {
+		return nil, fmt.Errorf("failed to decode API response: %v", err)
+	}
+
+	users := listResult.Results
+	if len(users) == 0 {
+		return nil, &ResourceNotFoundError{ApiType: "user", ID: 0, Message: "user not found"}
+	}
+
+	user := (users)[0]
+
+	return &user, nil
 }

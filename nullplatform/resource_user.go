@@ -52,6 +52,12 @@ func resourceUser() *schema.Resource {
 				Computed:    true,
 				Description: "The ID of the organization the user belongs to.",
 			},
+			"strict": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     true,
+				Description: "Whether to use strict mode for the user creation. If set to false, the existing user will be retrieved instead of failing if the email address matches.",
+			},
 		},
 	}
 }
@@ -78,11 +84,26 @@ func CreateUser(_ context.Context, d *schema.ResourceData, m interface{}) diag.D
 	}
 
 	user, err := nullOps.CreateUser(newUser)
-	if err != nil {
+	var id int
+	if rErr, ok := IsResourceExistsError(err); ok && !d.Get("strict").(bool) {
+		if rErr.ID == 0 {
+			user, err = nullOps.LookupUser(newUser)
+
+			if err != nil {
+				return diag.FromErr(err)
+			}
+
+			id = user.ID
+		} else {
+			id = rErr.ID
+		}
+	} else if err == nil {
+		id = user.ID
+	} else {
 		return diag.FromErr(err)
 	}
 
-	d.SetId(strconv.Itoa(user.ID))
+	d.SetId(strconv.Itoa(id))
 	return ReadUser(context.Background(), d, m)
 }
 
