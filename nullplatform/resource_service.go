@@ -1,6 +1,7 @@
 package nullplatform
 
 import (
+	"context"
 	"log"
 	"reflect"
 
@@ -15,6 +16,13 @@ func resourceService() *schema.Resource {
 		Read:   ServiceRead,
 		Update: ServiceUpdate,
 		Delete: ServiceDelete,
+
+		Importer: &schema.ResourceImporter{
+			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+				d.Set("id", d.Id())
+				return []*schema.ResourceData{d}, nil
+			},
+		},
 
 		Schema: map[string]*schema.Schema{
 			"name": {

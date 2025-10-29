@@ -1,6 +1,7 @@
 package nullplatform
 
 import (
+	"context"
 	"reflect"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -14,6 +15,13 @@ func resourceLink() *schema.Resource {
 		Read:   LinkRead,
 		Update: LinkUpdate,
 		Delete: LinkDelete,
+
+		Importer: &schema.ResourceImporter{
+			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+				d.Set("id", d.Id())
+				return []*schema.ResourceData{d}, nil
+			},
+		},
 
 		Schema: map[string]*schema.Schema{
 			"name": {
