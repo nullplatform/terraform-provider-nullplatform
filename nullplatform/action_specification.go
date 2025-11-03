@@ -68,8 +68,7 @@ func (c *NullClient) CreateActionSpecification(s *ActionSpecification) (*ActionS
 }
 
 func (c *NullClient) GetActionSpecification(specId, parentType, parentId string) (*ActionSpecification, error) {
-	basePath := getActionSpecificationPath(parentType, parentId)
-	path := fmt.Sprintf("%s/%s", basePath, specId)
+	path := fmt.Sprintf("/action_specification/%s", specId)
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
