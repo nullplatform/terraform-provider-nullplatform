@@ -93,6 +93,11 @@ type NullOps interface {
 	AssociatePolicyWithAction(approvalActionId, approvalPolicyID string) error
 	DisassociatePolicyFromAction(approvalActionId, approvalPolicyID string) error
 
+	CreateEntityHookAction(action *EntityHookAction) (*EntityHookAction, error)
+	PatchEntityHookAction(entityHookActionId string, action *EntityHookAction) error
+	GetEntityHookAction(entityHookActionId string) (*EntityHookAction, error)
+	DeleteEntityHookAction(entityHookActionId string) error
+
 	CreateNotificationChannel(notification *NotificationChannel) (*NotificationChannel, error)
 	GetNotificationChannel(notificationId string) (*NotificationChannel, error)
 	UpdateNotificationChannel(notificationId string, notification *NotificationChannel) error
