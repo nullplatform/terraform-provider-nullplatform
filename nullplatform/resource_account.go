@@ -2,6 +2,7 @@ package nullplatform
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -56,6 +57,13 @@ func resourceAccount() *schema.Resource {
 				Computed:    true,
 				Description: "The Nullplatform Resource Name (NRN) for the account",
 			},
+			"settings": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				Default:          "{}",
+				Description:      "Account settings as a JSON string",
+				DiffSuppressFunc: suppressEquivalentJSON,
+			},
 		},
 	}
 }
@@ -75,12 +83,19 @@ func AccountCreate(d *schema.ResourceData, m any) error {
 		return fmt.Errorf("error getting organization ID from token: %w", err)
 	}
 
+	settingsJSON := d.Get("settings").(string)
+	var settings map[string]interface{}
+	if err := json.Unmarshal([]byte(settingsJSON), &settings); err != nil {
+		return fmt.Errorf("error parsing settings JSON: %v", err)
+	}
+
 	newAccount := &Account{
 		Name:               d.Get("name").(string),
 		OrganizationId:     organizationID,
 		RepositoryPrefix:   d.Get("repository_prefix").(string),
 		RepositoryProvider: d.Get("repository_provider").(string),
 		Slug:               d.Get("slug").(string),
+		Settings:           settings,
 	}
 
 	account, err := nullOps.CreateAccount(newAccount)
@@ -129,6 +144,14 @@ func AccountRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
+	settingsJSON, err := json.Marshal(account.Settings)
+	if err != nil {
+		return fmt.Errorf("error serializing settings to JSON: %v", err)
+	}
+	if err := d.Set("settings", string(settingsJSON)); err != nil {
+		return fmt.Errorf("error setting settings in state: %v", err)
+	}
+
 	return nil
 }
 
@@ -149,6 +172,14 @@ func AccountUpdate(d *schema.ResourceData, m any) error {
 	}
 	if d.HasChange("slug") {
 		account.Slug = d.Get("slug").(string)
+	}
+	if d.HasChange("settings") {
+		settingsJSON := d.Get("settings").(string)
+		var settings map[string]interface{}
+		if err := json.Unmarshal([]byte(settingsJSON), &settings); err != nil {
+			return fmt.Errorf("error parsing settings JSON: %v", err)
+		}
+		account.Settings = settings
 	}
 
 	err := nullOps.PatchAccount(accountId, account)
