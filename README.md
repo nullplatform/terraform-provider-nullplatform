@@ -79,3 +79,16 @@ After that, you can run the following command to autogenerate the documentation 
 ```bash
 make update-docs
 ```
+
+### Publishing a Release
+
+To publish a new release of the provider:
+
+1. Go to the [GitHub releases](https://github.com/nullplatform/terraform-provider-nullplatform/releases) section and click to create a new release (Draft a new release).
+2. Assign a name corresponding to the version number (e.g., `v0.0.75`) and create a tag associated with it.
+3. Complete the description of the release with a changelog explaining what the version contains.
+4. Wait for the GitHub Action to complete.
+5. That's it!
+6. Verify that the release contains the binaries.
+
+The release process will be handled automatically by the GitHub Action configured in the repository.
