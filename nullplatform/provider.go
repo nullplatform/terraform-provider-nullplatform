@@ -53,6 +53,7 @@ func Provider() *schema.Provider {
 			"nullplatform_approval_action":                    resourceApprovalAction(),
 			"nullplatform_approval_policy":                    resourceApprovalPolicy(),
 			"nullplatform_approval_action_policy_association": resourceApprovalActionPolicyAssociation(),
+			"nullplatform_entity_hook_action":                 resourceEntityHookAction(),
 			"nullplatform_dimension":                          resourceDimension(),
 			"nullplatform_dimension_value":                    resourceDimensionValue(),
 			"nullplatform_link":                               resourceLink(),
