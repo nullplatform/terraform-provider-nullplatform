@@ -14,7 +14,7 @@ type EntityHookAction struct {
 	Nrn             string            `json:"nrn,omitempty"`
 	Entity          string            `json:"entity,omitempty"`
 	Action          string            `json:"action,omitempty"`
-	Dimensions      map[string]string `json:"dimensions,omitempty"`
+	Dimensions      map[string]string `json:"dimensions"`
 	OnPolicySuccess string            `json:"on_policy_success,omitempty"`
 	OnPolicyFail    string            `json:"on_policy_fail,omitempty"`
 	When            string            `json:"when,omitempty"`
