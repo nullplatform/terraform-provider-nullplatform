@@ -39,20 +39,23 @@ func resourceEntityHookAction() *schema.Resource {
 				Type:     schema.TypeMap,
 				ForceNew: true,
 				Optional: true,
+				Computed: true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
-				Description: "Key-value pairs defining the scope of the action. Example: `{\"environment\":\"production\",\"country\":\"us\"}`.",
+				Description: "Key-value pairs defining the scope of the action. Defaults to empty map. Example: `{\"environment\":\"production\",\"country\":\"us\"}`.",
 			},
 			"on_policy_success": {
 				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The action to be taken on the entity hook success. Note: Currently, only \"manual\" is supported. Possible values: [`manual`].",
+				Optional:    true,
+				Default:     "manual",
+				Description: "The action to be taken on the entity hook success. Defaults to \"manual\". Note: Currently, only \"manual\" is supported. Possible values: [`manual`].",
 			},
 			"on_policy_fail": {
 				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The action to be taken on entity hook failure. Note: Currently, only \"manual\" is supported. Possible values: [`manual`].",
+				Optional:    true,
+				Default:     "manual",
+				Description: "The action to be taken on entity hook failure. Defaults to \"manual\". Note: Currently, only \"manual\" is supported. Possible values: [`manual`].",
 			},
 			"when": {
 				Type:        schema.TypeString,
@@ -94,11 +97,13 @@ func EntityHookActionCreate(d *schema.ResourceData, m any) error {
 	hookType := d.Get("type").(string)
 	on := d.Get("on").(string)
 
-	dimensionsMap := d.Get("dimensions").(map[string]any)
-	// Convert the dimensions to a map[string]string
+	// Get dimensions or use empty map as default
 	dimensions := make(map[string]string)
-	for key, value := range dimensionsMap {
-		dimensions[key] = value.(string)
+	if v, ok := d.GetOk("dimensions"); ok {
+		dimensionsMap := v.(map[string]any)
+		for key, value := range dimensionsMap {
+			dimensions[key] = value.(string)
+		}
 	}
 
 	newEntityHookAction := &EntityHookAction{
