@@ -37,6 +37,12 @@ func resourceNotificationChannel() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
+			"status": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+				Description: "Channel status (active, inactive)",
+			},
 			"configuration": {
 				Type:     schema.TypeList,
 				Required: true,
@@ -298,6 +304,10 @@ func NotificationChannelCreate(d *schema.ResourceData, m any) error {
 		Configuration: flatConfig,
 	}
 
+	if v, ok := d.GetOk("status"); ok {
+		newChannel.Status = v.(string)
+	}
+
 	if v, ok := d.GetOk("source"); ok {
 		sources := v.([]interface{})
 		strSources := make([]string, len(sources))
@@ -330,10 +340,6 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 	channel, err := nullOps.GetNotificationChannel(d.Id())
 	if err != nil {
-		if channel != nil && channel.Status == "inactive" {
-			d.SetId("")
-			return nil
-		}
 		return err
 	}
 
@@ -345,6 +351,7 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 	d.Set("nrn", channel.Nrn)
 	d.Set("type", channel.Type)
 	d.Set("source", channel.Source)
+	d.Set("status", channel.Status)
 
 	config := make(map[string]interface{})
 	switch channel.Type {
@@ -442,7 +449,7 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 
-	if d.HasChanges("type", "configuration", "filters") {
+	if d.HasChanges("type", "configuration", "filters", "status") {
 		configList := d.Get("configuration").([]interface{})
 		config := configList[0].(map[string]interface{})
 
@@ -519,6 +526,10 @@ func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 			Type:          d.Get("type").(string),
 			Configuration: flatConfig,
 			Filters:       make(map[string]interface{}),
+		}
+
+		if v, ok := d.GetOk("status"); ok {
+			updateChannel.Status = v.(string)
 		}
 
 		if v, ok := d.GetOk("filters"); ok {
