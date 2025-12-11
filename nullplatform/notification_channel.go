@@ -59,17 +59,13 @@ func (c *NullClient) GetNotificationChannel(notificationId string) (*Notificatio
 	}
 	defer res.Body.Close()
 
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("error getting notification channel, got %d for %s", res.StatusCode, notificationId)
+	}
+
 	notification := &NotificationChannel{}
 	if err := json.NewDecoder(res.Body).Decode(notification); err != nil {
 		return nil, err
-	}
-
-	if notification.Status == "inactive" {
-		return notification, fmt.Errorf("error getting notification channel, the status is %s", notification.Status)
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error getting notification channel, got %d for %s", res.StatusCode, notificationId)
 	}
 
 	return notification, nil
