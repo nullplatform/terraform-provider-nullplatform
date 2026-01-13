@@ -42,9 +42,9 @@ func resourceActionSpecification() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 				ValidateFunc: validation.StringInSlice([]string{
-					"custom", "create", "update", "delete",
+					"custom", "create", "update", "delete", "diagnose",
 				}, false),
-				Description: "Type of the action. Must be one of: custom, create, update, delete",
+				Description: "Type of the action. Must be one of: custom, create, update, delete, diagnose",
 			},
 			"service_specification_id": {
 				Type:         schema.TypeString,
