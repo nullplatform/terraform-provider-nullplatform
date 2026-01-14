@@ -59,3 +59,36 @@ func tryParseJSON(value string) any {
 	}
 	return parsedValue
 }
+
+
+func pruneNulls(v interface{}) (interface{}, bool) {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(t))
+		for k, vv := range t {
+			if pruned, keep := pruneNulls(vv); keep {
+				out[k] = pruned
+			}
+		}
+		if len(out) == 0 {
+			return nil, false
+		}
+		return out, true
+	case []interface{}:
+		out := make([]interface{}, 0, len(t))
+		for _, vv := range t {
+			if pruned, keep := pruneNulls(vv); keep {
+				out = append(out, pruned)
+			}
+		}
+		if len(out) == 0 {
+			return nil, false
+		}
+		return out, true
+	default:
+		if t == nil {
+			return nil, false
+		}
+		return t, true
+	}
+}

@@ -88,5 +88,5 @@ output "github_channel_repository" {
 }
 
 output "agent_channel_command" {
- value = nullplatform_notification_channel.custom_agent.configuration[0].agent[0].command[0].data.cmdline
+ value = nullplatform_notification_channel.agent.configuration[0].agent[0].command[0].data.cmdline
 }
