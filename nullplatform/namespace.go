@@ -15,6 +15,7 @@ type Namespace struct {
 	Status    string `json:"status,omitempty"`
 	Slug      string `json:"slug,omitempty"`
 	AccountId int    `json:"account_id,omitempty"`
+	Nrn       string `json:"nrn,omitempty"`
 }
 
 func (c *NullClient) CreateNamespace(namespace *Namespace) (*Namespace, error) {
