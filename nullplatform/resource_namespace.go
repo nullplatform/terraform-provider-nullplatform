@@ -49,6 +49,11 @@ func resourceNamespace() *schema.Resource {
 				ForceNew:    true,
 				Description: "The ID of the account that owns this namespace",
 			},
+			"nrn": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The Nullplatform Resource Name (NRN) for the namespace",
+			},
 		},
 	}
 }
@@ -97,6 +102,9 @@ func NamespaceRead(d *schema.ResourceData, m any) error {
 	}
 	if err := d.Set("account_id", namespace.AccountId); err != nil {
 		return fmt.Errorf("failed to set 'account_id' for namespace with ID '%s': %w", namespaceId, err)
+	}
+	if err := d.Set("nrn", namespace.Nrn); err != nil {
+		return fmt.Errorf("failed to set 'nrn' for namespace with ID '%s': %w", namespaceId, err)
 	}
 
 	return nil

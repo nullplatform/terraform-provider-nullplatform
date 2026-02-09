@@ -27,3 +27,8 @@ output "public_sites_namespace_id" {
   description = "The ID of the Public Sites namespace"
   value       = nullplatform_namespace.public_sites.id
 }
+
+output "finance_namespace_nrn" {
+  description = "The NRN of the Finance namespace"
+  value       = nullplatform_namespace.finance.nrn
+}
