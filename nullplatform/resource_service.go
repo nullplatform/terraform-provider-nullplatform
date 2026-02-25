@@ -2,6 +2,7 @@ package nullplatform
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"reflect"
 
@@ -224,11 +225,41 @@ func ServiceRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	if err := d.Set("attributes", s.Attributes); err != nil {
+	attributeMap := mapOfInterfacesToMapOfStrings(s.Attributes)
+	if err := d.Set("attributes", attributeMap); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func mapOfInterfacesToMapOfStrings(m map[string]interface{}) map[string]string {
+	out := make(map[string]string)
+	for k, v := range m {
+		switch val := v.(type) {
+		case string:
+			out[k] = val
+		case bool:
+			if val {
+				out[k] = "true"
+			} else {
+				out[k] = "false"
+			}
+		case float64:
+			if val == float64(int64(val)) {
+				out[k] = fmt.Sprintf("%d", int64(val))
+			} else {
+				out[k] = fmt.Sprintf("%g", val)
+			}
+		case int:
+			out[k] = fmt.Sprintf("%d", val)
+		case int64:
+			out[k] = fmt.Sprintf("%d", val)
+		default:
+			out[k] = fmt.Sprintf("%v", val)
+		}
+	}
+	return out
 }
 
 func ServiceUpdate(d *schema.ResourceData, m any) error {
