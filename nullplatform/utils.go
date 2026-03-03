@@ -59,3 +59,36 @@ func tryParseJSON(value string) any {
 	}
 	return parsedValue
 }
+
+func mapOfInterfacesToMapOfStrings(m map[string]interface{}) map[string]string {
+	out := make(map[string]string)
+	for k, v := range m {
+		out[k] = valueToString(v)
+	}
+	return out
+}
+
+func valueToString(v interface{}) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case bool:
+		if val {
+			return "true"
+		}
+
+		return "false"
+	case float64:
+		if val == float64(int64(val)) {
+			return fmt.Sprintf("%d", int64(val))
+		}
+
+		return fmt.Sprintf("%g", val)
+	case int:
+		return fmt.Sprintf("%d", val)
+	case int64:
+		return fmt.Sprintf("%d", val)
+	default:
+		return fmt.Sprintf("%v", val)
+	}
+}

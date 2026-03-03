@@ -224,7 +224,8 @@ func ServiceRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	if err := d.Set("attributes", s.Attributes); err != nil {
+	attributeMap := mapOfInterfacesToMapOfStrings(s.Attributes)
+	if err := d.Set("attributes", attributeMap); err != nil {
 		return err
 	}
 
