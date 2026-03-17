@@ -56,6 +56,7 @@ func TestProvider_HasChildResources(t *testing.T) {
 		"nullplatform_metadata",
 		"nullplatform_scope_type",
 		"nullplatform_entity_hook_action",
+		"nullplatform_provider_specification",
 	}
 
 	resources := nullplatform.Provider().ResourcesMap

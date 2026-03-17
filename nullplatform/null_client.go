@@ -189,6 +189,11 @@ type NullOps interface {
 	GetScopeType(scopeTypeId string) (*ScopeType, error)
 	PatchScopeType(scopeTypeId string, s *ScopeType) error
 	DeleteScopeType(scopeTypeId string) error
+
+	CreateProviderSpecification(s *ProviderSpecification) (*ProviderSpecification, error)
+	GetProviderSpecification(specId string) (*ProviderSpecification, error)
+	PatchProviderSpecification(specId string, s *ProviderSpecification) error
+	DeleteProviderSpecification(specId string) error
 }
 
 func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
