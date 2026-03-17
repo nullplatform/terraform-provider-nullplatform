@@ -266,7 +266,9 @@ func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http
 		return nil, err
 	}
 
-	req.Header.Set("Content-Type", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
 
 	return c.Client.Do(req)
