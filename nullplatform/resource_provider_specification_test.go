@@ -96,7 +96,7 @@ func testAccResourceProviderSpecification_basic() string {
 resource "nullplatform_provider_specification" "test" {
   name       = "acc-test-provider-spec"
   visible_to = ["organization=1"]
-  spec_schema = jsonencode({
+  schema = jsonencode({
     type = "object"
     properties = {
       api_key = {
@@ -116,7 +116,7 @@ resource "nullplatform_provider_specification" "test" {
   description      = "Updated description"
   visible_to       = ["organization=1"]
   allow_dimensions = true
-  spec_schema = jsonencode({
+  schema = jsonencode({
     type = "object"
     properties = {
       api_key = {

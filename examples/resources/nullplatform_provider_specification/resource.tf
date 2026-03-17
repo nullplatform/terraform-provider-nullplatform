@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/com/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
@@ -19,7 +19,7 @@ resource "nullplatform_provider_specification" "minimal" {
     "organization=*",
   ]
 
-  spec_schema = jsonencode({
+  schema = jsonencode({
     type     = "object"
     required = ["region"]
     properties = {
@@ -49,7 +49,7 @@ resource "nullplatform_provider_specification" "full" {
     environment = "production"
   })
 
-  spec_schema = jsonencode({
+  schema = jsonencode({
     type     = "object"
     required = ["cluster", "region"]
     properties = {

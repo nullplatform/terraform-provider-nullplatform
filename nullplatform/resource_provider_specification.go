@@ -55,7 +55,7 @@ func resourceProviderSpecification() *schema.Resource {
 				},
 				Description: "List of NRNs this specification is visible to",
 			},
-			"spec_schema": {
+			"schema": {
 				Type:             schema.TypeString,
 				Required:         true,
 				Description:      "JSON Schema for the provider specification. Defines settings for nullplatform integrations",
@@ -113,10 +113,10 @@ func CreateProviderSpecification(_ context.Context, d *schema.ResourceData, m in
 		visibleTo[i] = v.(string)
 	}
 
-	schemaStr := d.Get("spec_schema").(string)
+	schemaStr := d.Get("schema").(string)
 	var specSchema map[string]interface{}
 	if err := json.Unmarshal([]byte(schemaStr), &specSchema); err != nil {
-		return diag.FromErr(fmt.Errorf("error parsing spec_schema JSON: %v", err))
+		return diag.FromErr(fmt.Errorf("error parsing schema JSON: %v", err))
 	}
 
 	defaultDimensionsStr := d.Get("default_dimensions").(string)
@@ -182,9 +182,9 @@ func ReadProviderSpecification(_ context.Context, d *schema.ResourceData, m inte
 
 	schemaJSON, err := json.Marshal(spec.SpecSchema)
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("error serializing spec_schema to JSON: %v", err))
+		return diag.FromErr(fmt.Errorf("error serializing schema to JSON: %v", err))
 	}
-	if err := d.Set("spec_schema", string(schemaJSON)); err != nil {
+	if err := d.Set("schema", string(schemaJSON)); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -239,11 +239,11 @@ func UpdateProviderSpecification(ctx context.Context, d *schema.ResourceData, m 
 		}
 		spec.VisibleTo = visibleTo
 	}
-	if d.HasChange("spec_schema") {
-		schemaStr := d.Get("spec_schema").(string)
+	if d.HasChange("schema") {
+		schemaStr := d.Get("schema").(string)
 		var specSchema map[string]interface{}
 		if err := json.Unmarshal([]byte(schemaStr), &specSchema); err != nil {
-			return diag.FromErr(fmt.Errorf("error parsing spec_schema JSON: %v", err))
+			return diag.FromErr(fmt.Errorf("error parsing schema JSON: %v", err))
 		}
 		spec.SpecSchema = specSchema
 	}
