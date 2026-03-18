@@ -8,6 +8,12 @@ import (
 	"net/http"
 )
 
+type NpCategory struct {
+	Id   string `json:"id"`
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
 type ProviderSpecification struct {
 	Id                string                 `json:"id,omitempty"`
 	Name              string                 `json:"name,omitempty"`
@@ -19,7 +25,7 @@ type ProviderSpecification struct {
 	AllowDimensions   bool                   `json:"allow_dimensions,omitempty"`
 	DefaultDimensions map[string]interface{} `json:"default_dimensions,omitempty"`
 	Category          string                 `json:"category,omitempty"`
-	Categories        []string               `json:"categories,omitempty"`
+	Categories        []NpCategory           `json:"categories,omitempty"`
 	Dependencies      []string               `json:"dependencies,omitempty"`
 	OrganizationId    *int                   `json:"organization_id,omitempty"`
 }
