@@ -200,7 +200,11 @@ func ReadProviderSpecification(_ context.Context, d *schema.ResourceData, m inte
 		return diag.FromErr(err)
 	}
 
-	if err := d.Set("categories", spec.Categories); err != nil {
+	categoryIds := make([]string, len(spec.Categories))
+	for i, c := range spec.Categories {
+		categoryIds[i] = c.Id
+	}
+	if err := d.Set("categories", categoryIds); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := d.Set("dependencies", spec.Dependencies); err != nil {
