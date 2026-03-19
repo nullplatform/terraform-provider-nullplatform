@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
 func resourceNotificationChannel() *schema.Resource {
@@ -25,6 +26,12 @@ func resourceNotificationChannel() *schema.Resource {
 		},
 
 		Schema: AddNRNSchema(map[string]*schema.Schema{
+			"description": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringLenBetween(0, 64),
+				Description:  "Human-readable description of the notification channel (max 64 characters)",
+			},
 			"type": {
 				Type:        schema.TypeString,
 				Required:    true,
@@ -300,6 +307,7 @@ func NotificationChannelCreate(d *schema.ResourceData, m any) error {
 
 	newChannel := &NotificationChannel{
 		Nrn:           nrn,
+		Description:   d.Get("description").(string),
 		Type:          d.Get("type").(string),
 		Configuration: flatConfig,
 	}
@@ -349,6 +357,7 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 	}
 
 	d.Set("nrn", channel.Nrn)
+	d.Set("description", channel.Description)
 	d.Set("type", channel.Type)
 	d.Set("source", channel.Source)
 	d.Set("status", channel.Status)
@@ -449,7 +458,7 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 
-	if d.HasChanges("type", "configuration", "filters", "status") {
+	if d.HasChanges("type", "configuration", "filters", "status", "description") {
 		configList := d.Get("configuration").([]interface{})
 		config := configList[0].(map[string]interface{})
 
@@ -523,6 +532,7 @@ func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 		}
 
 		updateChannel := &NotificationChannel{
+			Description:   d.Get("description").(string),
 			Type:          d.Get("type").(string),
 			Configuration: flatConfig,
 			Filters:       make(map[string]interface{}),

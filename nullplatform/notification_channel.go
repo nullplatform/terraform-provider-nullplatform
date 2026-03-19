@@ -12,6 +12,7 @@ const NOTIFICATION_CHANNEL_PATH = "/notification/channel"
 type NotificationChannel struct {
 	Id            int                    `json:"id,omitempty"`
 	Nrn           string                 `json:"nrn,omitempty"`
+	Description   string                 `json:"description,omitempty"`
 	Type          string                 `json:"type,omitempty"`
 	Source        []string               `json:"source,omitempty"`
 	Configuration map[string]interface{} `json:"configuration,omitempty"`
