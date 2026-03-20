@@ -28,7 +28,7 @@ func resourceNotificationChannel() *schema.Resource {
 		Schema: AddNRNSchema(map[string]*schema.Schema{
 			"description": {
 				Type:         schema.TypeString,
-				Required:     true,
+				Required:     false,
 				ValidateFunc: validation.StringLenBetween(0, 64),
 				Description:  "Human-readable description of the notification channel (max 64 characters)",
 			},
