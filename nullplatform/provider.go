@@ -77,12 +77,16 @@ func Provider() *schema.Provider {
 			"nullplatform_provider_specification":             resourceProviderSpecification(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
-			"nullplatform_dimension":         dataSourceDimension(),
-			"nullplatform_scope":             dataSourceScope(),
-			"nullplatform_application":       dataSourceApplication(),
-			"nullplatform_service":           dataSourceService(),
-			"nullplatform_parameter":         dataSourceParameter(),
-			"nullplatform_parameter_by_name": dataSourceParameterByName(),
+			"nullplatform_dimension":             dataSourceDimension(),
+			"nullplatform_scope":                 dataSourceScope(),
+			"nullplatform_application":           dataSourceApplication(),
+			"nullplatform_service":               dataSourceService(),
+			"nullplatform_parameter":             dataSourceParameter(),
+			"nullplatform_parameter_by_name":     dataSourceParameterByName(),
+			"nullplatform_service_specification": dataSourceServiceSpecification(),
+			"nullplatform_scope_type":            dataSourceScopeType(),
+			"nullplatform_action_specification":  dataSourceActionSpecification(),
+			"nullplatform_action_specifications": dataSourceActionSpecifications(),
 		},
 	}
 
