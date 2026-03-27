@@ -113,6 +113,30 @@ func (c *NullClient) PatchActionSpecification(specId string, s *ActionSpecificat
 	return nil
 }
 
+func (c *NullClient) ListActionSpecifications(serviceSpecId string) ([]*ActionSpecification, error) {
+	path := fmt.Sprintf("/service_specification/%s/action_specification", serviceSpecId)
+
+	res, err := c.MakeRequest("GET", path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make API request: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("failed to list action specifications: status code %d, response: %s", res.StatusCode, string(bodyBytes))
+	}
+
+	var result struct {
+		Results []*ActionSpecification `json:"results"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode API response: %v", err)
+	}
+
+	return result.Results, nil
+}
+
 func (c *NullClient) DeleteActionSpecification(specId string, parentType, parentId string) error {
 	basePath := getActionSpecificationPath(parentType, parentId)
 	path := fmt.Sprintf("%s/%s", basePath, specId)
