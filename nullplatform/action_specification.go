@@ -11,6 +11,7 @@ import (
 type ActionSpecification struct {
 	Id                     string                 `json:"id,omitempty"`
 	Name                   string                 `json:"name,omitempty"`
+	Description            string                 `json:"description,omitempty"`
 	Type                   string                 `json:"type,omitempty"`
 	Parameters             map[string]interface{} `json:"parameters,omitempty"`
 	Results                map[string]interface{} `json:"results,omitempty"`
