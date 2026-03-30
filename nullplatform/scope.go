@@ -34,6 +34,7 @@ type Scope struct {
 	ActiveDeployment      int               `json:"active_deployment,omitempty"`
 	Nrn                   string            `json:"nrn,omitempty"`
 	Name                  string            `json:"name,omitempty"`
+	Description           string            `json:"description,omitempty"`
 	ApplicationId         int               `json:"application_id,omitempty"`
 	Type                  string            `json:"type,omitempty"`
 	AssetName             string            `json:"asset_name,omitempty"`

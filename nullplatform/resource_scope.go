@@ -37,6 +37,11 @@ func resourceScope() *schema.Resource {
 				ForceNew:    true,
 				Description: "The scope name.",
 			},
+			"description": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Short description of the scope.",
+			},
 			"scope_type": {
 				Type:        schema.TypeString,
 				Default:     "serverless",
@@ -190,6 +195,7 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 
 	newScope := &Scope{
 		Name:            scopeName,
+		Description:     d.Get("description").(string),
 		ApplicationId:   applicationId,
 		Type:            scopeType,
 		AssetName:       scopeAssetName,
@@ -300,6 +306,10 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
+	if err := d.Set("description", s.Description); err != nil {
+		return err
+	}
+
 	if err := d.Set("scope_type", s.Type); err != nil {
 		return err
 	}
@@ -394,6 +404,10 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 
 	if d.HasChange("scope_name") {
 		ps.Name = d.Get("scope_name").(string)
+	}
+
+	if d.HasChange("description") {
+		ps.Description = d.Get("description").(string)
 	}
 
 	if d.HasChange("scope_type") {
