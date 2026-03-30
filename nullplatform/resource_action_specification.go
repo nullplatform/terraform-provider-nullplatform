@@ -32,6 +32,11 @@ func resourceActionSpecification() *schema.Resource {
 				Required:    true,
 				Description: "Name of the action specification",
 			},
+			"description": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Description of the action specification",
+			},
 			"slug": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -110,6 +115,7 @@ func ActionSpecificationCreate(ctx context.Context, d *schema.ResourceData, m in
 
 	spec := &ActionSpecification{
 		Name:                   d.Get("name").(string),
+		Description:            d.Get("description").(string),
 		Type:                   d.Get("type").(string),
 		Parameters:             parameters,
 		Results:                results,
@@ -157,6 +163,9 @@ func ActionSpecificationRead(ctx context.Context, d *schema.ResourceData, m inte
 	}
 
 	if err := d.Set("name", spec.Name); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("description", spec.Description); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := d.Set("slug", spec.Slug); err != nil {
@@ -227,6 +236,10 @@ func ActionSpecificationUpdate(ctx context.Context, d *schema.ResourceData, m in
 
 	if d.HasChange("name") {
 		spec.Name = d.Get("name").(string)
+	}
+
+	if d.HasChange("description") {
+		spec.Description = d.Get("description").(string)
 	}
 
 	if d.HasChange("type") {

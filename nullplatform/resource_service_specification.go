@@ -31,6 +31,11 @@ func resourceServiceSpecification() *schema.Resource {
 				Required:    true,
 				Description: "Name of the service specification",
 			},
+			"description": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Description of the service specification",
+			},
 			"slug": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -167,6 +172,7 @@ func CreateServiceSpecification(_ context.Context, d *schema.ResourceData, m int
 
 	spec := &ServiceSpecification{
 		Name:              d.Get("name").(string),
+		Description:       d.Get("description").(string),
 		VisibleTo:         visibleTo,
 		Dimensions:        dimensions,
 		AssignableTo:      d.Get("assignable_to").(string),
@@ -196,6 +202,9 @@ func ReadServiceSpecification(_ context.Context, d *schema.ResourceData, m inter
 	}
 
 	if err := d.Set("name", spec.Name); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("description", spec.Description); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := d.Set("slug", spec.Slug); err != nil {
@@ -262,6 +271,10 @@ func UpdateServiceSpecification(ctx context.Context, d *schema.ResourceData, m i
 
 	if d.HasChange("name") {
 		spec.Name = d.Get("name").(string)
+	}
+
+	if d.HasChange("description") {
+		spec.Description = d.Get("description").(string)
 	}
 
 	if d.HasChange("visible_to") {

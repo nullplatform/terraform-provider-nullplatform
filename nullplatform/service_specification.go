@@ -22,6 +22,7 @@ type Selectors struct {
 type ServiceSpecification struct {
 	Id                string                 `json:"id,omitempty"`
 	Name              string                 `json:"name,omitempty"`
+	Description       string                 `json:"description,omitempty"`
 	Slug              string                 `json:"slug,omitempty"`
 	VisibleTo         []string               `json:"visible_to,omitempty"`
 	Dimensions        map[string]interface{} `json:"dimensions,omitempty"`
