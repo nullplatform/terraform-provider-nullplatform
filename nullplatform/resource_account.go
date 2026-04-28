@@ -39,12 +39,12 @@ func resourceAccount() *schema.Resource {
 			},
 			"repository_prefix": {
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
 				Description: "The prefix used for repositories in this account",
 			},
 			"repository_provider": {
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
 				Description: "The repository provider for this account",
 			},
 			"slug": {

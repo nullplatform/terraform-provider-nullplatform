@@ -31,3 +31,8 @@ output "github_account_org_id" {
   description = "The organization ID the account belongs to"
   value       = nullplatform_account.github_account.organization_id
 }
+
+resource "nullplatform_account" "minimal_account" {
+  name = "My Minimal Account"
+  slug = "minimal-account"
+}
