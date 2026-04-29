@@ -118,3 +118,33 @@ resource "nullplatform_account" "test" {
 }
 `
 }
+
+func TestAccResourceAccount_withoutRepoFields(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckAccountDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccResourceAccount_minimal(),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAccountExists("nullplatform_account.test"),
+					resource.TestCheckResourceAttr("nullplatform_account.test", "name", "minimal-account"),
+					resource.TestCheckResourceAttrSet("nullplatform_account.test", "organization_id"),
+					resource.TestCheckResourceAttr("nullplatform_account.test", "repository_prefix", ""),
+					resource.TestCheckResourceAttr("nullplatform_account.test", "repository_provider", ""),
+					resource.TestCheckResourceAttr("nullplatform_account.test", "slug", "minimal-account"),
+				),
+			},
+		},
+	})
+}
+
+func testAccResourceAccount_minimal() string {
+	return `
+resource "nullplatform_account" "test" {
+  name = "minimal-account"
+  slug = "minimal-account"
+}
+`
+}
