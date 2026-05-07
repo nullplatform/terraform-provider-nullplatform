@@ -2,9 +2,13 @@ package nullplatform
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"reflect"
+	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -12,16 +16,21 @@ func resourceService() *schema.Resource {
 	return &schema.Resource{
 		Description: "The service resource allows you to configure a Nullplatform Service",
 
-		Create: ServiceCreate,
-		Read:   ServiceRead,
-		Update: ServiceUpdate,
-		Delete: ServiceDelete,
+		CreateContext: ServiceCreateContext,
+		ReadContext:   ServiceReadContext,
+		UpdateContext: ServiceUpdateContext,
+		DeleteContext: ServiceDeleteContext,
 
 		Importer: &schema.ResourceImporter{
 			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
 				d.Set("id", d.Id())
 				return []*schema.ResourceData{d}, nil
 			},
+		},
+
+		Timeouts: &schema.ResourceTimeout{
+			Create: schema.DefaultTimeout(10 * time.Minute),
+			Delete: schema.DefaultTimeout(10 * time.Minute),
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -53,6 +62,30 @@ func resourceService() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "Desired unique identifier for the associated specification.",
+			},
+			"import": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  true,
+				ForceNew: true,
+				Description: "When true (default), provisioning and decommissioning of the " +
+					"underlying infrastructure are handled externally to nullplatform. " +
+					"When false, the specification's create and delete actions are triggered " +
+					"to handle the infrastructure lifecycle.",
+			},
+			"force_destroy": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+				Description: "Only meaningful when `import = false`. When true, `terraform destroy` " +
+					"skips the delete action and removes the service record directly via " +
+					"`DELETE /service/{id}?force=true`. Use this as an escape hatch when the " +
+					"service is stuck (e.g. the create action failed). Note: Terraform's " +
+					"destroy reads this attribute from state, so you must run `terraform apply` " +
+					"with `force_destroy = true` *before* running `terraform destroy` for it to " +
+					"take effect. For tainted resources, run `terraform untaint` first so the " +
+					"apply is an update rather than a replace. Has no effect when " +
+					"`import = true`, where destroy already uses force.",
 			},
 			"messages": {
 				Type:     schema.TypeList,
@@ -121,7 +154,7 @@ func resourceService() *schema.Resource {
 	}
 }
 
-func ServiceCreate(d *schema.ResourceData, m any) error {
+func ServiceCreateContext(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	name := d.Get("name").(string)
@@ -130,6 +163,13 @@ func ServiceCreate(d *schema.ResourceData, m any) error {
 	linkableTo := d.Get("linkable_to").([]interface{})
 	desiredSpecificationId := d.Get("desired_specification_id").(string)
 	status := d.Get("status").(string)
+	if !importMode(d) {
+		// Action-driven mode: the create action requires the service to be
+		// in 'pending' on POST /service so the action can transition it to
+		// active. The schema's 'active' default is the right default for
+		// import=true (declarative), but wrong here.
+		status = "pending"
+	}
 	messages := d.Get("messages").([]interface{})
 	attributes := d.Get("attributes").(map[string]interface{})
 	dimensions := d.Get("dimensions").(map[string]interface{})
@@ -161,15 +201,22 @@ func ServiceCreate(d *schema.ResourceData, m any) error {
 	s, err := nullOps.CreateService(newService)
 
 	if err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(s.Id)
 
+	if !importMode(d) {
+		attrs, _ := d.Get("attributes").(map[string]interface{})
+		if err := triggerServiceAction(ctx, nullOps, s.Id, s.SpecificationId, "create", attrs, d.Timeout(schema.TimeoutCreate)); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
 	return nil
 }
 
-func ServiceRead(d *schema.ResourceData, m any) error {
+func ServiceReadContext(_ context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	serviceID := d.Id()
 
@@ -177,39 +224,39 @@ func ServiceRead(d *schema.ResourceData, m any) error {
 
 	if err != nil {
 		d.SetId("")
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("name", s.Name); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("specification_id", s.SpecificationId); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("desired_specification_id", s.DesiredSpecificationId); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("entity_nrn", s.EntityNrn); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("linkable_to", s.LinkableTo); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("status", s.Status); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("dimensions", s.Dimensions); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	if err := d.Set("messages", s.Messages); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	selectors := []map[string]interface{}{
@@ -221,18 +268,18 @@ func ServiceRead(d *schema.ResourceData, m any) error {
 		},
 	}
 	if err := d.Set("selectors", selectors); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	attributeMap := mapOfInterfacesToMapOfStrings(s.Attributes)
 	if err := d.Set("attributes", attributeMap); err != nil {
-		return err
+		return diag.FromErr(err)
 	}
 
 	return nil
 }
 
-func ServiceUpdate(d *schema.ResourceData, m any) error {
+func ServiceUpdateContext(_ context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	serviceID := d.Id()
@@ -289,24 +336,119 @@ func ServiceUpdate(d *schema.ResourceData, m any) error {
 	if !reflect.DeepEqual(*ps, Service{}) {
 		err := nullOps.PatchService(serviceID, ps)
 		if err != nil {
-			return err
+			return diag.FromErr(err)
 		}
 	}
 
 	return nil
 }
 
-func ServiceDelete(d *schema.ResourceData, m any) error {
+func ServiceDeleteContext(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nullOps := m.(NullOps)
-
 	serviceID := d.Id()
 
-	err := nullOps.DeleteService(serviceID)
-	if err != nil {
-		return err
+	if importMode(d) || d.Get("force_destroy").(bool) {
+		if err := nullOps.DeleteService(serviceID, true); err != nil {
+			return diag.FromErr(err)
+		}
+		d.SetId("")
+		return nil
+	}
+
+	// Stuck-service recovery: a service whose create action failed sits in
+	// status="failed" and cannot be cleanly torn down via its delete action
+	// (the workflow runtime can't drive a broken state machine). Detect this
+	// case by reading the live status and force-delete instead. Without this,
+	// users would have to either (a) untaint+apply force_destroy=true into
+	// state then destroy, or (b) manually clean up via the API.
+	current, err := nullOps.GetService(serviceID)
+	if err == nil && current != nil && current.Status == "failed" {
+		log.Printf("[INFO] service %s is in status=failed; force-deleting instead of triggering delete action", serviceID)
+		if err := nullOps.DeleteService(serviceID, true); err != nil {
+			return diag.FromErr(err)
+		}
+		d.SetId("")
+		return nil
+	}
+
+	specificationID := d.Get("specification_id").(string)
+	attrs, _ := d.Get("attributes").(map[string]interface{})
+	if err := triggerServiceAction(ctx, nullOps, serviceID, specificationID, "delete", attrs, d.Timeout(schema.TimeoutDelete)); err != nil {
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")
-
 	return nil
+}
+
+const actionPollInterval = 15 * time.Second
+
+func waitForActionTerminal(ctx context.Context, nullOps NullOps, serviceID, actionID string, timeout time.Duration) (*ActionInstance, error) {
+	stateConf := &retry.StateChangeConf{
+		Pending: []string{"pending_create", "pending", "in_progress"},
+		Target:  []string{"success"},
+		Refresh: func() (interface{}, string, error) {
+			a, err := nullOps.GetServiceAction(serviceID, actionID)
+			if err != nil {
+				return nil, "", err
+			}
+			if a.Status == "failed" || a.Status == "cancelled" {
+				return a, a.Status, fmt.Errorf("action %s ended in status %q: %s",
+					actionID, a.Status, summarizeMessages(a.Messages))
+			}
+			return a, a.Status, nil
+		},
+		Timeout:    timeout,
+		Delay:      actionPollInterval,
+		MinTimeout: actionPollInterval,
+	}
+	raw, err := stateConf.WaitForStateContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if a, ok := raw.(*ActionInstance); ok {
+		return a, nil
+	}
+	return nil, nil
+}
+
+func triggerServiceAction(ctx context.Context, nullOps NullOps, serviceID, specificationID, actionType string, attributes map[string]interface{}, timeout time.Duration) error {
+	specs, err := nullOps.ListActionSpecifications(specificationID)
+	if err != nil {
+		return fmt.Errorf("listing action specifications: %w", err)
+	}
+	actionSpec, err := findActionSpecByType(specs, actionType)
+	if err != nil {
+		return fmt.Errorf("specification %s: %w", specificationID, err)
+	}
+
+	parameters, err := projectAttributesToParameters(attributes, actionSpec.Parameters)
+	if err != nil {
+		return fmt.Errorf("projecting attributes onto %s action parameter schema: %w", actionType, err)
+	}
+
+	action, err := nullOps.CreateServiceAction(serviceID, &ActionInstance{
+		SpecificationId: actionSpec.Id,
+		Parameters:      parameters,
+	})
+	if err != nil {
+		return fmt.Errorf("creating %s action: %w", actionType, err)
+	}
+
+	if _, err := waitForActionTerminal(ctx, nullOps, serviceID, action.Id, timeout); err != nil {
+		return err
+	}
+	return nil
+}
+
+// importMode reads the `import` attribute defensively. The schema's `Default: true`
+// only applies during plan-time evaluation of new resources; for legacy state
+// written before this attribute existed, the field is absent and `d.Get` returns
+// the zero value (false). This helper restores the desired default by treating
+// missing-from-state as `true`.
+func importMode(d *schema.ResourceData) bool {
+	if v, exists := d.GetOkExists("import"); exists {
+		return v.(bool)
+	}
+	return true
 }

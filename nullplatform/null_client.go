@@ -63,7 +63,10 @@ type NullOps interface {
 	CreateService(*Service) (*Service, error)
 	GetService(string) (*Service, error)
 	PatchService(string, *Service) error
-	DeleteService(string) error
+	DeleteService(string, bool) error
+
+	CreateServiceAction(string, *ActionInstance) (*ActionInstance, error)
+	GetServiceAction(string, string) (*ActionInstance, error)
 
 	CreateLink(*Link) (*Link, error)
 	PatchLink(string, *Link) error

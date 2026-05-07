@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
@@ -65,4 +65,29 @@ output "redis" {
 
 output "open_weather" {
   value = nullplatform_service.open_weather_test
+}
+
+# Action-driven mode: provider triggers the spec's create+delete actions.
+resource "nullplatform_service" "open_weather_provisioned" {
+  name             = "open-weather-provisioned"
+  specification_id = var.provisioned_specification_id
+  entity_nrn       = data.nullplatform_application.app.nrn
+  linkable_to      = [data.nullplatform_application.app.nrn]
+
+  import = false
+
+  timeouts {
+    create = "10m"
+    delete = "10m"
+  }
+
+  attributes = {
+    api_key = var.open_weather_api_key
+  }
+  dimensions = {}
+}
+
+variable "provisioned_specification_id" {
+  description = "Specification ID for a service whose create+delete actions should be triggered."
+  type        = string
 }

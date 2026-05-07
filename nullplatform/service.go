@@ -41,14 +41,8 @@ func (c *NullClient) CreateService(s *Service) (*Service, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		nErr := &NullErrors{}
-		dErr := json.NewDecoder(res.Body).Decode(nErr)
-		if res.StatusCode == http.StatusBadRequest {
-			if dErr != nil {
-				return nil, fmt.Errorf("an error happened: %s", dErr)
-			}
-		}
-		return nil, fmt.Errorf("error creating service resource, got status code: %d", nErr.Id)
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("error creating service resource: status=%d body=%s", res.StatusCode, string(bodyBytes))
 	}
 
 	sRes := &Service{}
@@ -85,8 +79,11 @@ func (c *NullClient) PatchService(serviceId string, s *Service) error {
 	return nil
 }
 
-func (c *NullClient) DeleteService(serviceId string) error {
+func (c *NullClient) DeleteService(serviceId string, force bool) error {
 	path := fmt.Sprintf("%s/%s", SERVICE_PATH, serviceId)
+	if force {
+		path = path + "?force=true"
+	}
 
 	res, err := c.MakeRequest("DELETE", path, nil)
 	if err != nil {
