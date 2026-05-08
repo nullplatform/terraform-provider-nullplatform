@@ -16,7 +16,7 @@ const (
 type ProviderConfig struct {
 	Id              string                 `json:"id,omitempty"`
 	Nrn             string                 `json:"nrn,omitempty"`
-	Dimensions      map[string]string      `json:"dimensions"`
+	Dimensions      map[string]string      `json:"dimensions,omitempty"`
 	SpecificationId string                 `json:"specification_id,omitempty"`
 	Attributes      map[string]interface{} `json:"attributes,omitempty"`
 }
