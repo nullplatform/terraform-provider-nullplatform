@@ -29,11 +29,11 @@ func resourceProviderConfig() *schema.Resource {
 			"dimensions": {
 				Type:     schema.TypeMap,
 				ForceNew: true,
-				Required: true,
+				Optional: true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
-				Description: "A key-value map with the provider dimensions that apply to this scope.",
+				Description: "A key-value map with the provider dimensions that apply to this scope. Optional: when omitted, the provider config applies without dimension scoping.",
 			},
 			"type": {
 				Type:        schema.TypeString,
@@ -76,10 +76,13 @@ func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
 		}
 	}
 
-	dimensionsMap := d.Get("dimensions").(map[string]interface{})
-	dimensions := make(map[string]string)
-	for key, value := range dimensionsMap {
-		dimensions[key] = value.(string)
+	var dimensions map[string]string
+	if v, ok := d.GetOk("dimensions"); ok {
+		dimensionsMap := v.(map[string]interface{})
+		dimensions = make(map[string]string, len(dimensionsMap))
+		for key, value := range dimensionsMap {
+			dimensions[key] = value.(string)
+		}
 	}
 
 	attributesJSON := d.Get("attributes").(string)
