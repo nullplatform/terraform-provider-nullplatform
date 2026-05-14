@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -17,6 +18,24 @@ import (
 )
 
 const TOKEN_PATH = "/token"
+
+const (
+	defaultGetMaxRetries = 3
+	defaultGetRetryDelay = 100 * time.Millisecond
+)
+
+func isRetryableStatusCode(statusCode int) bool {
+	switch statusCode {
+	case http.StatusRequestTimeout,
+		http.StatusConflict,
+		http.StatusTooManyRequests,
+		http.StatusBadGateway,
+		http.StatusServiceUnavailable,
+		http.StatusGatewayTimeout:
+		return true
+	}
+	return false
+}
 
 type TokenRequest struct {
 	Apikey string `json:"apikey"`
@@ -275,7 +294,31 @@ func (c *NullClient) MakeRequest(method, path string, body *bytes.Buffer) (*http
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token.AccessToken))
 
-	return c.Client.Do(req)
+	if method != http.MethodGet {
+		return c.Client.Do(req)
+	}
+
+	var res *http.Response
+	for attempt := 0; attempt <= defaultGetMaxRetries; attempt++ {
+		res, err = c.Client.Do(req)
+		if err == nil && !isRetryableStatusCode(res.StatusCode) {
+			return res, nil
+		}
+
+		if attempt == defaultGetMaxRetries {
+			break
+		}
+
+		if res != nil {
+			io.Copy(io.Discard, res.Body)
+			res.Body.Close()
+		}
+
+		log.Printf("[WARN] GET %s retry %d/%d after error/status (err=%v)", path, attempt+1, defaultGetMaxRetries, err)
+		time.Sleep(defaultGetRetryDelay)
+	}
+
+	return res, err
 }
 
 func (c *NullClient) ensureValidToken() error {
