@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -81,6 +82,96 @@ func TestMakeRequest_ContentTypeOnlySetWhenBodyPresent(t *testing.T) {
 			if hasContentType != tt.wantContentType {
 				t.Errorf("Content-Type header present=%v, want present=%v (got %q)",
 					hasContentType, tt.wantContentType, capturedContentType)
+			}
+		})
+	}
+}
+
+func TestMakeRequest_RetryOnGet(t *testing.T) {
+	tests := []struct {
+		name             string
+		method           string
+		failuresBefore2xx int32
+		respondStatus    int
+		wantAttempts     int32
+		wantStatus       int
+	}{
+		{
+			name:             "GET retries on 503 until success",
+			method:           "GET",
+			failuresBefore2xx: 2,
+			respondStatus:    http.StatusServiceUnavailable,
+			wantAttempts:     3,
+			wantStatus:       http.StatusOK,
+		},
+		{
+			name:             "GET stops after max retries",
+			method:           "GET",
+			failuresBefore2xx: 10,
+			respondStatus:    http.StatusBadGateway,
+			wantAttempts:     4,
+			wantStatus:       http.StatusBadGateway,
+		},
+		{
+			name:             "GET does not retry on 200",
+			method:           "GET",
+			failuresBefore2xx: 0,
+			respondStatus:    http.StatusOK,
+			wantAttempts:     1,
+			wantStatus:       http.StatusOK,
+		},
+		{
+			name:             "GET does not retry on 404",
+			method:           "GET",
+			failuresBefore2xx: 10,
+			respondStatus:    http.StatusNotFound,
+			wantAttempts:     1,
+			wantStatus:       http.StatusNotFound,
+		},
+		{
+			name:             "DELETE never retries on 503",
+			method:           "DELETE",
+			failuresBefore2xx: 10,
+			respondStatus:    http.StatusServiceUnavailable,
+			wantAttempts:     1,
+			wantStatus:       http.StatusServiceUnavailable,
+		},
+		{
+			name:             "POST never retries on 502",
+			method:           "POST",
+			failuresBefore2xx: 10,
+			respondStatus:    http.StatusBadGateway,
+			wantAttempts:     1,
+			wantStatus:       http.StatusBadGateway,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var attempts int32
+
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				n := atomic.AddInt32(&attempts, 1)
+				if n <= tt.failuresBefore2xx {
+					w.WriteHeader(tt.respondStatus)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+
+			client := newTestClient(server)
+			res, err := client.MakeRequest(tt.method, "/test", nil)
+			if err != nil {
+				t.Fatalf("MakeRequest returned unexpected error: %v", err)
+			}
+			defer res.Body.Close()
+
+			if got := atomic.LoadInt32(&attempts); got != tt.wantAttempts {
+				t.Errorf("attempts = %d, want %d", got, tt.wantAttempts)
+			}
+			if res.StatusCode != tt.wantStatus {
+				t.Errorf("status = %d, want %d", res.StatusCode, tt.wantStatus)
 			}
 		})
 	}

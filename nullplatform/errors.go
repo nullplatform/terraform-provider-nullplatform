@@ -14,6 +14,19 @@ func (e *ApiError) Error() string {
 	return fmt.Sprintf("%d: %s", e.ID, e.Message)
 }
 
+type HTTPStatusError struct {
+	Status  int
+	Message string
+}
+
+func (e *HTTPStatusError) Error() string {
+	return fmt.Sprintf("status code: %d, message: %s", e.Status, e.Message)
+}
+
+func (e *HTTPStatusError) StatusCode() int {
+	return e.Status
+}
+
 type ResourceExistsError struct {
 	ApiType string
 	ID      int

@@ -2,10 +2,11 @@ package nullplatform
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
@@ -257,18 +258,20 @@ func ParameterValueDelete(d *schema.ResourceData, m any) error {
 }
 
 func isRetryableError(err error) bool {
-	if httpErr, ok := err.(interface{ StatusCode() int }); ok {
-		switch httpErr.StatusCode() {
-		case http.StatusRequestTimeout, http.StatusConflict, http.StatusTooManyRequests, http.StatusServiceUnavailable, http.StatusGatewayTimeout, http.StatusBadGateway:
-			return true
-		case http.StatusBadRequest:
-			var nErr NullErrors
-			if jsonErr := json.Unmarshal([]byte(err.Error()), &nErr); jsonErr == nil {
-				if nErr.Message == "The parameter already exists" {
-					return true
-				}
-			}
-		}
+	var httpErr *HTTPStatusError
+	if !errors.As(err, &httpErr) {
+		return false
+	}
+	switch httpErr.StatusCode() {
+	case http.StatusRequestTimeout,
+		http.StatusConflict,
+		http.StatusTooManyRequests,
+		http.StatusServiceUnavailable,
+		http.StatusGatewayTimeout,
+		http.StatusBadGateway:
+		return true
+	case http.StatusBadRequest:
+		return strings.Contains(httpErr.Message, "already exists")
 	}
 	return false
 }

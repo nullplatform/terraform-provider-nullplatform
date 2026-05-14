@@ -101,15 +101,15 @@ func (c *NullClient) GetParameter(parameterId string, nrn *string) (*Parameter, 
 	}
 	defer res.Body.Close()
 
+	if res.StatusCode != http.StatusOK {
+		return nil, &HTTPStatusError{Status: res.StatusCode, Message: fmt.Sprintf("error getting Parameter resource for %s", parameterId)}
+	}
+
 	param := &Parameter{}
 	derr := json.NewDecoder(res.Body).Decode(param)
 
 	if derr != nil {
 		return nil, derr
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error getting Parameter resource, got %d for %s", res.StatusCode, parameterId)
 	}
 
 	return param, nil
@@ -170,14 +170,14 @@ func (c *NullClient) CreateParameterValue(paramId int, paramValue *ParameterValu
 
 	if res.StatusCode != http.StatusOK {
 		if res.StatusCode == http.StatusGatewayTimeout {
-			return nil, fmt.Errorf("error creating Parameter Value, status code: %d, message: Gateway Timeout", res.StatusCode)
+			return nil, &HTTPStatusError{Status: res.StatusCode, Message: "error creating Parameter Value: Gateway Timeout"}
 		}
 
 		nErr := &NullErrors{}
 		if dErr := json.NewDecoder(res.Body).Decode(nErr); dErr != nil {
-			return nil, fmt.Errorf("error creating Parameter Value, status code: %d, message: %w", res.StatusCode, dErr)
+			return nil, &HTTPStatusError{Status: res.StatusCode, Message: fmt.Sprintf("error creating Parameter Value: %s", dErr)}
 		}
-		return nil, fmt.Errorf("error creating Parameter Value, status code: %d, message: %s", res.StatusCode, nErr.Message)
+		return nil, &HTTPStatusError{Status: res.StatusCode, Message: fmt.Sprintf("error creating Parameter Value: %s", nErr.Message)}
 	}
 
 	paramRes := &ParameterValue{}
@@ -200,7 +200,7 @@ func (c *NullClient) DeleteParameterValue(parameterId string, parameterValueId s
 	defer res.Body.Close()
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		return fmt.Errorf("error deleting Parameter resource, got %d", res.StatusCode)
+		return &HTTPStatusError{Status: res.StatusCode, Message: "error deleting Parameter Value"}
 	}
 
 	return nil
@@ -211,7 +211,7 @@ func (c *NullClient) GetParameterValue(parameterId string, parameterValueId stri
 
 	param, err := c.GetParameter(parameterId, nrn)
 	if err != nil {
-		return nil, fmt.Errorf("Parameter ID %s not found", parameterId)
+		return nil, fmt.Errorf("Parameter ID %s not found: %w", parameterId, err)
 	}
 
 	for _, item := range param.Values {
