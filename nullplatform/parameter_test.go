@@ -1,6 +1,11 @@
 package nullplatform
 
-import "testing"
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"testing"
+)
 
 func TestGenerateParameterValueID(t *testing.T) {
 	parameterId := 1
@@ -90,5 +95,35 @@ func TestGenerateParameterValueID(t *testing.T) {
 	expectedHash7 := generateParameterValueID(param7, parameterId)
 	if expectedHash7 != "972d76cb3b1db5b9a145dea7aa72395ae6459f02e05ac18f7f6439904a93326f" {
 		t.Errorf("Expected hash: 972d76cb3b1db5b9a145dea7aa72395ae6459f02e05ac18f7f6439904a93326f, got: %s", expectedHash7)
+	}
+}
+
+func TestIsRetryableError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil error", nil, false},
+		{"plain error", errors.New("boom"), false},
+		{"408 timeout", &HTTPStatusError{Status: http.StatusRequestTimeout, Message: "x"}, true},
+		{"409 conflict", &HTTPStatusError{Status: http.StatusConflict, Message: "x"}, true},
+		{"429 too many", &HTTPStatusError{Status: http.StatusTooManyRequests, Message: "x"}, true},
+		{"502 bad gateway", &HTTPStatusError{Status: http.StatusBadGateway, Message: "x"}, true},
+		{"503 unavailable", &HTTPStatusError{Status: http.StatusServiceUnavailable, Message: "x"}, true},
+		{"504 gateway timeout", &HTTPStatusError{Status: http.StatusGatewayTimeout, Message: "x"}, true},
+		{"400 already exists", &HTTPStatusError{Status: http.StatusBadRequest, Message: "The parameter already exists"}, true},
+		{"400 other", &HTTPStatusError{Status: http.StatusBadRequest, Message: "invalid input"}, false},
+		{"404 not found", &HTTPStatusError{Status: http.StatusNotFound, Message: "x"}, false},
+		{"500 internal", &HTTPStatusError{Status: http.StatusInternalServerError, Message: "x"}, false},
+		{"wrapped 503", fmt.Errorf("context: %w", &HTTPStatusError{Status: http.StatusServiceUnavailable, Message: "x"}), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isRetryableError(tt.err); got != tt.want {
+				t.Errorf("isRetryableError(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
 	}
 }
