@@ -81,7 +81,11 @@ func (c *NullClient) PatchAccount(accountId string, account *Account) error {
 }
 
 func (c *NullClient) GetAccount(accountId string) (*Account, error) {
-	path := fmt.Sprintf("%s/%s", ACCOUNT_PATH, accountId)
+	// Always request soft-deleted rows so Terraform can reconcile state when an
+	// account has been deleted out-of-band. The API responds 200 with status="deleted"
+	// (instead of 404) when show_deleted=true; the resource layer treats that the
+	// same as "inactive" and drops the resource from state.
+	path := fmt.Sprintf("%s/%s?show_deleted=true", ACCOUNT_PATH, accountId)
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
