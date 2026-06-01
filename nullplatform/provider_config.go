@@ -84,7 +84,7 @@ func (c *NullClient) PatchProviderConfig(providerConfigId string, p *ProviderCon
 }
 
 func (c *NullClient) GetProviderConfig(providerConfigId string) (*ProviderConfig, error) {
-	path := fmt.Sprintf("%s/%s", PROVIDER_CONFIG_PATH, providerConfigId)
+	path := fmt.Sprintf("%s/%s?no_merge=true", PROVIDER_CONFIG_PATH, providerConfigId)
 
 	res, err := c.MakeRequest("GET", path, nil)
 	if err != nil {
