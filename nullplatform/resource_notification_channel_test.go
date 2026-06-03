@@ -1,12 +1,18 @@
 package nullplatform_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/nullplatform/terraform-provider-nullplatform/nullplatform"
 )
@@ -80,6 +86,75 @@ func testAccCheckNotificationChannelDestroy(s *terraform.State) error {
 	}
 
 	return nil
+}
+
+// TestNotificationChannelUpdate_SendsSource is a regression test: updating the
+// `source` attribute produced a plan diff but the PATCH request body never
+// included the field, so the API value was never updated.
+func TestNotificationChannelUpdate_SendsSource(t *testing.T) {
+	var patchBody map[string]interface{}
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPatch:
+			if err := json.NewDecoder(r.Body).Decode(&patchBody); err != nil {
+				t.Errorf("failed to decode PATCH body: %v", err)
+			}
+			w.WriteHeader(http.StatusNoContent)
+		case http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{
+				"id": 123,
+				"nrn": "organization=1:account=2",
+				"type": "http",
+				"source": ["approval", "entity"],
+				"configuration": {"url": "https://hooks.example.com/webhook/xyz"},
+				"status": "active",
+				"filters": {}
+			}`)
+		default:
+			t.Errorf("unexpected request method: %s", r.Method)
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	}))
+	defer server.Close()
+
+	host := strings.TrimPrefix(server.URL, "https://")
+	client := &nullplatform.NullClient{
+		Client: server.Client(),
+		ApiURL: host,
+		Token:  nullplatform.Token{AccessToken: "test-token"},
+	}
+
+	channelSchema := nullplatform.Provider().ResourcesMap["nullplatform_notification_channel"].Schema
+	d := schema.TestResourceDataRaw(t, channelSchema, map[string]interface{}{
+		"nrn":    "organization=1:account=2",
+		"type":   "http",
+		"source": []interface{}{"approval", "entity"},
+		"configuration": []interface{}{
+			map[string]interface{}{
+				"http": []interface{}{
+					map[string]interface{}{
+						"url": "https://hooks.example.com/webhook/xyz",
+					},
+				},
+			},
+		},
+	})
+	d.SetId("123")
+
+	if err := nullplatform.NotificationChannelUpdate(d, client); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, ok := patchBody["source"]
+	if !ok {
+		t.Fatalf("PATCH body is missing the source field: %v", patchBody)
+	}
+	want := []interface{}{"approval", "entity"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got source %v, want %v", got, want)
+	}
 }
 
 func testAccResourceNotificationChannel_basic(applicationID string) string {
