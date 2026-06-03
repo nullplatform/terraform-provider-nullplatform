@@ -458,7 +458,7 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 
-	if d.HasChanges("type", "configuration", "filters", "status", "description") {
+	if d.HasChanges("type", "configuration", "filters", "status", "description", "source") {
 		configList := d.Get("configuration").([]interface{})
 		config := configList[0].(map[string]interface{})
 
@@ -540,6 +540,15 @@ func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 
 		if v, ok := d.GetOk("status"); ok {
 			updateChannel.Status = v.(string)
+		}
+
+		if v, ok := d.GetOk("source"); ok {
+			sources := v.([]interface{})
+			strSources := make([]string, len(sources))
+			for i, source := range sources {
+				strSources[i] = source.(string)
+			}
+			updateChannel.Source = strSources
 		}
 
 		if v, ok := d.GetOk("filters"); ok {
