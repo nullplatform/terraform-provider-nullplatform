@@ -83,6 +83,17 @@ func resourceActionSpecification() *schema.Resource {
 				Default:     false,
 				Description: "Whether the action can be retried if the instance is in a failed state",
 			},
+			"parallelize": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Whether multiple instances of this action can be executed in parallel. Only applicable to custom type actions",
+			},
+			"enabled_when": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Condition that must be met for the action to be enabled",
+			},
 			"icon": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -93,6 +104,17 @@ func resourceActionSpecification() *schema.Resource {
 				Optional:         true,
 				Description:      "JSON string containing annotations for the action specification",
 				DiffSuppressFunc: suppressEquivalentJSON,
+			},
+			"external": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				Description:      "JSON string with the configuration for resolving external context data via the nullplatform agent",
+				DiffSuppressFunc: suppressEquivalentJSON,
+			},
+			"external_resolution": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "JSON string with the status of the external context resolution when the action specification was read",
 			},
 		},
 	}
@@ -120,6 +142,8 @@ func ActionSpecificationCreate(ctx context.Context, d *schema.ResourceData, m in
 		Parameters:             parameters,
 		Results:                results,
 		Retryable:              d.Get("retryable").(bool),
+		Parallelize:            d.Get("parallelize").(bool),
+		EnabledWhen:            d.Get("enabled_when").(string),
 		ServiceSpecificationId: d.Get("service_specification_id").(string),
 		LinkSpecificationId:    d.Get("link_specification_id").(string),
 		Icon:                   d.Get("icon").(string),
@@ -132,6 +156,15 @@ func ActionSpecificationCreate(ctx context.Context, d *schema.ResourceData, m in
 			return diag.FromErr(fmt.Errorf("error parsing annotations JSON: %v", err))
 		}
 		spec.Annotations = annotations
+	}
+
+	// Handle external configuration if provided
+	if externalStr, ok := d.GetOk("external"); ok {
+		var external map[string]interface{}
+		if err := json.Unmarshal([]byte(externalStr.(string)), &external); err != nil {
+			return diag.FromErr(fmt.Errorf("error parsing external JSON: %v", err))
+		}
+		spec.External = external
 	}
 
 	newSpec, err := nullOps.CreateActionSpecification(spec)
@@ -183,6 +216,12 @@ func ActionSpecificationRead(ctx context.Context, d *schema.ResourceData, m inte
 	if err := d.Set("retryable", spec.Retryable); err != nil {
 		return diag.FromErr(err)
 	}
+	if err := d.Set("parallelize", spec.Parallelize); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("enabled_when", spec.EnabledWhen); err != nil {
+		return diag.FromErr(err)
+	}
 
 	parametersJSON, err := json.Marshal(spec.Parameters)
 	if err != nil {
@@ -210,6 +249,26 @@ func ActionSpecificationRead(ctx context.Context, d *schema.ResourceData, m inte
 			return diag.FromErr(fmt.Errorf("error serializing annotations to JSON: %v", err))
 		}
 		if err := d.Set("annotations", string(annotationsJSON)); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
+	if spec.External != nil {
+		externalJSON, err := json.Marshal(spec.External)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("error serializing external to JSON: %v", err))
+		}
+		if err := d.Set("external", string(externalJSON)); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
+	if spec.ExternalResolution != nil {
+		externalResolutionJSON, err := json.Marshal(spec.ExternalResolution)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("error serializing external_resolution to JSON: %v", err))
+		}
+		if err := d.Set("external_resolution", string(externalResolutionJSON)); err != nil {
 			return diag.FromErr(err)
 		}
 	}
@@ -268,6 +327,14 @@ func ActionSpecificationUpdate(ctx context.Context, d *schema.ResourceData, m in
 		spec.Retryable = d.Get("retryable").(bool)
 	}
 
+	if d.HasChange("parallelize") {
+		spec.Parallelize = d.Get("parallelize").(bool)
+	}
+
+	if d.HasChange("enabled_when") {
+		spec.EnabledWhen = d.Get("enabled_when").(string)
+	}
+
 	if d.HasChange("icon") {
 		spec.Icon = d.Get("icon").(string)
 	}
@@ -281,6 +348,18 @@ func ActionSpecificationUpdate(ctx context.Context, d *schema.ResourceData, m in
 			spec.Annotations = annotations
 		} else {
 			spec.Annotations = nil
+		}
+	}
+
+	if d.HasChange("external") {
+		if externalStr, ok := d.GetOk("external"); ok {
+			var external map[string]interface{}
+			if err := json.Unmarshal([]byte(externalStr.(string)), &external); err != nil {
+				return diag.FromErr(fmt.Errorf("error parsing external JSON: %v", err))
+			}
+			spec.External = external
+		} else {
+			spec.External = nil
 		}
 	}
 

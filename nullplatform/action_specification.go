@@ -19,8 +19,12 @@ type ActionSpecification struct {
 	Slug                   string                 `json:"slug,omitempty"`
 	LinkSpecificationId    string                 `json:"link_specification_id,omitempty"`
 	Retryable              bool                   `json:"retryable,omitempty"`
+	Parallelize            bool                   `json:"parallelize,omitempty"`
+	EnabledWhen            string                 `json:"enabled_when,omitempty"`
 	Icon                   string                 `json:"icon,omitempty"`
 	Annotations            map[string]interface{} `json:"annotations,omitempty"`
+	External               map[string]interface{} `json:"external,omitempty"`
+	ExternalResolution     map[string]interface{} `json:"external_resolution,omitempty"`
 }
 
 func getActionSpecificationPath(parentType, parentId string) string {

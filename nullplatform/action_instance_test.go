@@ -108,3 +108,65 @@ func TestGetServiceAction_NonOkSurfaceStatusAndBody(t *testing.T) {
 		t.Errorf("error %q should contain status=404", err.Error())
 	}
 }
+
+func TestPatchServiceAction_HappyPath(t *testing.T) {
+	var gotPath, gotMethod string
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(ActionInstance{Id: "act-1", Status: "in_progress"})
+	}))
+	defer server.Close()
+
+	c := newTestClient(server)
+	got, err := c.PatchServiceAction("svc-9", "act-1", &ActionInstance{Status: "in_progress"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "PATCH" {
+		t.Errorf("got method %q, want PATCH", gotMethod)
+	}
+	if gotPath != "/service/svc-9/action/act-1" {
+		t.Errorf("got path %q, want /service/svc-9/action/act-1", gotPath)
+	}
+	if got.Status != "in_progress" {
+		t.Errorf("got status %q, want in_progress", got.Status)
+	}
+}
+
+func TestDeleteServiceAction_HappyPath(t *testing.T) {
+	var gotPath, gotMethod string
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	c := newTestClient(server)
+	err := c.DeleteServiceAction("svc-9", "act-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "DELETE" {
+		t.Errorf("got method %q, want DELETE", gotMethod)
+	}
+	if gotPath != "/service/svc-9/action/act-1" {
+		t.Errorf("got path %q, want /service/svc-9/action/act-1", gotPath)
+	}
+}
+
+func TestDeleteServiceAction_NotFoundIsTolerated(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	c := newTestClient(server)
+	if err := c.DeleteServiceAction("svc-9", "missing"); err != nil {
+		t.Fatalf("expected nil error on 404, got %v", err)
+	}
+}
