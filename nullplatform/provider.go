@@ -49,6 +49,7 @@ func Provider() *schema.Provider {
 		},
 		ResourcesMap: map[string]*schema.Resource{
 			"nullplatform_account":                            resourceAccount(),
+			"nullplatform_application":                        resourceApplication(),
 			"nullplatform_api_key":                            resourceApiKey(),
 			"nullplatform_approval_action":                    resourceApprovalAction(),
 			"nullplatform_approval_policy":                    resourceApprovalPolicy(),

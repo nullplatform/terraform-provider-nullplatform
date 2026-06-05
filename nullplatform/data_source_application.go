@@ -2,6 +2,7 @@ package nullplatform
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"time"
 
@@ -65,6 +66,21 @@ func dataSourceApplication() *schema.Resource {
 				Computed:    true,
 				Description: "`True` if the application shares the repository with other apps, `false` otherwise.",
 			},
+			"tags": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "JSON string containing tags for the application.",
+			},
+			"settings": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "JSON string containing settings for the application.",
+			},
+			"messages": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "JSON string containing status messages for the application.",
+			},
 			"nrn": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -78,11 +94,6 @@ func dataSourceApplicationRead(_ context.Context, d *schema.ResourceData, m any)
 	nullOps := m.(NullOps)
 
 	app, err := nullOps.GetApplication(strconv.Itoa(d.Get("id").(int)))
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	err = d.Set("name", app.Name)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -130,6 +141,36 @@ func dataSourceApplicationRead(_ context.Context, d *schema.ResourceData, m any)
 	err = d.Set("is_mono_repo", app.IsMonoRepo)
 	if err != nil {
 		return diag.FromErr(err)
+	}
+
+	if app.Tags != nil {
+		tagsJSON, jerr := json.Marshal(app.Tags)
+		if jerr != nil {
+			return diag.FromErr(jerr)
+		}
+		if err = d.Set("tags", string(tagsJSON)); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
+	if app.Settings != nil {
+		settingsJSON, jerr := json.Marshal(app.Settings)
+		if jerr != nil {
+			return diag.FromErr(jerr)
+		}
+		if err = d.Set("settings", string(settingsJSON)); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
+	if app.Messages != nil {
+		messagesJSON, jerr := json.Marshal(app.Messages)
+		if jerr != nil {
+			return diag.FromErr(jerr)
+		}
+		if err = d.Set("messages", string(messagesJSON)); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	err = d.Set("nrn", app.Nrn)
