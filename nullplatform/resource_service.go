@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
 func resourceService() *schema.Resource {
@@ -39,6 +40,14 @@ func resourceService() *schema.Resource {
 				Required:    true,
 				ForceNew:    true,
 				Description: "Name of the entity. Must be a non-empty string and not equal to null.",
+			},
+			"type": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				ForceNew:     true,
+				Default:      "dependency",
+				ValidateFunc: validation.StringInSlice([]string{"dependency", "scope"}, false),
+				Description:  "The type of the service. Must be one of: dependency, scope. Defaults to dependency.",
 			},
 			"specification_id": {
 				Type:        schema.TypeString,
@@ -187,6 +196,7 @@ func ServiceCreateContext(ctx context.Context, d *schema.ResourceData, m any) di
 
 	newService := &Service{
 		Name:                   name,
+		Type:                   d.Get("type").(string),
 		SpecificationId:        specificationId,
 		DesiredSpecificationId: desiredSpecificationId,
 		EntityNrn:              entityNrn,
@@ -228,6 +238,10 @@ func ServiceReadContext(_ context.Context, d *schema.ResourceData, m any) diag.D
 	}
 
 	if err := d.Set("name", s.Name); err != nil {
+		return diag.FromErr(err)
+	}
+
+	if err := d.Set("type", s.Type); err != nil {
 		return diag.FromErr(err)
 	}
 

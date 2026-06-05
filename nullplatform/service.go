@@ -14,6 +14,7 @@ const SERVICE_PATH = "/service"
 type Service struct {
 	Id                     string                 `json:"id,omitempty"`
 	Name                   string                 `json:"name,omitempty"`
+	Type                   string                 `json:"type,omitempty"`
 	SpecificationId        string                 `json:"specification_id,omitempty"`
 	DesiredSpecificationId string                 `json:"desired_specification_id,omitempty"`
 	EntityNrn              string                 `json:"entity_nrn,omitempty"`

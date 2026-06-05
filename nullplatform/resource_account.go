@@ -52,6 +52,12 @@ func resourceAccount() *schema.Resource {
 				Required:    true,
 				Description: "The unique slug identifier for the account",
 			},
+			"status": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+				Description: "The status of the account",
+			},
 			"nrn": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -140,6 +146,9 @@ func AccountRead(d *schema.ResourceData, m any) error {
 	if err := d.Set("slug", account.Slug); err != nil {
 		return err
 	}
+	if err := d.Set("status", account.Status); err != nil {
+		return err
+	}
 	if err := d.Set("nrn", account.Nrn); err != nil {
 		return err
 	}
@@ -172,6 +181,9 @@ func AccountUpdate(d *schema.ResourceData, m any) error {
 	}
 	if d.HasChange("slug") {
 		account.Slug = d.Get("slug").(string)
+	}
+	if d.HasChange("status") {
+		account.Status = d.Get("status").(string)
 	}
 	if d.HasChange("settings") {
 		settingsJSON := d.Get("settings").(string)

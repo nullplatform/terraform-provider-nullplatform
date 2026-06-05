@@ -66,6 +66,7 @@ resource "nullplatform_account" "minimal_account" {
 - `repository_prefix` (String) The prefix used for repositories in this account
 - `repository_provider` (String) The repository provider for this account
 - `settings` (String) Account settings as a JSON string
+- `status` (String) The status of the account
 
 ### Read-Only
 
