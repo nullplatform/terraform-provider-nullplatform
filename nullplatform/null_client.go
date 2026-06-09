@@ -217,6 +217,19 @@ type NullOps interface {
 	GetProviderSpecification(specId string) (*ProviderSpecification, error)
 	PatchProviderSpecification(specId string, s *ProviderSpecification) error
 	DeleteProviderSpecification(specId string) error
+
+	RegisterPlatformArtifact(r *PlatformArtifactRegistration) (*PlatformArtifactRevision, error)
+	GetPlatformArtifact(artifactID string) (*PlatformArtifact, error)
+	GetPlatformArtifactRevision(revisionID string) (*PlatformArtifactRevision, error)
+	ListPlatformArtifacts(nrn, artifactType string) ([]*PlatformArtifact, error)
+	ListPlatformArtifactRevisions(artifactID string) ([]*PlatformArtifactRevision, error)
+
+	UpsertPackage(p *PackageUpsert) (*Package, error)
+	GetPackage(packageID string) (*Package, error)
+	PatchPackage(packageID string, p *PackagePatch) error
+	DeletePackage(packageID string) error
+	FindPackage(nrn, slug string) (*Package, error)
+	ListPackageRevisions(packageID string) ([]*PackageRevision, error)
 }
 
 func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
