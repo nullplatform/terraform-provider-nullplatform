@@ -26,3 +26,23 @@ resource "nullplatform_package" "k8s_containers" {
     "organization=1255165411",
   ]
 }
+
+# Pin the default to an exact published version instead of promoting each
+# publish (mutually exclusive with `default = true`). Handy for staged
+# rollouts and rollbacks: point default_version back at a previous release
+# and apply.
+resource "nullplatform_package" "pinned" {
+  nrn     = "organization=1255165411:account=95118862"
+  slug    = "pinned-runtime"
+  name    = "Pinned Runtime"
+  version = "1.1.0"
+
+  default_version = "1.0.0" # consumers stay on 1.0.0 while 1.1.0 soaks
+
+  components {
+    name                 = "spec"
+    resource_type        = "service_specification"
+    resource_id          = nullplatform_service_specification.containers.id
+    resource_revision_id = var.containers_spec_snapshot_id
+  }
+}

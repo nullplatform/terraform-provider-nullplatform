@@ -97,9 +97,10 @@ func resourcePackage() *schema.Resource {
 					"(requires the write action org-wide). Defaults to [nrn].",
 			},
 			"default": {
-				Type:     schema.TypeBool,
-				Optional: true,
-				Default:  false,
+				Type:          schema.TypeBool,
+				Optional:      true,
+				Default:       false,
+				ConflictsWith: []string{"default_version"},
 				Description: "When true, every publish from this resource also promotes the published " +
 					"revision to the package default (one-shot bump-and-promote).",
 			},
@@ -114,9 +115,13 @@ func resourcePackage() *schema.Resource {
 				Description: "Highest-semver revision UUID.",
 			},
 			"default_version": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "Semver of the default revision.",
+				Type:          schema.TypeString,
+				Optional:      true,
+				Computed:      true,
+				ConflictsWith: []string{"default"},
+				Description: "Pin the package default to this published version (resolved to its " +
+					"revision id and PATCHed after each apply). Mutually exclusive with `default`. " +
+					"When omitted, reflects the server-side default.",
 			},
 			"latest_version": {
 				Type:        schema.TypeString,
@@ -164,6 +169,33 @@ func buildPackageUpsert(d *schema.ResourceData) *PackageUpsert {
 	return upsert
 }
 
+// configuredDefaultVersion distinguishes a user-set default_version from the
+// computed server-side value the attribute also carries (Optional+Computed).
+func configuredDefaultVersion(d *schema.ResourceData) (string, bool) {
+	raw := d.GetRawConfig()
+	if raw.IsNull() {
+		return "", false
+	}
+	attr := raw.GetAttr("default_version")
+	if attr.IsNull() {
+		return "", false
+	}
+	return attr.AsString(), true
+}
+
+func pinDefaultVersion(nullOps NullOps, packageID, version string) error {
+	revisions, err := nullOps.ListPackageRevisions(packageID)
+	if err != nil {
+		return err
+	}
+	for _, revision := range revisions {
+		if revision.Version == version {
+			return nullOps.PatchPackage(packageID, &PackagePatch{DefaultRevisionID: revision.ID})
+		}
+	}
+	return fmt.Errorf("cannot pin default_version: package %s has no published version %s", packageID, version)
+}
+
 func PackageCreate(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
 
@@ -173,6 +205,12 @@ func PackageCreate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	d.SetId(pkg.ID)
+
+	if version, configured := configuredDefaultVersion(d); configured {
+		if err := pinDefaultVersion(nullOps, pkg.ID, version); err != nil {
+			return err
+		}
+	}
 
 	return PackageRead(d, m)
 }
@@ -236,18 +274,28 @@ func PackageRead(d *schema.ResourceData, m interface{}) error {
 func PackageUpdate(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
 
+	published := false
 	if d.HasChange("version") || d.HasChange("components") || d.HasChange("visible_to") || d.HasChange("default") {
 		// Publishing is the natural write path and also carries the envelope
 		// fields (name, visible_to) along.
 		if _, err := nullOps.UpsertPackage(buildPackageUpsert(d)); err != nil {
 			return err
 		}
-		return PackageRead(d, m)
+		published = true
 	}
 
-	if d.HasChange("name") {
+	if !published && d.HasChange("name") {
 		patch := &PackagePatch{Name: d.Get("name").(string)}
 		if err := nullOps.PatchPackage(d.Id(), patch); err != nil {
+			return err
+		}
+	}
+
+	// Re-pin after every apply that has default_version configured: the
+	// publish above may have minted the version the pin points at, and the
+	// PATCH is idempotent.
+	if version, configured := configuredDefaultVersion(d); configured {
+		if err := pinDefaultVersion(nullOps, d.Id(), version); err != nil {
 			return err
 		}
 	}

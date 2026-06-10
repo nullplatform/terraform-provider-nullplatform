@@ -36,9 +36,13 @@ type PackageUpsert struct {
 }
 
 // PackagePatch carries the mutable envelope fields for PATCH /packages/:id.
+// DefaultRevisionID pins which revision services bind to by default; it must
+// belong to the package (the API validates) and is mutually exclusive with
+// `default: true` on a publish body.
 type PackagePatch struct {
-	Name      string   `json:"name,omitempty"`
-	VisibleTo []string `json:"visible_to,omitempty"`
+	Name              string   `json:"name,omitempty"`
+	VisibleTo         []string `json:"visible_to,omitempty"`
+	DefaultRevisionID string   `json:"default_revision_id,omitempty"`
 }
 
 // Package is the envelope returned by the package read endpoints, with the
