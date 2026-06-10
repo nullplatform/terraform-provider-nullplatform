@@ -57,6 +57,8 @@ func TestProvider_HasChildResources(t *testing.T) {
 		"nullplatform_scope_type",
 		"nullplatform_entity_hook_action",
 		"nullplatform_provider_specification",
+		"nullplatform_artifact",
+		"nullplatform_package",
 	}
 
 	resources := nullplatform.Provider().ResourcesMap
@@ -76,6 +78,12 @@ func TestProvider_HasChildDataSources(t *testing.T) {
 		"nullplatform_parameter",
 		"nullplatform_parameter_by_name",
 		"nullplatform_dimension",
+		"nullplatform_service_specification",
+		"nullplatform_scope_type",
+		"nullplatform_action_specification",
+		"nullplatform_action_specifications",
+		"nullplatform_artifact",
+		"nullplatform_package",
 	}
 
 	dataSources := nullplatform.Provider().DataSourcesMap

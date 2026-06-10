@@ -75,6 +75,8 @@ func Provider() *schema.Provider {
 			"nullplatform_metadata":                           resourceMetadata(),
 			"nullplatform_scope_type":                         resourceScopeType(),
 			"nullplatform_provider_specification":             resourceProviderSpecification(),
+			"nullplatform_artifact":                           resourcePlatformArtifact(),
+			"nullplatform_package":                            resourcePackage(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"nullplatform_dimension":             dataSourceDimension(),
@@ -87,6 +89,8 @@ func Provider() *schema.Provider {
 			"nullplatform_scope_type":            dataSourceScopeType(),
 			"nullplatform_action_specification":  dataSourceActionSpecification(),
 			"nullplatform_action_specifications": dataSourceActionSpecifications(),
+			"nullplatform_artifact":              dataSourcePlatformArtifact(),
+			"nullplatform_package":               dataSourcePackage(),
 		},
 	}
 
