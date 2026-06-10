@@ -29,11 +29,14 @@ data "nullplatform_application" "example" {
 
 - `auto_deploy_on_creation` (Boolean) `True` if the application must be deployed immediately after being created, `false` otherwise.
 - `is_mono_repo` (Boolean) `True` if the application shares the repository with other apps, `false` otherwise.
+- `messages` (String) JSON string containing status messages for the application.
 - `name` (String) The Application name.
 - `namespace_id` (Number) The ID of the namespace that owns this application.
 - `nrn` (String) A system-wide unique ID representing the resource.
 - `repository_app_path` (String) The folder where the application is located inside a monorepo.
 - `repository_url` (String) The URL of the repository that holds this application.
+- `settings` (String) JSON string containing settings for the application.
 - `slug` (String) A namespace-wide unique slug for the application.
 - `status` (String) Possible values: [`pending`, `creating`, `updating`, `active`, `inactive`, `failed`].
+- `tags` (String) JSON string containing tags for the application.
 - `template_id` (Number) The ID of the template that was used to create this application.

@@ -31,6 +31,7 @@ func testAccPreCheck(t *testing.T) {
 func TestProvider_HasChildResources(t *testing.T) {
 	expectedResources := []string{
 		"nullplatform_account",
+		"nullplatform_application",
 		"nullplatform_api_key",
 		"nullplatform_approval_action",
 		"nullplatform_approval_policy",

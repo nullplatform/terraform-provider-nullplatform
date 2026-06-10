@@ -77,7 +77,10 @@ type NullOps interface {
 	PatchNRN(string, *PatchNRN) error
 	GetNRN(string) (*NRN, error)
 
+	CreateApplication(application *Application) (*Application, error)
 	GetApplication(appId string) (*Application, error)
+	PatchApplication(appId string, application *Application) error
+	DeleteApplication(appId string) error
 
 	CreateService(*Service) (*Service, error)
 	GetService(string) (*Service, error)
