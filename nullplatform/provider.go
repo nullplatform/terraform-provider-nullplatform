@@ -66,6 +66,7 @@ func Provider() *schema.Provider {
 			"nullplatform_runtime_configuration":              resourceRuntimeConfiguration(),
 			"nullplatform_scope":                              resourceScope(),
 			"nullplatform_service":                            resourceService(),
+			"nullplatform_service_action":                     resourceServiceAction(),
 			"nullplatform_service_specification":              resourceServiceSpecification(),
 			"nullplatform_action_specification":               resourceActionSpecification(),
 			"nullplatform_link_specification":                 resourceLinkSpecification(),

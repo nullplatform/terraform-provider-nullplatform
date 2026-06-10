@@ -66,3 +66,47 @@ func (c *NullClient) GetServiceAction(serviceID, actionID string) (*ActionInstan
 	}
 	return out, nil
 }
+
+func (c *NullClient) PatchServiceAction(serviceID, actionID string, a *ActionInstance) (*ActionInstance, error) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(*a); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf(ACTION_INSTANCE_ITEM_PATH, serviceID, actionID)
+
+	res, err := c.MakeRequest("PATCH", path, &buf)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("error updating service action: status=%d body=%s", res.StatusCode, string(bodyBytes))
+	}
+
+	out := &ActionInstance{}
+	if res.StatusCode == http.StatusOK {
+		if err := json.NewDecoder(res.Body).Decode(out); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func (c *NullClient) DeleteServiceAction(serviceID, actionID string) error {
+	path := fmt.Sprintf(ACTION_INSTANCE_ITEM_PATH, serviceID, actionID)
+
+	res, err := c.MakeRequest("DELETE", path, nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusNotFound {
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("error deleting service action: status=%d body=%s", res.StatusCode, string(bodyBytes))
+	}
+
+	return nil
+}
