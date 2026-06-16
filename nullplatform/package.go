@@ -57,7 +57,25 @@ type Package struct {
 	LatestRevisionID  string             `json:"latest_revision_id,omitempty"`
 	DefaultVersion    string             `json:"default_version,omitempty"`
 	LatestVersion     string             `json:"latest_version,omitempty"`
+	Tags              []*PackageTag      `json:"tags,omitempty"`
 	Components        []PackageComponent `json:"components,omitempty"`
+}
+
+// PackageTag is a named, movable pointer to one package revision (npm
+// dist-tag model). System tags (default, latest) are read-only and are
+// surfaced for information only — the resource manages user tags.
+type PackageTag struct {
+	Name       string `json:"name"`
+	RevisionID string `json:"revision_id,omitempty"`
+	Version    string `json:"version,omitempty"`
+	System     bool   `json:"system"`
+}
+
+// PackageTagSet is the PUT /packages/:id/tags/:name body: point the tag at a
+// revision by id or by published version.
+type PackageTagSet struct {
+	RevisionID string `json:"revision_id,omitempty"`
+	Version    string `json:"version,omitempty"`
 }
 
 // PackageRevision is one published, immutable revision of a package.
@@ -150,6 +168,64 @@ func (c *NullClient) PatchPackage(packageID string, p *PackagePatch) error {
 			return fmt.Errorf("API error patching package: %s (Code: %s)", errResp.Message, errResp.Code)
 		}
 		return fmt.Errorf("error patching package, got status code: %d, body: %s", res.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// SetPackageTag points a user tag at a revision (create or move). The body
+// carries either a revision id or a published version.
+func (c *NullClient) SetPackageTag(packageID, name string, body *PackageTagSet) error {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(body); err != nil {
+		return fmt.Errorf("error encoding package tag: %v", err)
+	}
+
+	path := fmt.Sprintf("%s/%s/tags/%s", PACKAGE_PATH, packageID, name)
+
+	res, err := c.MakeRequest("PUT", path, &buf)
+	if err != nil {
+		return fmt.Errorf("error making PUT request: %v", err)
+	}
+	defer res.Body.Close()
+
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("error reading response body: %v", err)
+	}
+
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
+		var errResp ErrorResponse
+		if err := json.Unmarshal(resBody, &errResp); err == nil && errResp.Message != "" {
+			return fmt.Errorf("API error setting package tag '%s': %s (Code: %s)", name, errResp.Message, errResp.Code)
+		}
+		return fmt.Errorf("error setting package tag '%s', got status code: %d, body: %s", name, res.StatusCode, string(resBody))
+	}
+
+	return nil
+}
+
+// DeletePackageTag removes a user tag pointer; the revision is untouched.
+func (c *NullClient) DeletePackageTag(packageID, name string) error {
+	path := fmt.Sprintf("%s/%s/tags/%s", PACKAGE_PATH, packageID, name)
+
+	res, err := c.MakeRequest("DELETE", path, nil)
+	if err != nil {
+		return fmt.Errorf("error making DELETE request: %v", err)
+	}
+	defer res.Body.Close()
+
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("error reading response body: %v", err)
+	}
+
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusNotFound {
+		var errResp ErrorResponse
+		if err := json.Unmarshal(resBody, &errResp); err == nil && errResp.Message != "" {
+			return fmt.Errorf("API error deleting package tag '%s': %s (Code: %s)", name, errResp.Message, errResp.Code)
+		}
+		return fmt.Errorf("error deleting package tag '%s', got status code: %d, body: %s", name, res.StatusCode, string(resBody))
 	}
 
 	return nil

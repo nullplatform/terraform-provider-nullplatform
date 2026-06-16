@@ -128,6 +128,14 @@ func resourcePackage() *schema.Resource {
 				Computed:    true,
 				Description: "Semver of the latest revision.",
 			},
+			"tags": {
+				Type:     schema.TypeMap,
+				Optional: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+				Description: "User release tags as name => published version (e.g. { beta = \"1.2.0\" }). " +
+					"Movable pointers layered over default/latest; reserved names (default, latest) are not " +
+					"allowed here. Terraform manages exactly the tags listed — removing a key deletes the tag.",
+			},
 			"published_revision_id": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -212,7 +220,45 @@ func PackageCreate(d *schema.ResourceData, m interface{}) error {
 		}
 	}
 
+	if err := applyPackageTags(nullOps, pkg.ID, nil, toTagMap(d.Get("tags"))); err != nil {
+		return err
+	}
+
 	return PackageRead(d, m)
+}
+
+// toTagMap coerces a Terraform map attribute into map[string]string.
+func toTagMap(raw interface{}) map[string]string {
+	out := map[string]string{}
+	if raw == nil {
+		return out
+	}
+	for key, value := range raw.(map[string]interface{}) {
+		out[key] = value.(string)
+	}
+	return out
+}
+
+// applyPackageTags reconciles declared tags: point added/changed names at
+// their version, delete names that were dropped from config.
+func applyPackageTags(nullOps NullOps, packageID string, previous, desired map[string]string) error {
+	for name, version := range desired {
+		if previous[name] == version {
+			continue
+		}
+		if err := nullOps.SetPackageTag(packageID, name, &PackageTagSet{Version: version}); err != nil {
+			return err
+		}
+	}
+	for name := range previous {
+		if _, keep := desired[name]; keep {
+			continue
+		}
+		if err := nullOps.DeletePackageTag(packageID, name); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func PackageRead(d *schema.ResourceData, m interface{}) error {
@@ -245,6 +291,19 @@ func PackageRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 	if err := d.Set("latest_version", pkg.LatestVersion); err != nil {
+		return err
+	}
+
+	// Reflect the user tags currently on the package (system tags default/
+	// latest are surfaced through their own attributes, not here).
+	userTags := map[string]string{}
+	for _, tag := range pkg.Tags {
+		if tag.System {
+			continue
+		}
+		userTags[tag.Name] = tag.Version
+	}
+	if err := d.Set("tags", userTags); err != nil {
 		return err
 	}
 
@@ -296,6 +355,13 @@ func PackageUpdate(d *schema.ResourceData, m interface{}) error {
 	// PATCH is idempotent.
 	if version, configured := configuredDefaultVersion(d); configured {
 		if err := pinDefaultVersion(nullOps, d.Id(), version); err != nil {
+			return err
+		}
+	}
+
+	if d.HasChange("tags") {
+		previous, desired := d.GetChange("tags")
+		if err := applyPackageTags(nullOps, d.Id(), toTagMap(previous), toTagMap(desired)); err != nil {
 			return err
 		}
 	}

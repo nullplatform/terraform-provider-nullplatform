@@ -230,6 +230,8 @@ type NullOps interface {
 	DeletePackage(packageID string) error
 	FindPackage(nrn, slug string) (*Package, error)
 	ListPackageRevisions(packageID string) ([]*PackageRevision, error)
+	SetPackageTag(packageID, name string, body *PackageTagSet) error
+	DeletePackageTag(packageID, name string) error
 }
 
 func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
