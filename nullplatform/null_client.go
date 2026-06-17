@@ -77,7 +77,25 @@ type NullOps interface {
 	PatchNRN(string, *PatchNRN) error
 	GetNRN(string) (*NRN, error)
 
+	CreateApplication(application *Application) (*Application, error)
 	GetApplication(appId string) (*Application, error)
+	PatchApplication(appId string, application *Application) error
+	DeleteApplication(appId string) error
+
+	CreateCapability(capability *CapabilityEntity) (*CapabilityEntity, error)
+	GetCapability(capabilityId string) (*CapabilityEntity, error)
+	PatchCapability(capabilityId string, capability *CapabilityEntity) error
+	DeleteCapability(capabilityId string) error
+
+	CreateDeploymentStrategy(ds *DeploymentStrategy) (*DeploymentStrategy, error)
+	GetDeploymentStrategy(dsId string) (*DeploymentStrategy, error)
+	PatchDeploymentStrategy(dsId string, ds *DeploymentStrategy) error
+	DeleteDeploymentStrategy(dsId string) error
+
+	CreateScopeDomain(sd *ScopeDomain) (*ScopeDomain, error)
+	GetScopeDomain(sdId string) (*ScopeDomain, error)
+	PatchScopeDomain(sdId string, sd *ScopeDomain) error
+	DeleteScopeDomain(sdId string) error
 
 	CreateService(*Service) (*Service, error)
 	GetService(string) (*Service, error)
@@ -86,6 +104,8 @@ type NullOps interface {
 
 	CreateServiceAction(string, *ActionInstance) (*ActionInstance, error)
 	GetServiceAction(string, string) (*ActionInstance, error)
+	PatchServiceAction(string, string, *ActionInstance) (*ActionInstance, error)
+	DeleteServiceAction(string, string) error
 
 	CreateLink(*Link) (*Link, error)
 	PatchLink(string, *Link) error

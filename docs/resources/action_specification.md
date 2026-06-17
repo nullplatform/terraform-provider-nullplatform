@@ -134,17 +134,22 @@ resource "nullplatform_action_specification" "delete_redis_action" {
 - `name` (String) Name of the action specification
 - `parameters` (String) JSON string containing the parameters schema and values
 - `results` (String) JSON string containing the expected results schema
-- `type` (String) Type of the action. Must be one of: custom, create, update, delete
+- `type` (String) Type of the action. Must be one of: custom, create, update, delete, diagnose
 
 ### Optional
 
 - `annotations` (String) JSON string containing annotations for the action specification
+- `description` (String) Description of the action specification
+- `enabled_when` (String) Condition that must be met for the action to be enabled
+- `external` (String) JSON string with the configuration for resolving external context data via the nullplatform agent
 - `icon` (String) Icon for the action specification
 - `link_specification_id` (String) ID of the associated link specification
+- `parallelize` (Boolean) Whether multiple instances of this action can be executed in parallel. Only applicable to custom type actions
 - `retryable` (Boolean) Whether the action can be retried if the instance is in a failed state
 - `service_specification_id` (String) ID of the associated service specification
 
 ### Read-Only
 
+- `external_resolution` (String) JSON string with the status of the external context resolution when the action specification was read
 - `id` (String) The ID of this resource.
 - `slug` (String) The computed slug for the action specification

@@ -96,6 +96,17 @@ func resourceLinkSpecification() *schema.Resource {
 				Description:      "JSON string containing scope configurations. Example: {\"provider\": {\"values\": [\"AWS:SERVERLESS:LAMBDA\"]}}",
 				DiffSuppressFunc: suppressEquivalentJSON,
 			},
+			"external": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				Description:      "JSON string with the configuration for resolving external context data via the nullplatform agent",
+				DiffSuppressFunc: suppressEquivalentJSON,
+			},
+			"external_resolution": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "JSON string with the status of the external context resolution when the link specification was read",
+			},
 			"selectors": {
 				Type:     schema.TypeList,
 				Optional: true,
@@ -185,6 +196,14 @@ func CreateLinkSpecification(_ context.Context, d *schema.ResourceData, m interf
 		Scopes:            scopes,
 	}
 
+	if externalStr, ok := d.GetOk("external"); ok {
+		var external map[string]interface{}
+		if err := json.Unmarshal([]byte(externalStr.(string)), &external); err != nil {
+			return diag.FromErr(fmt.Errorf("error parsing external JSON: %v", err))
+		}
+		spec.External = external
+	}
+
 	newSpec, err := nullOps.CreateLinkSpecification(spec)
 	if err != nil {
 		return diag.FromErr(err)
@@ -248,6 +267,26 @@ func ReadLinkSpecification(_ context.Context, d *schema.ResourceData, m interfac
 	}
 	if err := d.Set("scopes", string(scopesJSON)); err != nil {
 		return diag.FromErr(err)
+	}
+
+	if spec.External != nil {
+		externalJSON, err := json.Marshal(spec.External)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("error serializing external to JSON: %v", err))
+		}
+		if err := d.Set("external", string(externalJSON)); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
+	if spec.ExternalResolution != nil {
+		externalResolutionJSON, err := json.Marshal(spec.ExternalResolution)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("error serializing external_resolution to JSON: %v", err))
+		}
+		if err := d.Set("external_resolution", string(externalResolutionJSON)); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	selectors := []map[string]interface{}{
@@ -333,6 +372,18 @@ func UpdateLinkSpecification(ctx context.Context, d *schema.ResourceData, m inte
 				Provider:    selectorsMap["provider"].(string),
 				SubCategory: selectorsMap["sub_category"].(string),
 			}
+		}
+	}
+
+	if d.HasChange("external") {
+		if externalStr, ok := d.GetOk("external"); ok {
+			var external map[string]interface{}
+			if err := json.Unmarshal([]byte(externalStr.(string)), &external); err != nil {
+				return diag.FromErr(fmt.Errorf("error parsing external JSON: %v", err))
+			}
+			spec.External = external
+		} else {
+			spec.External = nil
 		}
 	}
 

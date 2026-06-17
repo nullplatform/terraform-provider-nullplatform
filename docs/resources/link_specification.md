@@ -74,6 +74,7 @@ resource "nullplatform_link_specification" "redis_link_spec" {
 - `assignable_to` (String) Specifies if the service can be assigned to any entity, only dimensions, or only scopes
 - `attributes` (String) JSON string containing the attributes schema and values
 - `dimensions` (String) JSON string containing dimension configurations. Example: {"environment": {"required": true}}
+- `external` (String) JSON string with the configuration for resolving external context data via the nullplatform agent
 - `scopes` (String) JSON string containing scope configurations. Example: {"provider": {"values": ["AWS:SERVERLESS:LAMBDA"]}}
 - `selectors` (Block List, Max: 1) Selectors for the service specification (see [below for nested schema](#nestedblock--selectors))
 - `use_default_actions` (Boolean) Indicates whether to use default actions for the link specification
@@ -81,6 +82,7 @@ resource "nullplatform_link_specification" "redis_link_spec" {
 
 ### Read-Only
 
+- `external_resolution` (String) JSON string with the status of the external context resolution when the link specification was read
 - `id` (String) The ID of this resource.
 - `slug` (String) The computed slug for the link specification
 

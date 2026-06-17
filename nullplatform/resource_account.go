@@ -118,7 +118,7 @@ func AccountRead(d *schema.ResourceData, m any) error {
 
 	account, err := nullOps.GetAccount(accountId)
 	if err != nil {
-		if account.Status == "inactive" {
+		if account != nil && (account.Status == "inactive" || account.Status == "deleted") {
 			d.SetId("")
 			return nil
 		}
