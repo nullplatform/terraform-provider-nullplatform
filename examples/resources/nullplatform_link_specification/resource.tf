@@ -1,45 +1,61 @@
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
+
+# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
-resource "nullplatform_link_specification" "redis_link_spec" {
-  name               = "Redis Link Specification"
-  unique             = false
-  specification_id   = nullplatform_service_specification.redis_service_spec.id
-  assignable_to      = "any"
+variable "application_id" {
+  description = "ID of the application that can see this link specification."
+  type        = number
+}
+
+variable "service_specification_id" {
+  description = "UUID of the service specification this link specification is associated with."
+  type        = string
+}
+
+data "nullplatform_application" "app" {
+  id = var.application_id
+}
+
+# A link specification defines how a service can be linked to an entity.
+resource "nullplatform_link_specification" "redis" {
+  name             = "Redis Link Specification"
+  unique           = false
+  specification_id = var.service_specification_id
+  assignable_to    = "any"
 
   visible_to = [
-    "organization=1255165411:account=*",
+    data.nullplatform_application.app.nrn,
   ]
 
   use_default_actions = true
 
+  # Scope specifications this link can run on
   scopes = jsonencode({
     provider = {
-      values = [
-        "AWS:SERVERLESS:LAMBDA",
-        "AWS:WEB_POOL:EC2INSTANCES",
-        "uuid-of-a-specific-scope-specification",
-      ]
+      values = ["AWS:SERVERLESS:LAMBDA", "AWS:WEB_POOL:EC2INSTANCES"]
     }
   })
 
-  dimensions = jsonencode({}) # No specific dimensions
-
+  # JSON Schema for the link attributes
   attributes = jsonencode({
-    schema = {}
+    schema = {
+      type       = "object"
+      properties = {}
+    }
     values = {}
   })
 
   selectors {
     category     = "Integration Services"
     imported     = true
-    provider     = "GCP"
-    sub_category = "In-memory Database Integration"
+    provider     = "AWS"
+    sub_category = "In-memory Database"
   }
 }
