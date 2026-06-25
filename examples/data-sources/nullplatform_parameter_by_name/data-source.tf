@@ -6,7 +6,26 @@ terraform {
   }
 }
 
+# Use the `NP_API_KEY` environment variable
+provider "nullplatform" {}
+
+variable "parameter_name" {
+  type        = string
+  description = "Definition name of the parameter to look up."
+  default     = "LOG_LEVEL"
+}
+
+variable "nrn" {
+  type        = string
+  description = "The NRN of the application to which the parameter belongs."
+}
+
+# Look up a parameter by its name and NRN
 data "nullplatform_parameter_by_name" "example" {
-  nrn  = "organization=1:account=2:namespace=3:application=4"
-  name = "LOG_LEVEL"
+  name = var.parameter_name
+  nrn  = var.nrn
+}
+
+output "parameter_type" {
+  value = data.nullplatform_parameter_by_name.example.type
 }
