@@ -6,24 +6,23 @@ terraform {
   }
 }
 
-provider "nullplatform" {}
-
-variable "namespace_nrn" {
-  description = "NRN of the namespace that scopes the dimension lookup."
-  type        = string
+provider "nullplatform" {
 }
 
-variable "dimension_slug" {
-  description = "Slug of the dimension to look up (e.g. \"environment\")."
-  type        = string
+data "nullplatform_dimension" "by_id" {
+  nrn = "organization=1205600439:account=1016594569:namespace=1933968243"
+  id  = "1008402567"
 }
 
-# Look up a dimension by its slug within the given namespace NRN
-data "nullplatform_dimension" "example" {
-  nrn  = var.namespace_nrn
-  slug = var.dimension_slug
+data "nullplatform_dimension" "by_slug" {
+  nrn  = "organization=1205600439:account=1016594569:namespace=1933968243"
+  slug = "environment"
 }
 
-output "dimension_values" {
-  value = data.nullplatform_dimension.example.values
+output "by_id" {
+  value = data.nullplatform_dimension.by_id
+}
+
+output "by_slug" {
+  value = data.nullplatform_dimension.by_slug
 }
