@@ -6,44 +6,30 @@ terraform {
   }
 }
 
+# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
-variable "null_application_id" {
-  description = "Unique ID for the application"
+variable "application_id" {
+  description = "ID of the application that owns the scope type"
   type        = number
 }
 
 variable "service_specification_id" {
-  description = "The service specification ID that implements the scope type"
+  description = "ID of the service specification that implements the scope type"
   type        = string
 }
 
-data "nullplatform_application" "app" {
-  id = var.null_application_id
+# Resolve the NRN from the application instead of hardcoding it
+data "nullplatform_application" "this" {
+  id = var.application_id
 }
 
 resource "nullplatform_scope_type" "kubernetes_job" {
-  name         = "Kubernetes Job"
-  type         = "custom"
-  description  = "Run periodic jobs in Kubernetes"
-  nrn          = data.nullplatform_application.app.nrn
+  name        = "Kubernetes Job"
+  description = "Run periodic jobs on Kubernetes"
+  nrn         = data.nullplatform_application.this.nrn
+
+  # type defaults to "custom"; provider_type defaults to "service"
   provider_type = "service"
   provider_id   = var.service_specification_id
-}
-
-resource "nullplatform_scope_type" "database_backup" {
-  name         = "Database Backup"
-  type         = "custom"
-  description  = "Automated database backup mechanism"
-  nrn          = data.nullplatform_application.app.nrn
-  provider_type = "service"
-  provider_id   = var.service_specification_id
-}
-
-output "k8s_job_scope_type" {
-  value = nullplatform_scope_type.kubernetes_job
-}
-
-output "db_backup_scope_type" {
-  value = nullplatform_scope_type.database_backup
 }

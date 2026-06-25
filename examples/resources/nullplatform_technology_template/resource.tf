@@ -1,36 +1,48 @@
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
 
+# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
-# Example Technology Template - Golang 1.17.9
-resource "nullplatform_technology_template" "golang_1_17" {
-  name = "Golang 1.17.9"
-  url  = "https://github.com/nullplatform/technology-templates-golang"
+# Account that owns the template; omit to create a global template
+variable "account_id" {
+  type    = string
+  default = null
+}
 
+resource "nullplatform_technology_template" "golang" {
+  name    = "Golang 1.21"
+  url     = "https://github.com/nullplatform/technology-templates-golang"
+  account = var.account_id
+
+  # Provider-specific settings used when scaffolding the repository
   provider_config = {
     repository = "technology-templates-golang"
   }
 
+  # Building blocks that make up the template
   components {
     type    = "language"
-    id      = "google"
-    version = "1.17"
+    id      = "golang"
+    version = "1.21"
     metadata = jsonencode({
-      "version": "1.17.9"
+      version = "1.21.5"
     })
   }
 
   tags = [
     "golang",
-    "backend"
+    "backend",
   ]
 
-  metadata = jsonencode({})
-  rules    = jsonencode({})
+  metadata = jsonencode({
+    maintainer = "platform-team"
+  })
+
+  rules = jsonencode({})
 }

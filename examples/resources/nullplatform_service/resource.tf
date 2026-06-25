@@ -10,84 +10,69 @@ terraform {
 provider "nullplatform" {}
 
 variable "null_application_id" {
-  description = "Unique ID for the application"
+  description = "Unique ID for the application that owns the service"
   type        = number
 }
 
-variable "open_weather_api_key" {
-  description = "API Key for consume Open Weather services"
-}
-
 variable "specification_id" {
-  description = "Specification ID for the service to be imported"
+  description = "Specification ID (UUID) for the service"
   type        = string
 }
+
+variable "open_weather_api_key" {
+  description = "API key passed as a service attribute"
+  type        = string
+  sensitive   = true
+}
+
 data "nullplatform_application" "app" {
   id = var.null_application_id
 }
 
-resource "nullplatform_service" "redis_cache_test" {
-  name             = "redis-cache"
-  specification_id = "4a4f6955-5ae0-40dc-a1de-e15e5cf41abb"
-  entity_nrn       = data.nullplatform_application.app.nrn
-  linkable_to      = [data.nullplatform_application.app.nrn]
-  dimensions       = {}
-  selectors = {
-    imported = false,
-  }
-  attributes = {}
-}
-
-data "nullplatform_service" "service" {
-  id = nullplatform_service.redis_cache_test.id
-}
-
-resource "nullplatform_service" "open_weather_test" {
+# Declarative mode (import = true, the default): nullplatform records the
+# service while provisioning is managed outside the platform.
+resource "nullplatform_service" "open_weather" {
   name             = "open-weather"
   specification_id = var.specification_id
   entity_nrn       = data.nullplatform_application.app.nrn
   linkable_to      = [data.nullplatform_application.app.nrn]
-  selectors = {
-    category     = "SaaS",
-    imported     = true,
-    provider     = "OpenWeather",
-    sub_category = "Weather",
+
+  selectors {
+    category     = "SaaS"
+    imported     = true
+    provider     = "OpenWeather"
+    sub_category = "Weather"
   }
+
   attributes = {
     api_key = var.open_weather_api_key
   }
-  dimensions = {}
 }
 
-output "redis" {
-  value = nullplatform_service.redis_cache_test
-}
-
-output "open_weather" {
-  value = nullplatform_service.open_weather_test
-}
-
-# Action-driven mode: provider triggers the spec's create+delete actions.
+# Action-driven mode (import = false): the provider triggers the
+# specification's create and delete actions to manage the infrastructure
+# lifecycle.
 resource "nullplatform_service" "open_weather_provisioned" {
   name             = "open-weather-provisioned"
-  specification_id = var.provisioned_specification_id
+  specification_id = var.specification_id
   entity_nrn       = data.nullplatform_application.app.nrn
   linkable_to      = [data.nullplatform_application.app.nrn]
 
   import = false
 
-  timeouts {
-    create = "10m"
-    delete = "10m"
+  selectors {
+    category     = "SaaS"
+    imported     = false
+    provider     = "OpenWeather"
+    sub_category = "Weather"
   }
 
   attributes = {
     api_key = var.open_weather_api_key
   }
-  dimensions = {}
-}
 
-variable "provisioned_specification_id" {
-  description = "Specification ID for a service whose create+delete actions should be triggered."
-  type        = string
+  timeouts {
+    create = "10m"
+    delete = "10m"
+  }
 }

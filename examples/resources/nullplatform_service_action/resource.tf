@@ -6,6 +6,7 @@ terraform {
   }
 }
 
+# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
 variable "service_id" {
@@ -18,11 +19,20 @@ variable "action_specification_id" {
   type        = string
 }
 
-# Triggers an action defined by an action specification against an existing
-# service. Any change to the inputs re-triggers the action (ForceNew).
+# Resolve the target service and the action specification by ID
+data "nullplatform_service" "target" {
+  id = var.service_id
+}
+
+data "nullplatform_service_specification" "resize" {
+  id = var.action_specification_id
+}
+
+# Trigger the action against the service. Any change to the inputs
+# re-triggers the action, since all attributes are ForceNew.
 resource "nullplatform_service_action" "resize_redis" {
-  service_id       = var.service_id
-  specification_id = var.action_specification_id
+  service_id       = data.nullplatform_service.target.id
+  specification_id = data.nullplatform_service_specification.resize.id
 
   parameters = jsonencode({
     size = "large"
@@ -31,8 +41,4 @@ resource "nullplatform_service_action" "resize_redis" {
 
 output "action_status" {
   value = nullplatform_service_action.resize_redis.status
-}
-
-output "action_results" {
-  value = nullplatform_service_action.resize_redis.results
 }
