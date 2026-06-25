@@ -1,23 +1,35 @@
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
-      version = "~> 0.0.14"
+      source = "nullplatform/nullplatform"
     }
   }
 }
 
-variable "null_application_id" {
-  description = "Unique ID for the application"
+# Use the `NP_API_KEY` environment variable
+provider "nullplatform" {}
+
+variable "application_id" {
+  description = "ID of the application the parameter belongs to."
   type        = number
 }
 
 data "nullplatform_application" "app" {
-  id = var.null_application_id
+  id = var.application_id
 }
 
-resource "nullplatform_parameter" "parameter" {
+# An environment parameter. It defines the variable; the actual values are
+# set per scope/dimension with nullplatform_parameter_value.
+resource "nullplatform_parameter" "log_level" {
   nrn      = data.nullplatform_application.app.nrn
   name     = "Log Level"
   variable = "LOG_LEVEL"
+}
+
+# A secret environment parameter (its value is stored encrypted).
+resource "nullplatform_parameter" "api_token" {
+  nrn      = data.nullplatform_application.app.nrn
+  name     = "Third-party API token"
+  variable = "API_TOKEN"
+  secret   = true
 }

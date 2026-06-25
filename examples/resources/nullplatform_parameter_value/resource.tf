@@ -1,36 +1,44 @@
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
-      version = "~> 0.0.14"
+      source = "nullplatform/nullplatform"
     }
   }
 }
 
-variable "null_application_id" {
-  description = "Unique ID for the application"
+# Use the `NP_API_KEY` environment variable
+provider "nullplatform" {}
+
+variable "application_id" {
+  description = "ID of the application the parameter belongs to"
   type        = number
 }
 
+# Resolve the application NRN from its ID
 data "nullplatform_application" "app" {
-  id = var.null_application_id
+  id = var.application_id
 }
 
-resource "nullplatform_parameter" "parameter" {
+# The parameter that owns the values defined below
+resource "nullplatform_parameter" "log_level" {
   nrn      = data.nullplatform_application.app.nrn
   name     = "Log Level"
   variable = "LOG_LEVEL"
 }
 
-resource "nullplatform_parameter_value" "any_scope_value" {
-  parameter_id = nullplatform_parameter.parameter.id
+# Default value applied to every scope
+resource "nullplatform_parameter_value" "default" {
+  parameter_id = nullplatform_parameter.log_level.id
   nrn          = data.nullplatform_application.app.nrn
   value        = "INFO"
 }
 
-resource "nullplatform_parameter_value" "env_value" {
-  parameter_id = nullplatform_parameter.parameter.id
+# Override the value for the development environment dimension
+resource "nullplatform_parameter_value" "dev" {
+  parameter_id = nullplatform_parameter.log_level.id
   nrn          = data.nullplatform_application.app.nrn
   value        = "DEBUG"
-  dimensions   = { "environment": "dev" }
+  dimensions = {
+    environment = "dev"
+  }
 }

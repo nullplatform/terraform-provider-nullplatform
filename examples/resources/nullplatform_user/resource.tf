@@ -1,24 +1,22 @@
-resource "nullplatform_user" "simple" {
-  email      = "user@example.com"
-  first_name = "John"
-  last_name  = "Doe"
+terraform {
+  required_providers {
+    nullplatform = {
+      source = "nullplatform/nullplatform"
+    }
+  }
 }
 
-resource "nullplatform_user" "with_avatar" {
-  email      = "jane@example.com"
+# Use the `NP_API_KEY` environment variable
+provider "nullplatform" {}
+
+resource "nullplatform_user" "example" {
+  email      = "jane.doe@example.com"
   first_name = "Jane"
-  last_name  = "Smith"
-  avatar     = "https://example.com/avatar.jpg"
-}
+  last_name  = "Doe"
 
-resource "nullplatform_user" "developer1" {
-  email      = "dev1@example.com"
-  first_name = "Alice"
-  last_name  = "Developer"
-}
+  # Optional avatar image URL shown in the nullplatform UI
+  avatar = "https://example.com/avatars/jane-doe.png"
 
-resource "nullplatform_user" "developer2" {
-  email      = "dev2@example.com"
-  first_name = "Bob"
-  last_name  = "Engineer"
+  # When false, reuse an existing user with this email instead of failing
+  strict = false
 }

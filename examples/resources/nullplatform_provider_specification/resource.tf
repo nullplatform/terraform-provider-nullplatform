@@ -6,43 +6,31 @@ terraform {
   }
 }
 
-provider "nullplatform" {
-  # Set via environment variable: export NULLPLATFORM_API_KEY="your-api-key"
-  # Set via environment variable: export NULLPLATFORM_HOST="api.nullplatform.com"
+# Use the `NP_API_KEY` environment variable
+provider "nullplatform" {}
+
+variable "null_application_id" {
+  description = "Unique ID for the application the specification is scoped to"
+  type        = number
 }
 
-# Example: minimal provider specification (only required fields)
-resource "nullplatform_provider_specification" "minimal" {
-  name = "My Custom Provider Spec"
-
-  visible_to = [
-    "organization=*",
-  ]
-
-  schema = jsonencode({
-    type     = "object"
-    required = ["region"]
-    properties = {
-      region = {
-        type        = "string"
-        description = "Cloud region"
-      }
-    }
-    additionalProperties = false
-  })
+# Resolve the application NRN to control specification visibility
+data "nullplatform_application" "app" {
+  id = var.null_application_id
 }
 
-# Example: full provider specification
-resource "nullplatform_provider_specification" "full" {
+resource "nullplatform_provider_specification" "aws" {
   name        = "AWS Configuration"
-  description = "Defines settings for AWS cloud provider integration"
+  description = "Settings for the AWS cloud provider integration"
   icon        = "aws"
   category    = "cloud-providers"
 
+  # NRNs this specification is visible to
   visible_to = [
-    "organization=*",
+    data.nullplatform_application.app.nrn,
   ]
 
+  # Allow per-dimension values and provide defaults
   allow_dimensions = true
 
   default_dimensions = jsonencode({
@@ -51,16 +39,16 @@ resource "nullplatform_provider_specification" "full" {
 
   schema = jsonencode({
     type     = "object"
-    required = ["cluster", "region"]
+    required = ["region", "cluster"]
     properties = {
+      region = {
+        type        = "string"
+        description = "AWS region"
+      }
       cluster = {
         type        = "string"
         description = "EKS cluster name"
         tag         = true
-      }
-      region = {
-        type        = "string"
-        description = "AWS region"
       }
       access_key_id = {
         type        = "string"
@@ -74,32 +62,5 @@ resource "nullplatform_provider_specification" "full" {
       }
     }
     additionalProperties = false
-    groups = [
-      {
-        name   = "Cluster"
-        fields = ["cluster", "region"]
-      },
-      {
-        name   = "Credentials"
-        fields = ["access_key_id", "secret_access_key"]
-      }
-    ]
   })
-}
-
-# Output the computed attributes
-output "minimal_spec_id" {
-  value = nullplatform_provider_specification.minimal.id
-}
-
-output "minimal_spec_slug" {
-  value = nullplatform_provider_specification.minimal.slug
-}
-
-output "full_spec_id" {
-  value = nullplatform_provider_specification.full.id
-}
-
-output "full_spec_categories" {
-  value = nullplatform_provider_specification.full.categories
 }

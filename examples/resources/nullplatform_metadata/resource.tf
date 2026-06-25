@@ -1,104 +1,40 @@
 terraform {
   required_providers {
     nullplatform = {
-      version = "0.0.14"
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
 
+# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
-resource "nullplatform_metadata" "application_links" {
+variable "application_id" {
+  type        = number
+  description = "ID of the application that holds the metadata"
+}
+
+# Look up the application to attach the metadata to
+data "nullplatform_application" "this" {
+  id = var.application_id
+}
+
+resource "nullplatform_metadata" "links" {
   entity    = "application"
-  entity_id = "179769363"
+  entity_id = data.nullplatform_application.this.id
   type      = "links"
-  
+
+  # JSON-encoded metadata value
   value = jsonencode([
     {
-      title = "Trello"
-      icon  = "logos:trello"
-      links = [
-        {
-          url         = "https://trello.com/w/my-organization-trello/home"
-          description = "Workspace"
-        }
-      ]
-    },
-    {
-      title = "Github"
+      title = "GitHub"
       icon  = "bi:github"
       links = [
         {
-          url         = "https://github.com/my-organization-github"
-          description = "Homepage"
+          url         = "https://github.com/my-organization"
+          description = "Source code"
         }
       ]
     }
   ])
-}
-
-# Example: Application Frameworks
-# This example demonstrates how to specify the frameworks used in an application
-# This is a custom metadata type
-resource "nullplatform_metadata" "application_frameworks" {
-  entity    = "application"
-  entity_id = "179769363"
-  type      = "frameworks"
-  
-  value = jsonencode({
-    backend = [
-      {
-        name    = "Spring Boot"
-        version = "3.2.0"
-      },
-      {
-        name    = "Java"
-        version = "17"
-      }
-    ],
-    frontend = [
-      {
-        name    = "React"
-        version = "18.2.0"
-      },
-      {
-        name    = "TypeScript"
-        version = "5.0.0"
-      }
-    ]
-  })
-}
-
-# Example: Application Coverage
-# This example shows how to manage code coverage metadata
-# This is a custom metadata type
-resource "nullplatform_metadata" "application_coverage" {
-  entity    = "application"
-  entity_id = "179769363"
-  type      = "coverage"
-  
-  value = jsonencode({
-    overall = 85.6,
-    components = {
-      backend = {
-        percentage = 92.3,
-        details = {
-          lines      = 90.5,
-          branches   = 85.2,
-          functions  = 95.1,
-          statements = 93.4
-        }
-      },
-      frontend = {
-        percentage = 78.9,
-        details = {
-          lines      = 80.2,
-          branches   = 75.6,
-          functions  = 82.3,
-          statements = 77.5
-        }
-      }
-    }
-  })
 }

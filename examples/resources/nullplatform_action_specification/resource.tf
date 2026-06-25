@@ -1,19 +1,32 @@
-
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
+
+# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
-resource "nullplatform_action_specification" "create_redis_action" {
-  name                   = "Create Redis Instance"
-  type                   = "create" # Options: "custom", "create", "update", "delete"
-  service_specification_id = "your-service-spec-id"
-  retryable              = false
+variable "service_specification_id" {
+  type        = string
+  description = "ID of the service specification this action belongs to"
+}
 
+# Resolve the parent service specification from its ID
+data "nullplatform_service_specification" "this" {
+  id = var.service_specification_id
+}
+
+resource "nullplatform_action_specification" "create_redis" {
+  name                     = "Create Redis Instance"
+  description              = "Provisions a Redis instance for the service"
+  type                     = "create"
+  service_specification_id = data.nullplatform_service_specification.this.id
+  retryable                = true
+
+  # Input parameters schema (JSON Schema) plus default values
   parameters = jsonencode({
     schema = {
       type = "object"
@@ -23,13 +36,8 @@ resource "nullplatform_action_specification" "create_redis_action" {
           enum    = ["small", "medium", "large"]
           default = "small"
         }
-        vpc_id = {
-          type      = "string"
-          config    = "aws.vpcId"
-          readOnly  = true
-        }
       }
-      required = ["size"]
+      required             = ["size"]
       additionalProperties = false
     }
     values = {
@@ -37,74 +45,14 @@ resource "nullplatform_action_specification" "create_redis_action" {
     }
   })
 
+  # Expected outputs schema mapped to instance attributes
   results = jsonencode({
     schema = {
       type = "object"
       properties = {
-        redis_arn       = { type = "string" }
-        redis_endpoint  = { type = "string", target = "endpoint" }
-        redis_port      = { type = "number", target = "port" }
+        endpoint = { type = "string", target = "endpoint" }
+        port     = { type = "number", target = "port" }
       }
-      additionalProperties = false
-    }
-    values = {}
-  })
-}
-
-resource "nullplatform_action_specification" "update_redis_action" {
-  name                   = "Update Redis Instance"
-  type                   = "update"
-  service_specification_id = "your-service-spec-id"
-  retryable              = true
-
-  parameters = jsonencode({
-    schema = {
-      type = "object"
-      properties = {
-        size = {
-          type    = "string"
-          enum    = ["small", "medium", "large"]
-        }
-      }
-      required = ["size"]
-      additionalProperties = false
-    }
-    values = {}
-  })
-
-  results = jsonencode({
-    schema = {
-      type = "object"
-      properties = {
-        redis_arn       = { type = "string" }
-        redis_endpoint  = { type = "string", target = "endpoint" }
-        redis_port      = { type = "number", target = "port" }
-      }
-      additionalProperties = false
-    }
-    values = {}
-  })
-}
-
-resource "nullplatform_action_specification" "delete_redis_action" {
-  name                   = "Delete Redis Instance"
-  type                   = "delete"
-  service_specification_id = "your-service-spec-id"
-  retryable              = true
-
-  parameters = jsonencode({
-    schema = {
-      type = "object"
-      properties = {}
-      additionalProperties = false
-    }
-    values = {}
-  })
-
-  results = jsonencode({
-    schema = {
-      type = "object"
-      properties = {}
       additionalProperties = false
     }
     values = {}

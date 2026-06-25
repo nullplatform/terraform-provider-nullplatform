@@ -6,29 +6,29 @@ terraform {
   }
 }
 
+# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
+# The account that will own the namespace
+variable "account_id" {
+  type        = number
+  description = "ID of the nullplatform account that owns this namespace"
+}
+
 resource "nullplatform_namespace" "finance" {
-  name                = "Finances"
-  account_id          = "43591328"
+  name       = "Finance"
+  account_id = var.account_id
+
+  # Optional account-wide unique slug (defaults to a value derived from the name)
+  slug = "finance"
 }
 
-resource "nullplatform_namespace" "public_sites" {
-  name                = "Public Site"
-  account_id          = "43591328"
-}
-
-output "finance_namespace_id" {
-  description = "The ID of the Finance namespace"
+output "namespace_id" {
+  description = "The ID of the namespace"
   value       = nullplatform_namespace.finance.id
 }
 
-output "public_sites_namespace_id" {
-  description = "The ID of the Public Sites namespace"
-  value       = nullplatform_namespace.public_sites.id
-}
-
-output "finance_namespace_nrn" {
-  description = "The NRN of the Finance namespace"
+output "namespace_nrn" {
+  description = "The NRN of the namespace"
   value       = nullplatform_namespace.finance.nrn
 }
