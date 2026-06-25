@@ -1,58 +1,48 @@
 terraform {
   required_providers {
     nullplatform = {
-        source = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
 
+# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
+variable "application_id" {
+  description = "ID of the application whose NRN scopes the approval action"
+  type        = number
+}
+
+# Resolve the NRN from the application instead of hardcoding it
+data "nullplatform_application" "this" {
+  id = var.application_id
+}
+
+# Policy evaluated when this action is triggered
+resource "nullplatform_approval_policy" "coverage" {
+  nrn  = data.nullplatform_application.this.nrn
+  name = "Code Coverage Policy - Minimum for production 80%"
+  conditions = jsonencode({
+    "build.metadata.coverage.percentage" = { "$gte" = 80 }
+  })
+}
+
 resource "nullplatform_approval_action" "deployment_create" {
-    nrn = "organization=12551165411:account=2:namespace=3:application=123"
-    entity = "deployment"
-    action = "deployment:create"
-    
-    dimensions = {
-      environment = "production"
-    }
+  nrn    = data.nullplatform_application.this.nrn
+  entity = "deployment"
+  action = "deployment:create"
 
-    on_policy_success = "approve"
-    on_policy_fail = "manual"
+  # Only require approval for the production environment
+  dimensions = {
+    environment = "production"
+  }
 
-    policies = [
-      nullplatform_approval_policy.example_policy.id
-    ]
-}
+  # Approve automatically when policies pass, fall back to manual review otherwise
+  on_policy_success = "approve"
+  on_policy_fail    = "manual"
 
-resource "nullplatform_approval_action" "scope_delete" {
-    nrn = "organization=12551165411:account=2:namespace=3:application=123"
-    entity = "scope"
-    action = "scope:delete"
-    
-    dimensions = {
-        environment = "production"
-    }
-
-    on_policy_success = "approve"
-    on_policy_fail = "manual"
-
-    policies = [
-      nullplatform_approval_policy.example_policy.id
-    ]
-}
-
-resource "nullplatform_approval_action" "scope_create" {
-    account = "test-account"
-    entity = "scope"
-    action = "scope:create"
-    dimensions = {
-      environment = "production"
-    }
-    on_policy_success = "approve"
-    on_policy_fail = "manual"
-
-    policies = [
-      nullplatform_approval_policy.example_policy.id
-    ]
+  policies = [
+    nullplatform_approval_policy.coverage.id
+  ]
 }

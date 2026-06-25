@@ -6,6 +6,7 @@ terraform {
   }
 }
 
+# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
 resource "nullplatform_capability" "cpu_limits" {
@@ -13,6 +14,7 @@ resource "nullplatform_capability" "cpu_limits" {
   target      = "scope"
   description = "Allowed CPU configurations for scopes"
 
+  # JSON schema describing the values this capability accepts
   definition = jsonencode({
     type = "object"
     properties = {
