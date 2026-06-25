@@ -1,37 +1,30 @@
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
 
+# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
-resource "nullplatform_api_key" "my_api_key" {
-  name = "Example API Key Name"
-
-  grants {
-    nrn        = "organization=1:account=1"
-    role_slug  = "account:ops"
-  }
-
-  grants {
-    nrn        = "organization=1:account=1"
-    role_slug  = "account:admin"
-  }
-
-  tags {
-    key = "example"
-    value = "true"
-  }
+# Application whose NRN scopes the API key grant
+variable "simple_application_id" {
+  type        = number
+  description = "ID of the application to grant the API key access to."
 }
 
-output "my_api_key_value" {
-  value     = nullplatform_api_key.my_api_key.api_key
-  sensitive = true
+data "nullplatform_application" "simple" {
+  id = var.simple_application_id
 }
 
-output "my_api_key_id" {
-  value     = nullplatform_api_key.my_api_key.id
+resource "nullplatform_api_key" "simple" {
+  name = "ci-deployer"
+
+  # A single grant scoped to the application's NRN
+  grants {
+    nrn       = data.nullplatform_application.simple.nrn
+    role_slug = "application:developer"
+  }
 }

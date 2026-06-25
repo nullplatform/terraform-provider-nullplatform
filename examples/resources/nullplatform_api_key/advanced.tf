@@ -1,66 +1,46 @@
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
 
+# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
-locals {
-  grants = [
-    {
-      nrn = "organization=1:account=1"
-      role_slug = "account:admin"
-    },
-    {
-      nrn = "organization=1:account=1"
-      role_slug = "account:ops"
-    },
-    {
-      nrn = "organization=1:account=1"
-      role_slug = "account:developer"
-    }
-  ]
-
-  tags = [
-    {
-      key   = "ownership"
-      value = "fintech"
-    },
-    {
-      key   = "terraform"
-      value = "true"
-    }
-  ]
+# Application whose NRN scopes the API key grants
+variable "advanced_application_id" {
+  type        = number
+  description = "ID of the application to grant the API key access to."
 }
 
-resource "nullplatform_api_key" "my_api_key" {
-  name = "Example API Key Name"
+data "nullplatform_application" "advanced" {
+  id = var.advanced_application_id
+}
 
-  dynamic "grants" {
-    for_each = local.grants
-    content {
-      nrn       = grants.value.nrn
-      role_slug = grants.value.role_slug
-    }
+resource "nullplatform_api_key" "advanced" {
+  name = "platform-automation"
+
+  # Multiple grants on the same application NRN with different roles
+  grants {
+    nrn       = data.nullplatform_application.advanced.nrn
+    role_slug = "application:ops"
   }
 
-  dynamic "tags" {
-    for_each = local.tags
-    content {
-      key   = tags.value.key
-      value = tags.value.value
-    }
+  grants {
+    nrn       = data.nullplatform_application.advanced.nrn
+    role_slug = "application:developer"
   }
-}
 
-output "my_api_key_value" {
-  value     = nullplatform_api_key.my_api_key.api_key
-  sensitive = true
-}
+  # Optional tags for ownership and provenance
+  tags {
+    key   = "team"
+    value = "platform"
+  }
 
-output "my_api_key_id" {
-  value     = nullplatform_api_key.my_api_key.id
+  tags {
+    key   = "managed-by"
+    value = "terraform"
+  }
 }

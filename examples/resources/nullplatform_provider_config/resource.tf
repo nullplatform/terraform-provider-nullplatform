@@ -1,61 +1,49 @@
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
 
+# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
-resource "nullplatform_provider_config" "google_cloud_config" {
-  nrn           = "organization=1234567890:account=987654321:namespace=1122334455:application=9876543210"
-  type = "google-cloud-config"
-  dimensions    = {}
-  attributes    = jsonencode({
-    project = {
-      id       = "my-gcp-project"
-      location = "us-central1"
-    },
-    networking = {
-      public_balancer_ip   = "34.120.0.123",
-      private_balancer_ip  = "10.0.0.10",
-      public_dns_zone_name = "my-gcp-project-zone"
-    },
-    authentication = {
-      credential_base_64 = "BASE64_ENCODED_CREDENTIAL_PLACEHOLDER"
-    }
-  })
+# Slugs that identify the NRN the provider config is attached to.
+# The provider resolves these into the full NRN at apply time, so there
+# is no need to hardcode organization/account IDs.
+variable "account" {
+  type        = string
+  description = "Slug of the account NRN component."
 }
 
-resource "nullplatform_provider_config" "gke_config" {
-  account     = "my-main-account"
-  namespace   = "gcp-infrastructure"
-  application = "gke-clusters"
+variable "namespace" {
+  type        = string
+  description = "Slug of the namespace NRN component."
+}
 
-  type = "gke-config"
-  dimensions    = {}
-  attributes    = jsonencode({
+# Provider configuration for an AWS EKS cluster, scoped to an account/namespace.
+resource "nullplatform_provider_config" "aws_eks" {
+  account   = var.account
+  namespace = var.namespace
+
+  # Provider type slug.
+  type = "aws-eks"
+
+  # Limit this config to a specific dimension (e.g. environment).
+  dimensions = {
+    environment = "production"
+  }
+
+  # Provider-specific settings as a JSON string.
+  attributes = jsonencode({
     cluster = {
-      id        = "primary-cluster",
-      namespace = "nullplatform"
-    },
-    gateway = {
-      public_name  = "ingress-gateway-public",
-      private_name = "ingress-gateway-private"
+      name   = "main-eks-cluster"
+      region = "us-east-1"
+    }
+    networking = {
+      public_balancer_subnets  = ["subnet-0a1b2c3d", "subnet-1a2b3c4d"]
+      private_balancer_subnets = ["subnet-2a3b4c5d", "subnet-3a4b5c6d"]
     }
   })
-
-  /*
-    - Why is this necessary?
-
-    When creating provider's, there are resources that depend on other resources.
-    In this case, the `gke_config` resource depends on the `google_cloud_config` resource.
-    Since without the `google_cloud_config` resource, the `gke_config` resource cannot be created.
-    To avoid conflicts, and concurrency issues, we need to specify the dependency between the resources.
-
-  */
-  depends_on = [
-    nullplatform_provider_config.google_cloud_config
-  ]
 }
