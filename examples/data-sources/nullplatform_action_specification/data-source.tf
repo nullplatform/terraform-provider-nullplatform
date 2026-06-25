@@ -6,7 +6,6 @@ terraform {
   }
 }
 
-# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
 variable "action_specification_id" {

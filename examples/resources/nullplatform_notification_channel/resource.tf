@@ -6,7 +6,6 @@ terraform {
   }
 }
 
-# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
 # The application whose NRN the notification channel will be scoped to.

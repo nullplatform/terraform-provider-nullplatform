@@ -6,7 +6,6 @@ terraform {
   }
 }
 
-# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
 # The account that will own the namespace

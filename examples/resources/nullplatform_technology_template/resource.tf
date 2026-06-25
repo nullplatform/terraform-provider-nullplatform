@@ -6,7 +6,6 @@ terraform {
   }
 }
 
-# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
 # Account that owns the template; omit to create a global template
