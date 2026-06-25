@@ -6,43 +6,45 @@ terraform {
   }
 }
 
-# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
-variable "application_id" {
-  description = "ID of the application whose NRN scopes the approval action"
-  type        = number
-}
-
-# Resolve the NRN from the application instead of hardcoding it
-data "nullplatform_application" "this" {
-  id = var.application_id
-}
-
-# Policy evaluated when this action is triggered
-resource "nullplatform_approval_policy" "coverage" {
-  nrn  = data.nullplatform_application.this.nrn
-  name = "Code Coverage Policy - Minimum for production 80%"
+# Policy evaluated by the actions below.
+resource "nullplatform_approval_policy" "production" {
+  nrn  = "organization=1:account=2:namespace=3:application=123"
+  name = "Require approval in production"
   conditions = jsonencode({
-    "build.metadata.coverage.percentage" = { "$gte" = 80 }
+    "context.dimensions.environment" = { "$eq" = "production" }
   })
 }
 
+# Require approval when a deployment is created in production.
 resource "nullplatform_approval_action" "deployment_create" {
-  nrn    = data.nullplatform_application.this.nrn
+  nrn    = "organization=1:account=2:namespace=3:application=123"
   entity = "deployment"
   action = "deployment:create"
 
-  # Only require approval for the production environment
   dimensions = {
     environment = "production"
   }
 
-  # Approve automatically when policies pass, fall back to manual review otherwise
   on_policy_success = "approve"
   on_policy_fail    = "manual"
 
-  policies = [
-    nullplatform_approval_policy.coverage.id
-  ]
+  policies = [nullplatform_approval_policy.production.id]
+}
+
+# Require approval before deleting a scope in production.
+resource "nullplatform_approval_action" "scope_delete" {
+  nrn    = "organization=1:account=2:namespace=3:application=123"
+  entity = "scope"
+  action = "scope:delete"
+
+  dimensions = {
+    environment = "production"
+  }
+
+  on_policy_success = "approve"
+  on_policy_fail    = "manual"
+
+  policies = [nullplatform_approval_policy.production.id]
 }

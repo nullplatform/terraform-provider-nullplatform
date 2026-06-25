@@ -6,30 +6,33 @@ terraform {
   }
 }
 
-# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
-resource "nullplatform_account" "main" {
-  name = "My Account"
-  # Unique, URL-safe identifier for the account
-  slug = "my-account"
-
-  # Repository configuration used when scaffolding application repos
+resource "nullplatform_account" "github_account" {
+  name                = "My GitHub Account"
   repository_prefix   = "my-org"
   repository_provider = "github"
-
-  # Account settings as a JSON string
-  settings = jsonencode({
-    notification_channels = ["email"]
-  })
+  slug                = "github-account"
 }
 
-output "account_id" {
-  description = "The ID of the account"
-  value       = nullplatform_account.main.id
+resource "nullplatform_account" "gitlab_account" {
+  name                = "My GitLab Account"
+  repository_prefix   = "my-company"
+  repository_provider = "gitlab"
+  slug                = "gitlab-account"
 }
 
-output "account_nrn" {
-  description = "The Nullplatform Resource Name (NRN) of the account"
-  value       = nullplatform_account.main.nrn
+output "github_account_id" {
+  description = "The ID of the GitHub account"
+  value       = nullplatform_account.github_account.id
+}
+
+output "github_account_org_id" {
+  description = "The organization ID the account belongs to"
+  value       = nullplatform_account.github_account.organization_id
+}
+
+resource "nullplatform_account" "minimal_account" {
+  name = "My Minimal Account"
+  slug = "minimal-account"
 }

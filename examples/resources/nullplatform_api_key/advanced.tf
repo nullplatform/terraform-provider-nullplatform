@@ -6,41 +6,61 @@ terraform {
   }
 }
 
-# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
-# Application whose NRN scopes the API key grants
-variable "advanced_application_id" {
-  type        = number
-  description = "ID of the application to grant the API key access to."
+locals {
+  grants = [
+    {
+      nrn       = "organization=1:account=1"
+      role_slug = "account:admin"
+    },
+    {
+      nrn       = "organization=1:account=1"
+      role_slug = "account:ops"
+    },
+    {
+      nrn       = "organization=1:account=1"
+      role_slug = "account:developer"
+    }
+  ]
+
+  tags = [
+    {
+      key   = "ownership"
+      value = "fintech"
+    },
+    {
+      key   = "terraform"
+      value = "true"
+    }
+  ]
 }
 
-data "nullplatform_application" "advanced" {
-  id = var.advanced_application_id
+resource "nullplatform_api_key" "my_api_key" {
+  name = "Example API Key Name"
+
+  dynamic "grants" {
+    for_each = local.grants
+    content {
+      nrn       = grants.value.nrn
+      role_slug = grants.value.role_slug
+    }
+  }
+
+  dynamic "tags" {
+    for_each = local.tags
+    content {
+      key   = tags.value.key
+      value = tags.value.value
+    }
+  }
 }
 
-resource "nullplatform_api_key" "advanced" {
-  name = "platform-automation"
+output "my_api_key_value" {
+  value     = nullplatform_api_key.my_api_key.api_key
+  sensitive = true
+}
 
-  # Multiple grants on the same application NRN with different roles
-  grants {
-    nrn       = data.nullplatform_application.advanced.nrn
-    role_slug = "application:ops"
-  }
-
-  grants {
-    nrn       = data.nullplatform_application.advanced.nrn
-    role_slug = "application:developer"
-  }
-
-  # Optional tags for ownership and provenance
-  tags {
-    key   = "team"
-    value = "platform"
-  }
-
-  tags {
-    key   = "managed-by"
-    value = "terraform"
-  }
+output "my_api_key_id" {
+  value = nullplatform_api_key.my_api_key.id
 }
