@@ -8,15 +8,9 @@ terraform {
 
 provider "nullplatform" {}
 
-variable "scope_type_id" {
-  type        = string
-  description = "The ID of the scope type to look up"
-  default     = "1000001"
-}
-
 # Look up an existing scope type by its ID
 data "nullplatform_scope_type" "example" {
-  id = var.scope_type_id
+  id = "1000001"
 }
 
 # Expose the provider type that implements the scope type

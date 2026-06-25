@@ -8,20 +8,10 @@ terraform {
 
 provider "nullplatform" {}
 
-variable "application_id" {
-  type        = number
-  description = "ID of the application whose NRN scopes the metadata specification"
-}
-
-# Resolve the NRN from the application instead of hardcoding it
-data "nullplatform_application" "this" {
-  id = var.application_id
-}
-
 resource "nullplatform_metadata_specification" "cost_center" {
   name        = "Cost Center"
   description = "Cost center attribution for the application"
-  nrn         = data.nullplatform_application.this.nrn
+  nrn         = "organization=1:account=2:namespace=3:application=123"
 
   # Entity this metadata is attached to and the metadata key
   entity   = "application"

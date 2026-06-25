@@ -8,30 +8,30 @@ terraform {
 
 provider "nullplatform" {}
 
-variable "application_id" {
-  description = "ID of the nullplatform application the dimension is scoped to."
-  type        = number
+resource "nullplatform_dimension_value" "prod_env" {
+  dimension_id = 12345
+  name         = "Production"
+  nrn          = "organization=1234567890:account=987654321:namespace=1122334455:value=prod"
 }
 
-data "nullplatform_application" "app" {
-  id = var.application_id
+resource "nullplatform_dimension_value" "staging_env" {
+  dimension_id = 12345
+  name         = "Staging"
+  organization = "1234567890"
+  account      = "my-account"
+  namespace    = "platform-config"
 }
 
-# The parent dimension these values belong to.
-resource "nullplatform_dimension" "environment" {
-  nrn  = data.nullplatform_application.app.nrn
-  name = "Environment"
+resource "nullplatform_dimension_value" "dev_env" {
+  dimension_id = 12345
+  name         = "Development"
+  nrn          = "organization=1234567890:account=987654321:namespace=1122334455:value=dev"
 }
 
-# Each value is one option along the dimension (production, staging, ...).
-resource "nullplatform_dimension_value" "production" {
-  dimension_id = nullplatform_dimension.environment.id
-  name         = "production"
-  nrn          = data.nullplatform_application.app.nrn
+output "prod_env_slug" {
+  value = nullplatform_dimension_value.prod_env.slug
 }
 
-resource "nullplatform_dimension_value" "staging" {
-  dimension_id = nullplatform_dimension.environment.id
-  name         = "staging"
-  nrn          = data.nullplatform_application.app.nrn
+output "prod_env_status" {
+  value = nullplatform_dimension_value.prod_env.status
 }

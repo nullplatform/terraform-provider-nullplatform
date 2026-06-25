@@ -8,14 +8,9 @@ terraform {
 
 provider "nullplatform" {}
 
-variable "service_specification_id" {
-  type        = string
-  description = "ID of the service specification to list action specifications for."
-}
-
 # List all action specifications for the given service specification
 data "nullplatform_action_specifications" "example" {
-  service_specification_id = var.service_specification_id
+  service_specification_id = "4a4f6955-5ae0-40dc-a1de-e15e5cf41abb"
 }
 
 output "action_specifications" {

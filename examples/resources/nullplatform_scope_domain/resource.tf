@@ -9,20 +9,12 @@ terraform {
 provider "nullplatform" {}
 
 variable "scope_id" {
-  description = "ID of the scope to attach the custom domain to"
+  description = "ID of the scope the domain is attached to"
   type        = string
-}
-
-# Resolve the scope so the domain references a real resource
-data "nullplatform_scope" "this" {
-  id = var.scope_id
 }
 
 resource "nullplatform_scope_domain" "api" {
   name     = "api.example.com"
-  scope_id = data.nullplatform_scope.this.id
+  scope_id = var.scope_id
   type     = "custom"
-
-  # Desired state of the domain attachment
-  status = "active"
 }

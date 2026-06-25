@@ -5,39 +5,27 @@ terraform {
     }
   }
 }
-
-provider "nullplatform" {}
-
-variable "null_application_id" {
-  description = "Unique ID for the application the specification is scoped to"
-  type        = number
+provider "nullplatform" {
 }
 
-# Resolve the application NRN to control specification visibility
-data "nullplatform_application" "app" {
-  id = var.null_application_id
-}
+# Resource: Service Specification
+resource "nullplatform_service_specification" "redis_service_spec" {
+  name          = "Redis Service Specification"
+  type          = "dependency"
+  assignable_to = "any" # Options: "any", "dimension", "scope"
 
-resource "nullplatform_service_specification" "redis" {
-  name        = "Redis Service Specification"
-  description = "Managed Redis cache offered as a dependency"
-  type        = "dependency"
-
-  # NRNs this specification is visible to
   visible_to = [
-    data.nullplatform_application.app.nrn,
+    "organization=1255165411:account=*",
   ]
 
-  # Where this service can be attached: "any", "dimension" or "scope"
-  assignable_to       = "any"
   use_default_actions = true
 
-  # Scope specifications this service can run on
   scopes = jsonencode({
     provider = {
       values = [
         "AWS:SERVERLESS:LAMBDA",
         "AWS:WEB_POOL:EC2INSTANCES",
+        "uuid-of-a-specific-scope-specification",
       ]
     }
   })
@@ -45,10 +33,12 @@ resource "nullplatform_service_specification" "redis" {
   dimensions = jsonencode({
     environment = {
       required = true
+    },
+    region = {
+      required = false
     }
   })
 
-  # JSON Schema describing the service attributes and their values
   attributes = jsonencode({
     schema = {
       type     = "object"

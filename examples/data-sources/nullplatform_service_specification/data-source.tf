@@ -8,14 +8,9 @@ terraform {
 
 provider "nullplatform" {}
 
-variable "service_specification_id" {
-  type        = string
-  description = "The ID of the service specification to look up."
-}
-
 # Look up an existing service specification by its ID
 data "nullplatform_service_specification" "example" {
-  id = var.service_specification_id
+  id = "4a4f6955-5ae0-40dc-a1de-e15e5cf41abb"
 }
 
 output "service_specification_name" {

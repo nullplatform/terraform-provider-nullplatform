@@ -8,26 +8,26 @@ terraform {
 
 provider "nullplatform" {}
 
-variable "application_id" {
-  description = "ID of the application whose NRN scopes the grant"
-  type        = number
-}
-
-# Resolve the NRN from the application instead of hardcoding it
-data "nullplatform_application" "target" {
-  id = var.application_id
-}
-
-resource "nullplatform_user" "developer" {
-  email      = "jane.doe@example.com"
+resource "nullplatform_user" "admin" {
+  email      = "admin@example.com"
   first_name = "Jane"
-  last_name  = "Doe"
+  last_name  = "Admin"
 }
 
-resource "nullplatform_authz_grant" "developer" {
-  user_id   = nullplatform_user.developer.id
-  role_slug = "application:developer"
+resource "nullplatform_authz_grant" "org_admin" {
+  user_id   = nullplatform_user.admin.id
+  role_slug = "organization:admin"
+  nrn       = "organization=1234567890"
+}
 
-  # Grant is scoped to the resolved application NRN
-  nrn = data.nullplatform_application.target.nrn
+resource "nullplatform_authz_grant" "account_dev" {
+  user_id   = nullplatform_user.admin.id
+  role_slug = "account:developer"
+  nrn       = "organization=1234567890:account=9876543210"
+}
+
+resource "nullplatform_authz_grant" "namespace_ops" {
+  user_id   = nullplatform_user.admin.id
+  role_slug = "namespace:ops"
+  nrn       = "organization=1234567890:account=9876543210:namespace=5555555555"
 }

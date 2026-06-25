@@ -8,33 +8,29 @@ terraform {
 
 provider "nullplatform" {}
 
-variable "application_id" {
-  description = "ID of the application the parameter belongs to"
+variable "null_application_id" {
+  description = "Unique ID for the application"
   type        = number
 }
 
-# Resolve the application NRN from its ID
 data "nullplatform_application" "app" {
-  id = var.application_id
+  id = var.null_application_id
 }
 
-# The parameter that owns the values defined below
-resource "nullplatform_parameter" "log_level" {
+resource "nullplatform_parameter" "parameter" {
   nrn      = data.nullplatform_application.app.nrn
   name     = "Log Level"
   variable = "LOG_LEVEL"
 }
 
-# Default value applied to every scope
-resource "nullplatform_parameter_value" "default" {
-  parameter_id = nullplatform_parameter.log_level.id
+resource "nullplatform_parameter_value" "any_scope_value" {
+  parameter_id = nullplatform_parameter.parameter.id
   nrn          = data.nullplatform_application.app.nrn
   value        = "INFO"
 }
 
-# Override the value for the development environment dimension
-resource "nullplatform_parameter_value" "dev" {
-  parameter_id = nullplatform_parameter.log_level.id
+resource "nullplatform_parameter_value" "env_value" {
+  parameter_id = nullplatform_parameter.parameter.id
   nrn          = data.nullplatform_application.app.nrn
   value        = "DEBUG"
   dimensions = {

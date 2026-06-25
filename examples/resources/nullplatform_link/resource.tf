@@ -8,35 +8,41 @@ terraform {
 
 provider "nullplatform" {}
 
-variable "application_id" {
-  description = "ID of the application the link is scoped to."
+variable "null_application_id" {
+  description = "Unique ID for the application"
   type        = number
 }
 
-variable "service_id" {
-  description = "UUID of the service being linked."
-  type        = string
-}
-
-variable "link_specification_id" {
-  description = "UUID of the link specification this link implements."
-  type        = string
-}
-
 data "nullplatform_application" "app" {
-  id = var.application_id
+  id = var.null_application_id
 }
 
-# A link connects a service to an entity (here an application) through a
-# link specification.
-resource "nullplatform_link" "redis" {
+resource "nullplatform_service" "redis_cache_test" {
   name             = "redis-cache"
-  service_id       = var.service_id
-  specification_id = var.link_specification_id
+  specification_id = "4a4f6955-5ae0-40dc-a1de-e15e5cf41abb"
   entity_nrn       = data.nullplatform_application.app.nrn
   linkable_to      = [data.nullplatform_application.app.nrn]
+  dimensions       = {}
+  attributes       = {}
+}
 
+data "nullplatform_service" "redis" {
+  id = nullplatform_service.redis_cache_test.id
+}
+
+resource "nullplatform_link" "link_redis" {
+  name             = "link_from_terraform_2"
+  service_id       = data.nullplatform_service.redis.id
+  specification_id = "66919464-05e6-4d78-bb8c-902c57881ddd"
+  entity_nrn       = data.nullplatform_application.app.nrn
+  linkable_to      = [data.nullplatform_application.app.nrn]
   dimensions = {
-    environment = "production"
+    environment = "development",
+    country     = "argentina",
   }
+  attributes = {}
+}
+
+output "link" {
+  value = nullplatform_link.link_redis
 }

@@ -8,29 +8,24 @@ terraform {
 
 provider "nullplatform" {}
 
-variable "application_id" {
-  description = "ID of the application the deployment strategy applies to"
-  type        = number
-}
-
-# Resolve the NRN from the target application instead of hardcoding it
-data "nullplatform_application" "this" {
-  id = var.application_id
+variable "nrn" {
+  description = "The NRN the deployment strategy applies to"
+  type        = string
 }
 
 resource "nullplatform_deployment_strategy" "rolling" {
   name        = "rolling-update"
   description = "Rolling update strategy for production scopes"
-  nrn         = data.nullplatform_application.this.nrn
+  nrn         = var.nrn
 
-  # Restrict the strategy to a specific dimension
   dimensions = jsonencode({
     environment = "production"
   })
 
-  # Strategy-specific tuning parameters
   parameters = jsonencode({
     max_unavailable = 1
     max_surge       = 1
   })
+
+  scope_type_ids = []
 }
