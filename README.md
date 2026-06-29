@@ -80,6 +80,11 @@ After that, you can run the following command to autogenerate the documentation 
 make update-docs
 ```
 
+> **CI:** the `docs` GitHub Action regenerates the docs on every pull request and
+> commits them back to your branch automatically, so you don't have to run
+> `make update-docs` by hand. (For pull requests from forks it can't push, so the
+> job fails and you should run `make update-docs` locally and commit.)
+
 ### Publishing a Release
 
 To publish a new release of the provider:
