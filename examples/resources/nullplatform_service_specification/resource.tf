@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
@@ -10,9 +10,9 @@ provider "nullplatform" {
 
 # Resource: Service Specification
 resource "nullplatform_service_specification" "redis_service_spec" {
-  name           = "Redis Service Specification"
-  type           = "dependency"
-  assignable_to   = "any"        # Options: "any", "dimension", "scope"
+  name          = "Redis Service Specification"
+  type          = "dependency"
+  assignable_to = "any" # Options: "any", "dimension", "scope"
 
   visible_to = [
     "organization=1255165411:account=*",
@@ -41,18 +41,18 @@ resource "nullplatform_service_specification" "redis_service_spec" {
 
   attributes = jsonencode({
     schema = {
-      type = "object"
+      type     = "object"
       required = ["endpoint", "port"]
       properties = {
         endpoint = {
-          type      = "string"
-          export    = true
-          readOnly  = true
+          type     = "string"
+          export   = true
+          readOnly = true
         }
         port = {
-          type      = "number"
-          export    = true
-          readOnly  = true
+          type     = "number"
+          export   = true
+          readOnly = true
         }
       }
       additionalProperties = false

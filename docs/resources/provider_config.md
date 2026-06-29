@@ -16,7 +16,7 @@ The provider_config resource allows you to configure a nullplatform Provider
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
@@ -24,10 +24,10 @@ terraform {
 provider "nullplatform" {}
 
 resource "nullplatform_provider_config" "google_cloud_config" {
-  nrn           = "organization=1234567890:account=987654321:namespace=1122334455:application=9876543210"
-  type = "google-cloud-config"
-  dimensions    = {}
-  attributes    = jsonencode({
+  nrn        = "organization=1234567890:account=987654321:namespace=1122334455:application=9876543210"
+  type       = "google-cloud-config"
+  dimensions = {}
+  attributes = jsonencode({
     project = {
       id       = "my-gcp-project"
       location = "us-central1"
@@ -48,9 +48,9 @@ resource "nullplatform_provider_config" "gke_config" {
   namespace   = "gcp-infrastructure"
   application = "gke-clusters"
 
-  type = "gke-config"
-  dimensions    = {}
-  attributes    = jsonencode({
+  type       = "gke-config"
+  dimensions = {}
+  attributes = jsonencode({
     cluster = {
       id        = "primary-cluster",
       namespace = "nullplatform"
@@ -82,13 +82,13 @@ resource "nullplatform_provider_config" "gke_config" {
 ### Required
 
 - `attributes` (String) The set of attributes that this provider holds as a JSON string.
-- `dimensions` (Map of String) A key-value map with the provider dimensions that apply to this scope.
 - `type` (String) The slug of the provider type (e.g., 'aws-eks', 'aws-lambda_iam').
 
 ### Optional
 
 - `account` (String) The slug of the account NRN component.
 - `application` (String) The slug of the application NRN component.
+- `dimensions` (Map of String) A key-value map with the provider dimensions that apply to this scope. Optional: when omitted, the provider config applies without dimension scoping.
 - `namespace` (String) The slug of the namespace NRN component.
 - `nrn` (String) A system-wide unique ID representing the resource.
 - `scope` (String) The slug of the scope NRN component.

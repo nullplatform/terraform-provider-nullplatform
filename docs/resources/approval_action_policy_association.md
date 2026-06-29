@@ -3,7 +3,7 @@
 page_title: "nullplatform_approval_action_policy_association Resource - nullplatform"
 subcategory: ""
 description: |-
-  The approval_action_policy_association resource allows you to manage a 1:1 association between an approval action and a policy
+  The approvalactionpolicy_association resource allows you to manage a 1:1 association between an approval action and a policy
 ---
 
 # nullplatform_approval_action_policy_association (Resource)
@@ -25,17 +25,17 @@ provider "nullplatform" {}
 
 # First, create an approval policy
 resource "nullplatform_approval_policy" "example" {
-  nrn    = "organization=1:account=2:namespace=3:application=123"
-  name   = "Auto Scaling Policy - Min Instances 2"
+  nrn  = "organization=1:account=2:namespace=3:application=123"
+  name = "Auto Scaling Policy - Min Instances 2"
   conditions = jsonencode({
-    "scope.capabilities.auto_scaling.enabled" = true,
+    "scope.capabilities.auto_scaling.enabled"              = true,
     "scope.capabilities.auto_scaling.instances.min_amount" = 2
   })
 }
 
 # Then, create an approval action
 resource "nullplatform_approval_action" "deployment_create" {
-  nrn = "organization=1:account=2:namespace=3:application=123"
+  nrn    = "organization=1:account=2:namespace=3:application=123"
   entity = "deployment"
   action = "deployment:create"
 
@@ -44,7 +44,7 @@ resource "nullplatform_approval_action" "deployment_create" {
   }
 
   on_policy_success = "approve"
-  on_policy_fail = "manual"
+  on_policy_fail    = "manual"
 
   lifecycle {
     ignore_changes = [policies]
@@ -53,8 +53,8 @@ resource "nullplatform_approval_action" "deployment_create" {
 
 # Finally, create the association between the action and policy
 resource "nullplatform_approval_action_policy_association" "example" {
-  approval_action_id  = nullplatform_approval_action.deployment_create.id
-  approval_policy_id  = nullplatform_approval_policy.example.id
+  approval_action_id = nullplatform_approval_action.deployment_create.id
+  approval_policy_id = nullplatform_approval_policy.example.id
 }
 ```
 

@@ -14,6 +14,16 @@ The user resource allows you to manage users in nullplatform. Users can be creat
 ### Basic Example
 
 ```terraform
+terraform {
+  required_providers {
+    nullplatform = {
+      source = "nullplatform/nullplatform"
+    }
+  }
+}
+
+provider "nullplatform" {}
+
 resource "nullplatform_user" "simple" {
   email      = "user@example.com"
   first_name = "John"
@@ -52,6 +62,7 @@ resource "nullplatform_user" "developer2" {
 ### Optional
 
 - `avatar` (String) The URL of the user's avatar.
+- `strict` (Boolean) Whether to use strict mode for the user creation. If set to false, the existing user will be retrieved instead of failing if the email address matches.
 
 ### Read-Only
 

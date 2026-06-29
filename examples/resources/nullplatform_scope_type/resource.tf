@@ -23,19 +23,19 @@ data "nullplatform_application" "app" {
 }
 
 resource "nullplatform_scope_type" "kubernetes_job" {
-  name         = "Kubernetes Job"
-  type         = "custom"
-  description  = "Run periodic jobs in Kubernetes"
-  nrn          = data.nullplatform_application.app.nrn
+  name          = "Kubernetes Job"
+  type          = "custom"
+  description   = "Run periodic jobs in Kubernetes"
+  nrn           = data.nullplatform_application.app.nrn
   provider_type = "service"
   provider_id   = var.service_specification_id
 }
 
 resource "nullplatform_scope_type" "database_backup" {
-  name         = "Database Backup"
-  type         = "custom"
-  description  = "Automated database backup mechanism"
-  nrn          = data.nullplatform_application.app.nrn
+  name          = "Database Backup"
+  type          = "custom"
+  description   = "Automated database backup mechanism"
+  nrn           = data.nullplatform_application.app.nrn
   provider_type = "service"
   provider_id   = var.service_specification_id
 }

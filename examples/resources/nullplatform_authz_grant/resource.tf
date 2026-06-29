@@ -1,3 +1,13 @@
+terraform {
+  required_providers {
+    nullplatform = {
+      source = "nullplatform/nullplatform"
+    }
+  }
+}
+
+provider "nullplatform" {}
+
 resource "nullplatform_user" "admin" {
   email      = "admin@example.com"
   first_name = "Jane"
