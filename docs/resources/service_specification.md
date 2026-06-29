@@ -16,7 +16,7 @@ The service_specification resource allows you to manage nullplatform Service Spe
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
@@ -25,9 +25,9 @@ provider "nullplatform" {
 
 # Resource: Service Specification
 resource "nullplatform_service_specification" "redis_service_spec" {
-  name           = "Redis Service Specification"
-  type           = "dependency"
-  assignable_to   = "any"        # Options: "any", "dimension", "scope"
+  name          = "Redis Service Specification"
+  type          = "dependency"
+  assignable_to = "any" # Options: "any", "dimension", "scope"
 
   visible_to = [
     "organization=1255165411:account=*",
@@ -56,18 +56,18 @@ resource "nullplatform_service_specification" "redis_service_spec" {
 
   attributes = jsonencode({
     schema = {
-      type = "object"
+      type     = "object"
       required = ["endpoint", "port"]
       properties = {
         endpoint = {
-          type      = "string"
-          export    = true
-          readOnly  = true
+          type     = "string"
+          export   = true
+          readOnly = true
         }
         port = {
-          type      = "number"
-          export    = true
-          readOnly  = true
+          type     = "number"
+          export   = true
+          readOnly = true
         }
       }
       additionalProperties = false
@@ -96,6 +96,7 @@ resource "nullplatform_service_specification" "redis_service_spec" {
 
 - `assignable_to` (String) Specifies if the service can be assigned to any entity, only dimensions, or only scopes
 - `attributes` (String) JSON string containing the attributes schema and values
+- `description` (String) Description of the service specification
 - `dimensions` (String) JSON string containing dimension configurations. Example: {"environment": {"required": true}}
 - `scopes` (String) JSON string containing scope configurations. Example: {"provider": {"values": ["AWS:SERVERLESS:LAMBDA"]}}
 - `selectors` (Block List, Max: 1) Selectors for the service specification (see [below for nested schema](#nestedblock--selectors))

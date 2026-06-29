@@ -16,11 +16,12 @@ The parameter resource allows you to manage an application parameter.
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
-      version = "~> 0.0.14"
+      source = "nullplatform/nullplatform"
     }
   }
 }
+
+provider "nullplatform" {}
 
 variable "null_application_id" {
   description = "Unique ID for the application"

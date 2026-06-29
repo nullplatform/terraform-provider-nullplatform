@@ -16,17 +16,17 @@ The link_specification resource allows you to manage nullplatform Link Specifica
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
 provider "nullplatform" {}
 
 resource "nullplatform_link_specification" "redis_link_spec" {
-  name               = "Redis Link Specification"
-  unique             = false
-  specification_id   = nullplatform_service_specification.redis_service_spec.id
-  assignable_to      = "any"
+  name             = "Redis Link Specification"
+  unique           = false
+  specification_id = nullplatform_service_specification.redis_service_spec.id
+  assignable_to    = "any"
 
   visible_to = [
     "organization=1255165411:account=*",

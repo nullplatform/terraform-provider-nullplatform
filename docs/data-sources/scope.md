@@ -13,6 +13,16 @@ Provides information about the Scope
 ## Example Usage
 
 ```terraform
+terraform {
+  required_providers {
+    nullplatform = {
+      source = "nullplatform/nullplatform"
+    }
+  }
+}
+
+provider "nullplatform" {}
+
 data "nullplatform_scope" "example" {
   id = "123"
 }
