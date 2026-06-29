@@ -348,7 +348,7 @@ func (c *NullClient) ensureValidToken() error {
 	if c.Token.AccessToken == "" {
 		diag := c.getToken()
 		if diag != nil {
-			return fmt.Errorf(diag[0].Summary)
+			return fmt.Errorf("%s", diag[0].Summary)
 		}
 	}
 
