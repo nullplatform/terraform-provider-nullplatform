@@ -11,16 +11,19 @@ name: docs
 
 on:
   pull_request:
+    # Only the paths that actually affect generated docs: the provider schema
+    # (Go source), the examples embedded into docs, and the doc templates.
+    # (go.mod/go.sum dependency bumps don't change docs, so they're excluded.)
     paths:
       - "nullplatform/**"
       - "examples/**"
       - "templates/**"
       - "docs/**"
-      - "go.mod"
-      - "go.sum"
-      - "main.go"
-      - "tools/**"
   workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -28,15 +31,15 @@ permissions:
 jobs:
   update:
     name: regenerate docs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.head_ref }}
 
       - name: Set up Go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: "go.mod"
           cache: true
@@ -44,7 +47,7 @@ jobs:
       # tfplugindocs shells out to `terraform` to format examples and read the
       # provider schema, so terraform must be on PATH.
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_wrapper: false
 
