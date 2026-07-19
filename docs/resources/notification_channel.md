@@ -69,6 +69,21 @@ resource "nullplatform_notification_channel" "github" {
   }
 }
 
+resource "nullplatform_notification_channel" "bitbucket" {
+  nrn    = "organization=1:account=2:namespace=3:application=123"
+  type   = "bitbucket"
+  source = ["service"]
+
+  configuration {
+    bitbucket {
+      workspace  = "my-bitbucket-workspace"
+      repository = "my-awesome-repo"
+      reference  = "main"
+      pipeline   = "provisioning" # custom pipeline name from bitbucket-pipelines.yml (pipelines.custom.<name>)
+    }
+  }
+}
+
 resource "nullplatform_notification_channel" "agent" {
   nrn    = "organization=1:account=2:namespace=3:application=123"
   type   = "agent"
@@ -102,6 +117,10 @@ output "github_channel_repository" {
   value = nullplatform_notification_channel.github.configuration[0].github[0].repository
 }
 
+output "bitbucket_channel_pipeline" {
+  value = nullplatform_notification_channel.bitbucket.configuration[0].bitbucket[0].pipeline
+}
+
 output "agent_channel_command" {
   value = nullplatform_notification_channel.custom_agent.configuration[0].agent[0].command[0].data.cmdline
 }
@@ -114,7 +133,7 @@ output "agent_channel_command" {
 
 - `configuration` (Block List, Min: 1, Max: 1) (see [below for nested schema](#nestedblock--configuration))
 - `source` (List of String)
-- `type` (String) Channel type (slack, http, gitlab, github, azure)
+- `type` (String) Channel type (slack, http, gitlab, github, azure, bitbucket)
 
 ### Optional
 
@@ -138,6 +157,7 @@ Optional:
 
 - `agent` (Block List, Max: 1) (see [below for nested schema](#nestedblock--configuration--agent))
 - `azure` (Block List, Max: 1) (see [below for nested schema](#nestedblock--configuration--azure))
+- `bitbucket` (Block List, Max: 1) (see [below for nested schema](#nestedblock--configuration--bitbucket))
 - `github` (Block List, Max: 1) (see [below for nested schema](#nestedblock--configuration--github))
 - `gitlab` (Block List, Max: 1) (see [below for nested schema](#nestedblock--configuration--gitlab))
 - `http` (Block List, Max: 1) (see [below for nested schema](#nestedblock--configuration--http))
@@ -174,6 +194,17 @@ Required:
 - `pipeline_id` (Number)
 - `project` (String)
 - `reference` (String)
+
+
+<a id="nestedblock--configuration--bitbucket"></a>
+### Nested Schema for `configuration.bitbucket`
+
+Required:
+
+- `pipeline` (String)
+- `reference` (String)
+- `repository` (String)
+- `workspace` (String)
 
 
 <a id="nestedblock--configuration--github"></a>

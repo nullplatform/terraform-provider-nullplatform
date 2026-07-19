@@ -17,6 +17,53 @@ import (
 	"github.com/nullplatform/terraform-provider-nullplatform/nullplatform"
 )
 
+// TestNotificationChannelBitbucketSchema asserts the bitbucket configuration
+// block exposes exactly the four required string fields defined by the
+// main-notifications-api PR #161 channel contract (workspace, repository,
+// reference, pipeline). It mirrors the gitlab/github precedent and runs without
+// live API access.
+func TestNotificationChannelBitbucketSchema(t *testing.T) {
+	resourceSchema := nullplatform.Provider().ResourcesMap["nullplatform_notification_channel"].Schema
+
+	configuration, ok := resourceSchema["configuration"]
+	if !ok {
+		t.Fatal("expected notification channel to expose a configuration block")
+	}
+
+	configResource, ok := configuration.Elem.(*schema.Resource)
+	if !ok {
+		t.Fatal("expected configuration Elem to be a *schema.Resource")
+	}
+
+	bitbucket, ok := configResource.Schema["bitbucket"]
+	if !ok {
+		t.Fatal("expected configuration to expose a bitbucket block")
+	}
+
+	bitbucketResource, ok := bitbucket.Elem.(*schema.Resource)
+	if !ok {
+		t.Fatal("expected bitbucket Elem to be a *schema.Resource")
+	}
+
+	expectedFields := []string{"workspace", "repository", "reference", "pipeline"}
+	for _, field := range expectedFields {
+		f, ok := bitbucketResource.Schema[field]
+		if !ok {
+			t.Fatalf("expected bitbucket block to expose required field %q", field)
+		}
+		if !f.Required {
+			t.Errorf("expected bitbucket field %q to be required", field)
+		}
+		if f.Type != schema.TypeString {
+			t.Errorf("expected bitbucket field %q to be a string, got %s", field, f.Type)
+		}
+	}
+
+	if len(bitbucketResource.Schema) != len(expectedFields) {
+		t.Errorf("expected bitbucket block to have exactly %d fields, got %d", len(expectedFields), len(bitbucketResource.Schema))
+	}
+}
+
 func TestAccResourceNotificationChannel(t *testing.T) {
 	applicationID := os.Getenv("NULLPLATFORM_APPLICATION_ID")
 
