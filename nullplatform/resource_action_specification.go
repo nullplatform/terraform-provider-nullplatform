@@ -42,6 +42,12 @@ func resourceActionSpecification() *schema.Resource {
 				Computed:    true,
 				Description: "The computed slug for the action specification",
 			},
+			"last_snapshot_id": {
+				Type:     schema.TypeString,
+				Computed: true,
+				Description: "Newest snapshot id of this action specification. Pin it as a package BOM " +
+					"component's resource_revision_id to freeze this exact version into a package.",
+			},
 			"type": {
 				Type:     schema.TypeString,
 				Required: true,
@@ -203,6 +209,12 @@ func ActionSpecificationRead(ctx context.Context, d *schema.ResourceData, m inte
 	}
 	if err := d.Set("slug", spec.Slug); err != nil {
 		return diag.FromErr(err)
+	}
+	// Best-effort newest snapshot id, for pinning into a package BOM.
+	if snapshotID, snapErr := nullOps.GetLatestSnapshotID("action_specification", specId); snapErr == nil {
+		if err := d.Set("last_snapshot_id", snapshotID); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 	if err := d.Set("type", spec.Type); err != nil {
 		return diag.FromErr(err)

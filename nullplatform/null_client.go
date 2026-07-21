@@ -252,6 +252,7 @@ type NullOps interface {
 	ListPackageRevisions(packageID string) ([]*PackageRevision, error)
 	SetPackageTag(packageID, name string, body *PackageTagSet) error
 	DeletePackageTag(packageID, name string) error
+	GetLatestSnapshotID(kind, id string) (string, error)
 }
 
 func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
