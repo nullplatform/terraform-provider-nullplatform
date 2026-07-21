@@ -6,8 +6,7 @@ terraform {
   }
 }
 
-provider "nullplatform" {
-}
+provider "nullplatform" {}
 
 resource "nullplatform_dimension" "ordered_dimension" {
   name  = "RegionTest"

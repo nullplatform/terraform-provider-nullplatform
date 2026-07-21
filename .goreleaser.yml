@@ -31,6 +31,9 @@ builds:
   ignore:
     - goos: darwin
       goarch: '386'
+    # 32-bit windows/arm port was removed in Go 1.26; Windows on ARM uses arm64
+    - goos: windows
+      goarch: arm
   binary: '{{ .ProjectName }}_v{{ .Version }}'
 archives:
 - format: zip

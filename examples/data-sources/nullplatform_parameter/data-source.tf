@@ -6,6 +6,8 @@ terraform {
   }
 }
 
+provider "nullplatform" {}
+
 data "nullplatform_parameter" "example" {
   id = "123"
 }

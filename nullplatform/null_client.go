@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 )
 
@@ -364,7 +364,7 @@ func (c *NullClient) ensureValidToken() error {
 	if c.Token.AccessToken == "" {
 		diag := c.getToken()
 		if diag != nil {
-			return fmt.Errorf(diag[0].Summary)
+			return fmt.Errorf("%s", diag[0].Summary)
 		}
 	}
 

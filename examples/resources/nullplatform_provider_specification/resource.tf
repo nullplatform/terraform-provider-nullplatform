@@ -6,10 +6,7 @@ terraform {
   }
 }
 
-provider "nullplatform" {
-  # Set via environment variable: export NULLPLATFORM_API_KEY="your-api-key"
-  # Set via environment variable: export NULLPLATFORM_HOST="api.nullplatform.com"
-}
+provider "nullplatform" {}
 
 # Example: minimal provider specification (only required fields)
 resource "nullplatform_provider_specification" "minimal" {

@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
@@ -11,15 +11,15 @@ provider "nullplatform" {}
 locals {
   grants = [
     {
-      nrn = "organization=1:account=1"
+      nrn       = "organization=1:account=1"
       role_slug = "account:admin"
     },
     {
-      nrn = "organization=1:account=1"
+      nrn       = "organization=1:account=1"
       role_slug = "account:ops"
     },
     {
-      nrn = "organization=1:account=1"
+      nrn       = "organization=1:account=1"
       role_slug = "account:developer"
     }
   ]
@@ -62,5 +62,5 @@ output "my_api_key_value" {
 }
 
 output "my_api_key_id" {
-  value     = nullplatform_api_key.my_api_key.id
+  value = nullplatform_api_key.my_api_key.id
 }

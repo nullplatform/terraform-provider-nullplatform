@@ -14,6 +14,16 @@ The authz_grant resource allows you to manage authorization grants in nullplatfo
 ### Basic Example
 
 ```terraform
+terraform {
+  required_providers {
+    nullplatform = {
+      source = "nullplatform/nullplatform"
+    }
+  }
+}
+
+provider "nullplatform" {}
+
 resource "nullplatform_user" "admin" {
   email      = "admin@example.com"
   first_name = "Jane"

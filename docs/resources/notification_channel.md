@@ -27,46 +27,46 @@ provider "nullplatform" {}
 
 # Slack channels will not be valid for organization NRNs. They must be in a lower level, at least account level.
 resource "nullplatform_notification_channel" "slack" {
- nrn    = "organization=1:account=2:namespace=3:application=123"
- type   = "slack"
- source = ["approval"]
+  nrn    = "organization=1:account=2:namespace=3:application=123"
+  type   = "slack"
+  source = ["approval"]
 
- configuration {
-   slack {
-     channels = ["alerts", "platform-notifications"] # Multiple channels can be specified
-   }
- }
+  configuration {
+    slack {
+      channels = ["alerts", "platform-notifications"] # Multiple channels can be specified
+    }
+  }
 }
 
 resource "nullplatform_notification_channel" "webhook" {
- nrn  = "organization=1:account=2:namespace=3:application=123"
- type = "http"
- source = ["approval"]
+  nrn    = "organization=1:account=2:namespace=3:application=123"
+  type   = "http"
+  source = ["approval"]
 
- configuration {
-   http {
-     url = "https://hooks.example.com/webhook/xyz" # Custom webhook URL - can contain headers
-     headers = {
+  configuration {
+    http {
+      url = "https://hooks.example.com/webhook/xyz" # Custom webhook URL - can contain headers
+      headers = {
         "Auhorization" = "Bearer xyz"
-     }
-   }
- }
+      }
+    }
+  }
 }
 
 resource "nullplatform_notification_channel" "github" {
- nrn    = "organization=1:account=2:namespace=3:application=123"
- type   = "github"
- source = ["service"]
+  nrn    = "organization=1:account=2:namespace=3:application=123"
+  type   = "github"
+  source = ["service"]
 
- configuration {
-   github {
-     account         = "my-github-org"
-     reference       = "main"
-     repository      = "my-awesome-repo"
-     workflow_id     = "provisioning.yml"
-     installation_id = "12345678"
-   }
- }
+  configuration {
+    github {
+      account         = "my-github-org"
+      reference       = "main"
+      repository      = "my-awesome-repo"
+      workflow_id     = "provisioning.yml"
+      installation_id = "12345678"
+    }
+  }
 }
 
 resource "nullplatform_notification_channel" "agent" {
@@ -76,7 +76,7 @@ resource "nullplatform_notification_channel" "agent" {
 
   configuration {
     agent {
-      api_key     = "my-agent-api-key"
+      api_key = "my-agent-api-key"
       command {
         data = {
           cmdline = "get-current-connections '$${NOTIFICATION_CONTEXT}'"
@@ -91,19 +91,19 @@ resource "nullplatform_notification_channel" "agent" {
 }
 
 output "slack_channel_source" {
- value = nullplatform_notification_channel.slack.source
+  value = nullplatform_notification_channel.slack.source
 }
 
 output "webhook_channel_url" {
- value = nullplatform_notification_channel.webhook.configuration[0].http[0].url
+  value = nullplatform_notification_channel.webhook.configuration[0].http[0].url
 }
 
 output "github_channel_repository" {
- value = nullplatform_notification_channel.github.configuration[0].github[0].repository
+  value = nullplatform_notification_channel.github.configuration[0].github[0].repository
 }
 
 output "agent_channel_command" {
- value = nullplatform_notification_channel.custom_agent.configuration[0].agent[0].command[0].data.cmdline
+  value = nullplatform_notification_channel.custom_agent.configuration[0].agent[0].command[0].data.cmdline
 }
 ```
 
@@ -120,10 +120,12 @@ output "agent_channel_command" {
 
 - `account` (String) The slug of the account NRN component.
 - `application` (String) The slug of the application NRN component.
+- `description` (String) Human-readable description of the notification channel (max 64 characters)
 - `filters` (String)
 - `namespace` (String) The slug of the namespace NRN component.
 - `nrn` (String) A system-wide unique ID representing the resource.
 - `scope` (String) The slug of the scope NRN component.
+- `status` (String) Channel status (active, inactive)
 
 ### Read-Only
 

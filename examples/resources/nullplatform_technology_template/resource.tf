@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
@@ -22,7 +22,7 @@ resource "nullplatform_technology_template" "golang_1_17" {
     id      = "google"
     version = "1.17"
     metadata = jsonencode({
-      "version": "1.17.9"
+      version = "1.17.9"
     })
   }
 

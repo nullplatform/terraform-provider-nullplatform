@@ -16,8 +16,7 @@ The metadata resource allows you to manage metadata for nullplatform entities
 terraform {
   required_providers {
     nullplatform = {
-      version = "0.0.14"
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
@@ -28,7 +27,7 @@ resource "nullplatform_metadata" "application_links" {
   entity    = "application"
   entity_id = "179769363"
   type      = "links"
-  
+
   value = jsonencode([
     {
       title = "Trello"
@@ -60,7 +59,7 @@ resource "nullplatform_metadata" "application_frameworks" {
   entity    = "application"
   entity_id = "179769363"
   type      = "frameworks"
-  
+
   value = jsonencode({
     backend = [
       {
@@ -92,7 +91,7 @@ resource "nullplatform_metadata" "application_coverage" {
   entity    = "application"
   entity_id = "179769363"
   type      = "coverage"
-  
+
   value = jsonencode({
     overall = 85.6,
     components = {

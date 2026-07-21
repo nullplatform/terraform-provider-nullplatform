@@ -16,13 +16,11 @@ The scope resource allows you to configure a Nullplatform Scope
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
-      version = "~> 0.0.14"
+      source = "nullplatform/nullplatform"
     }
   }
 }
 
-# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
 variable "null_application_id" {
@@ -90,6 +88,7 @@ output "scope" {
 - `capabilities_serverless_memory` (Number) Amount of memory in MB your Lambda Function can use at runtime. Defaults to `128`. See [Limits](https://docs.aws.amazon.com/lambda/latest/dg/limits.html)
 - `capabilities_serverless_runtime_platform` (String) Instruction set architecture for your Lambda function. Valid values are `x86_64`, and `arm_64`.
 - `capabilities_serverless_timeout` (Number) Amount of time your Lambda Function has to run in seconds. Defaults to `10`.
+- `description` (String) Short description of the scope.
 - `dimensions` (Map of String) A key-value map with the runtime configuration dimensions that apply to this scope.
 - `lambda_function_warm_alias` (String, Deprecated) The Lambda function ALIAS name used to warmup the function (NRN key).
 - `log_reader_role` (String, Deprecated) The ARN of the IAM Role to read CloudWatch logs (NRN key).

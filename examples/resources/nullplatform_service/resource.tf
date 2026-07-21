@@ -6,7 +6,6 @@ terraform {
   }
 }
 
-# Use the `NP_API_KEY` environment variable
 provider "nullplatform" {}
 
 variable "null_application_id" {
@@ -22,6 +21,7 @@ variable "specification_id" {
   description = "Specification ID for the service to be imported"
   type        = string
 }
+
 data "nullplatform_application" "app" {
   id = var.null_application_id
 }
@@ -32,10 +32,7 @@ resource "nullplatform_service" "redis_cache_test" {
   entity_nrn       = data.nullplatform_application.app.nrn
   linkable_to      = [data.nullplatform_application.app.nrn]
   dimensions       = {}
-  selectors = {
-    imported = false,
-  }
-  attributes = {}
+  attributes       = {}
 }
 
 data "nullplatform_service" "service" {
@@ -47,12 +44,14 @@ resource "nullplatform_service" "open_weather_test" {
   specification_id = var.specification_id
   entity_nrn       = data.nullplatform_application.app.nrn
   linkable_to      = [data.nullplatform_application.app.nrn]
-  selectors = {
-    category     = "SaaS",
-    imported     = true,
-    provider     = "OpenWeather",
-    sub_category = "Weather",
+
+  selectors {
+    category     = "SaaS"
+    imported     = true
+    provider     = "OpenWeather"
+    sub_category = "Weather"
   }
+
   attributes = {
     api_key = var.open_weather_api_key
   }
