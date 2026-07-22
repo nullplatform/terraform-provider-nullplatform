@@ -106,6 +106,7 @@ resource "nullplatform_service_specification" "redis_service_spec" {
 ### Read-Only
 
 - `id` (String) The ID of this resource.
+- `last_snapshot_id` (String) Newest snapshot id of this specification. Pin it as a package BOM component's resource_revision_id to freeze this exact version into a package.
 - `slug` (String) The computed slug for the service specification
 
 <a id="nestedblock--selectors"></a>
