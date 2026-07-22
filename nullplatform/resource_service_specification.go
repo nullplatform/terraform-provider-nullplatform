@@ -41,6 +41,12 @@ func resourceServiceSpecification() *schema.Resource {
 				Computed:    true,
 				Description: "The computed slug for the service specification",
 			},
+			"last_snapshot_id": {
+				Type:     schema.TypeString,
+				Computed: true,
+				Description: "Newest snapshot id of this specification. Pin it as a package BOM " +
+					"component's resource_revision_id to freeze this exact version into a package.",
+			},
 			"visible_to": {
 				Type:     schema.TypeList,
 				Required: true,
@@ -209,6 +215,13 @@ func ReadServiceSpecification(_ context.Context, d *schema.ResourceData, m inter
 	}
 	if err := d.Set("slug", spec.Slug); err != nil {
 		return diag.FromErr(err)
+	}
+	// Best-effort: a spec always has at least one snapshot after create, but
+	// don't fail the read if the lookup hiccups — leave it empty.
+	if snapshotID, snapErr := nullOps.GetLatestSnapshotID("service_specification", specId); snapErr == nil {
+		if err := d.Set("last_snapshot_id", snapshotID); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 	if err := d.Set("visible_to", spec.VisibleTo); err != nil {
 		return diag.FromErr(err)

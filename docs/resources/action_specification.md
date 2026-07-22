@@ -152,4 +152,5 @@ resource "nullplatform_action_specification" "delete_redis_action" {
 
 - `external_resolution` (String) JSON string with the status of the external context resolution when the action specification was read
 - `id` (String) The ID of this resource.
+- `last_snapshot_id` (String) Newest snapshot id of this action specification. Pin it as a package BOM component's resource_revision_id to freeze this exact version into a package.
 - `slug` (String) The computed slug for the action specification
