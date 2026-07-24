@@ -20,7 +20,7 @@ terraform {
   }
 }
 
-# Use the `NP_API_KEY` environment variable
+# Use the `NULLPLATFORM_API_KEY` environment variable
 provider "nullplatform" {}
 ```
 

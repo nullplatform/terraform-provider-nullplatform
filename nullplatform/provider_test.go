@@ -1,10 +1,13 @@
 package nullplatform_test
 
 import (
+	"context"
 	"os"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
 
 	"github.com/nullplatform/terraform-provider-nullplatform/nullplatform"
@@ -98,4 +101,110 @@ func TestProvider_HasChildDataSources(t *testing.T) {
 		require.NotNil(t, dataSources[resource], "A data source cannot have a nil schema")
 	}
 	require.Equal(t, len(expectedDataSources), len(dataSources), "There are an unexpected number of registered data sources")
+}
+
+// A deprecated attribute backed by a DefaultFunc is reported by the SDK as configured
+// as soon as the environment variable exists, so every plan warned about 'np_apikey'
+// even for configurations that only set 'api_key'.
+func TestProvider_LegacyEnvVarsDoNotDeprecateCurrentConfig(t *testing.T) {
+	t.Setenv("NP_API_KEY", "legacy-env-key")
+	t.Setenv("NP_API_HOST", "legacy.nullplatform.com")
+
+	diags := provider().Validate(terraform.NewResourceConfigRaw(map[string]any{
+		nullplatform.API_KEY: "current-key",
+	}))
+
+	require.Empty(t, diags, "a configuration using only current attributes must not raise diagnostics")
+}
+
+func TestProvider_DeprecatedAttributesInConfigStillWarn(t *testing.T) {
+	for _, attribute := range []string{nullplatform.NP_API_KEY, nullplatform.NP_API_HOST} {
+		t.Run(attribute, func(t *testing.T) {
+			diags := provider().Validate(terraform.NewResourceConfigRaw(map[string]any{
+				attribute: "some-value",
+			}))
+
+			require.Len(t, diags, 1)
+			require.Equal(t, diag.Warning, diags[0].Severity)
+			require.Equal(t, "Argument is deprecated", diags[0].Summary)
+		})
+	}
+}
+
+func TestProvider_ConfigureResolvesAPIKeyAndHost(t *testing.T) {
+	envNames := []string{"NULLPLATFORM_API_KEY", "NULLPLATFORM_HOST", "NP_API_KEY", "NP_API_HOST"}
+
+	cases := []struct {
+		name         string
+		config       map[string]any
+		env          map[string]string
+		wantAPIKey   string
+		wantHost     string
+		wantWarnings []string
+	}{
+		{
+			name:       "current attribute wins over the legacy environment variable",
+			config:     map[string]any{nullplatform.API_KEY: "config-key"},
+			env:        map[string]string{"NP_API_KEY": "legacy-env-key"},
+			wantAPIKey: "config-key",
+			wantHost:   nullplatform.DEFAULT_HOST,
+		},
+		{
+			name:       "current environment variables",
+			config:     map[string]any{},
+			env:        map[string]string{"NULLPLATFORM_API_KEY": "env-key", "NULLPLATFORM_HOST": "custom.nullplatform.com"},
+			wantAPIKey: "env-key",
+			wantHost:   "custom.nullplatform.com",
+		},
+		{
+			name:         "legacy environment variables are honored with a warning",
+			config:       map[string]any{},
+			env:          map[string]string{"NP_API_KEY": "legacy-env-key", "NP_API_HOST": "legacy.nullplatform.com"},
+			wantAPIKey:   "legacy-env-key",
+			wantHost:     "legacy.nullplatform.com",
+			wantWarnings: []string{"Deprecated API Key Environment Variable", "Deprecated Host Environment Variable"},
+		},
+		{
+			name:         "legacy attributes are honored with a warning",
+			config:       map[string]any{nullplatform.NP_API_KEY: "legacy-key", nullplatform.NP_API_HOST: "legacy-attr.nullplatform.com"},
+			wantAPIKey:   "legacy-key",
+			wantHost:     "legacy-attr.nullplatform.com",
+			wantWarnings: []string{"Deprecated API Key Usage", "Deprecated Host Usage"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Clear every variable first: the test host may export the legacy ones.
+			for _, name := range envNames {
+				t.Setenv(name, tc.env[name])
+			}
+
+			p := provider()
+			diags := p.Configure(context.Background(), terraform.NewResourceConfigRaw(tc.config))
+			require.False(t, diags.HasError(), "configure must not fail: %v", diags)
+
+			client, ok := p.Meta().(*nullplatform.NullClient)
+			require.True(t, ok, "provider meta must be a *NullClient")
+			require.Equal(t, tc.wantAPIKey, client.ApiKey)
+			require.Equal(t, tc.wantHost, client.ApiURL)
+
+			summaries := make([]string, 0, len(diags))
+			for _, d := range diags {
+				summaries = append(summaries, d.Summary)
+			}
+			require.ElementsMatch(t, tc.wantWarnings, summaries)
+		})
+	}
+}
+
+func TestProvider_ConfigureFailsWithoutAPIKey(t *testing.T) {
+	for _, name := range []string{"NULLPLATFORM_API_KEY", "NP_API_KEY"} {
+		t.Setenv(name, "")
+	}
+
+	diags := provider().Configure(context.Background(), terraform.NewResourceConfigRaw(map[string]any{}))
+
+	require.True(t, diags.HasError())
+	require.Equal(t, "Missing API Key", diags[0].Summary)
 }
