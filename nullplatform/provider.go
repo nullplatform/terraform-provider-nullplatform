@@ -15,6 +15,15 @@ const HOST = "host"
 const NP_API_KEY = "np_apikey"
 const NP_API_HOST = "np_api_host"
 
+const DEFAULT_HOST = "api.nullplatform.com"
+
+// Deprecated environment variables, read in getAPIKey/getAPIHost rather than through
+// a schema DefaultFunc: the SDK counts a resolved default as a configured value, so a
+// DefaultFunc on a deprecated attribute makes the deprecation warning fire on every
+// plan for configurations that only ever set the current attribute.
+const NP_API_KEY_ENV = "NP_API_KEY"
+const NP_API_HOST_ENV = "NP_API_HOST"
+
 func Provider() *schema.Provider {
 	provider := &schema.Provider{
 		Schema: map[string]*schema.Schema{
@@ -27,13 +36,12 @@ func Provider() *schema.Provider {
 			},
 			HOST: {
 				Type:        schema.TypeString,
-				DefaultFunc: schema.EnvDefaultFunc("NULLPLATFORM_HOST", "api.nullplatform.com"),
+				DefaultFunc: schema.EnvDefaultFunc("NULLPLATFORM_HOST", nil),
 				Optional:    true,
 				Description: "Nullplatform HOST. Can also be set with the `NULLPLATFORM_HOST` environment variable. If omitted, the default value is `api.nullplatform.com`",
 			},
 			NP_API_KEY: {
 				Type:        schema.TypeString,
-				DefaultFunc: schema.EnvDefaultFunc("NP_API_KEY", nil),
 				Optional:    true,
 				Sensitive:   true,
 				Description: "Nullplatform API KEY. Can also be set with the `NP_API_KEY` environment variable.",
@@ -41,7 +49,6 @@ func Provider() *schema.Provider {
 			},
 			NP_API_HOST: {
 				Type:        schema.TypeString,
-				DefaultFunc: schema.EnvDefaultFunc("NP_API_HOST", nil),
 				Optional:    true,
 				Description: "Nullplatform API HOSTNAME. Can also be set with the `NP_API_HOST` environment variable. If omitted, the default value is `api.nullplatform.com`",
 				Deprecated:  "The 'np_api_host' attribute is deprecated and will be removed in a future version. Please use 'host' instead.",
@@ -138,6 +145,14 @@ func getAPIKey(d *schema.ResourceData) (string, diag.Diagnostics) {
 		})
 		return v.(string), diags
 	}
+	if v := os.Getenv(NP_API_KEY_ENV); v != "" {
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Warning,
+			Summary:  "Deprecated API Key Environment Variable",
+			Detail:   "You are using the deprecated 'NP_API_KEY' environment variable. Please use 'NULLPLATFORM_API_KEY' instead.",
+		})
+		return v, diags
+	}
 	diags = append(diags, diag.Diagnostic{
 		Severity: diag.Error,
 		Summary:  "Missing API Key",
@@ -159,12 +174,15 @@ func getAPIHost(d *schema.ResourceData) (string, diag.Diagnostics) {
 		})
 		return v.(string), diags
 	}
-	diags = append(diags, diag.Diagnostic{
-		Severity: diag.Error,
-		Summary:  "Missing API Host",
-		Detail:   "Either 'host' or 'np_api_host' must be set. Please provide a host for authentication.",
-	})
-	return "", diags
+	if v := os.Getenv(NP_API_HOST_ENV); v != "" {
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Warning,
+			Summary:  "Deprecated Host Environment Variable",
+			Detail:   "You are using the deprecated 'NP_API_HOST' environment variable. Please use 'NULLPLATFORM_HOST' instead.",
+		})
+		return v, diags
+	}
+	return DEFAULT_HOST, diags
 }
 
 func hasErrors(diags diag.Diagnostics) bool {
