@@ -53,9 +53,14 @@ func resourceActionSpecification() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 				ValidateFunc: validation.StringInSlice([]string{
-					"custom", "create", "update", "delete", "diagnose",
+					"custom", "create", "update", "delete", "archive", "unarchive", "diagnose",
 				}, false),
-				Description: "Type of the action. Must be one of: custom, create, update, delete, diagnose",
+				Description: "Type of the action. Must be one of: custom, create, update, delete, " +
+					"archive, unarchive, diagnose. On a specification with `use_default_actions`, " +
+					"`archive` and `unarchive` are the opt-in that makes " +
+					"`nullplatform_service.status = \"archived\"` run as a managed action instead of " +
+					"a direct status flip; their content is platform-generated, so omit " +
+					"`parameters` and `results` for them.",
 			},
 			"service_specification_id": {
 				Type:         schema.TypeString,
@@ -71,16 +76,25 @@ func resourceActionSpecification() *schema.Resource {
 				ExactlyOneOf: []string{"service_specification_id", "link_specification_id"},
 				Description:  "ID of the associated link specification",
 			},
+			// Optional+Computed rather than Required: an `archive`/`unarchive` action
+			// on a `use_default_actions` specification is platform-generated from the
+			// specification's attributes schema, and sending either field is refused
+			// with a 400. Omitting them lets the generated content land in state
+			// without a permanent diff (which could not even be applied — PATCHing a
+			// default action is refused too). Configurations that set them keep
+			// behaving exactly as before.
 			"parameters": {
 				Type:             schema.TypeString,
-				Required:         true,
-				Description:      "JSON string containing the parameters schema and values",
+				Optional:         true,
+				Computed:         true,
+				Description:      "JSON string containing the parameters schema and values. Omit it for `archive`/`unarchive` actions on a specification with `use_default_actions`, whose content is platform-generated.",
 				DiffSuppressFunc: suppressEquivalentJSON,
 			},
 			"results": {
 				Type:             schema.TypeString,
-				Required:         true,
-				Description:      "JSON string containing the expected results schema",
+				Optional:         true,
+				Computed:         true,
+				Description:      "JSON string containing the expected results schema. Omit it for `archive`/`unarchive` actions on a specification with `use_default_actions`, whose content is platform-generated.",
 				DiffSuppressFunc: suppressEquivalentJSON,
 			},
 			"retryable": {
@@ -126,18 +140,35 @@ func resourceActionSpecification() *schema.Resource {
 	}
 }
 
+// decodeOptionalJSONObject parses a JSON object out of an Optional+Computed
+// string attribute. An empty string means "not configured" and yields a nil map,
+// which the `omitempty` tag keeps off the request body entirely — the difference
+// that lets the API generate an archive/unarchive action's content instead of
+// refusing a caller-supplied one.
+func decodeOptionalJSONObject(raw string) (map[string]interface{}, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	var decoded map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		return nil, err
+	}
+	return decoded, nil
+}
+
 func ActionSpecificationCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
-	parametersStr := d.Get("parameters").(string)
-	var parameters map[string]interface{}
-	if err := json.Unmarshal([]byte(parametersStr), &parameters); err != nil {
+	// `parameters` and `results` are Optional+Computed, so an omitted attribute
+	// reads back as "". Leave the field off the request entirely in that case:
+	// the API generates it (default actions) or defaults it to an empty schema.
+	parameters, err := decodeOptionalJSONObject(d.Get("parameters").(string))
+	if err != nil {
 		return diag.FromErr(fmt.Errorf("error parsing parameters JSON: %v", err))
 	}
 
-	resultsStr := d.Get("results").(string)
-	var results map[string]interface{}
-	if err := json.Unmarshal([]byte(resultsStr), &results); err != nil {
+	results, err := decodeOptionalJSONObject(d.Get("results").(string))
+	if err != nil {
 		return diag.FromErr(fmt.Errorf("error parsing results JSON: %v", err))
 	}
 
@@ -318,18 +349,16 @@ func ActionSpecificationUpdate(ctx context.Context, d *schema.ResourceData, m in
 	}
 
 	if d.HasChange("parameters") {
-		parametersStr := d.Get("parameters").(string)
-		var parameters map[string]interface{}
-		if err := json.Unmarshal([]byte(parametersStr), &parameters); err != nil {
+		parameters, err := decodeOptionalJSONObject(d.Get("parameters").(string))
+		if err != nil {
 			return diag.FromErr(fmt.Errorf("error parsing parameters JSON: %v", err))
 		}
 		spec.Parameters = parameters
 	}
 
 	if d.HasChange("results") {
-		resultsStr := d.Get("results").(string)
-		var results map[string]interface{}
-		if err := json.Unmarshal([]byte(resultsStr), &results); err != nil {
+		results, err := decodeOptionalJSONObject(d.Get("results").(string))
+		if err != nil {
 			return diag.FromErr(fmt.Errorf("error parsing results JSON: %v", err))
 		}
 		spec.Results = results

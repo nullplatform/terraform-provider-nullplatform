@@ -30,6 +30,9 @@ func resourceService() *schema.Resource {
 
 		Timeouts: &schema.ResourceTimeout{
 			Create: schema.DefaultTimeout(10 * time.Minute),
+			// Update covers the archive/restore wait only; every other update is
+			// a single PATCH and never reaches the waiter.
+			Update: schema.DefaultTimeout(10 * time.Minute),
 			Delete: schema.DefaultTimeout(10 * time.Minute),
 		},
 
@@ -86,6 +89,21 @@ func resourceService() *schema.Resource {
 					"take effect. For tainted resources, run `terraform untaint` first so the " +
 					"apply is an update rather than a replace. Has no effect when " +
 					"`import = true`, where destroy already uses force.",
+			},
+			"archive_on_destroy": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+				Description: "When true, `terraform destroy` archives the service " +
+					"(`PATCH {\"status\": \"archived\"}`) and waits for the transition to finish " +
+					"instead of deleting it. The service row, its attributes and its " +
+					"infrastructure survive and can be restored later by setting " +
+					"`status = \"active\"` on a re-imported resource. Note: Terraform's destroy " +
+					"reads this attribute from state, so you must run `terraform apply` with " +
+					"`archive_on_destroy = true` *before* running `terraform destroy` for it to " +
+					"take effect. For tainted resources, run `terraform untaint` first so the " +
+					"apply is an update rather than a replace. `force_destroy = true` wins over " +
+					"this flag: an escape hatch is asked for when the record must be gone.",
 			},
 			"messages": {
 				Type:     schema.TypeList,
@@ -145,10 +163,31 @@ func resourceService() *schema.Resource {
 				Description: "Selectors for the service specification",
 			},
 			"status": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "active",
-				Description: "Status of the service. Should be one of: [`pending_create`, `pending`, `creating`, `updating`, `deleting`, `active`, `deleted`, `failed`]",
+				Type:     schema.TypeString,
+				Optional: true,
+				// Optional+Computed, *not* `Default: "active"`. With a schema default,
+				// a service archived out of band planned as `archived` -> `active` on
+				// the next unrelated apply and was silently restored. Computed means an
+				// omitted `status` keeps whatever the platform reports, so only an
+				// explicit `status = "active"` restores an archived service — a visible,
+				// deliberate diff. The create-time `active` default now lives in
+				// ServiceCreateContext.
+				Computed: true,
+				Description: "Status of the service. Should be one of: [`pending_create`, `pending`, " +
+					"`creating`, `updating`, `deleting`, `archiving`, `active`, `archived`, `deleted`, " +
+					"`failed`, `cancelled`]. Defaults to `active` when the configuration omits it on " +
+					"create (`pending` when `import = false`, so the specification's create action " +
+					"drives the transition). Leave it unset to track the platform's value: Terraform " +
+					"then never plans a status change on its own. Setting `archived` archives the " +
+					"service and setting `active` on an archived service restores it; when the " +
+					"specification runs archive/unarchive as managed actions, the apply waits for " +
+					"the transition to land.",
+			},
+			"archived_at": {
+				Type:     schema.TypeString,
+				Computed: true,
+				Description: "Timestamp of the last time the service was archived. Empty while the " +
+					"service is not archived.",
 			},
 		},
 	}
@@ -163,10 +202,18 @@ func ServiceCreateContext(ctx context.Context, d *schema.ResourceData, m any) di
 	linkableTo := d.Get("linkable_to").([]interface{})
 	desiredSpecificationId := d.Get("desired_specification_id").(string)
 	status := d.Get("status").(string)
+	if status == "" {
+		// `status` is Optional+Computed with no schema default, so an omitted
+		// configuration value reads back as "". 'active' is the declarative
+		// default this resource has always POSTed; it lives here now instead of
+		// in the schema so that an out-of-band archive is not planned away
+		// (see the `status` schema comment).
+		status = "active"
+	}
 	if !importMode(d) {
 		// Action-driven mode: the create action requires the service to be
 		// in 'pending' on POST /service so the action can transition it to
-		// active. The schema's 'active' default is the right default for
+		// active. The 'active' default is the right default for
 		// import=true (declarative), but wrong here.
 		status = "pending"
 	}
@@ -206,10 +253,40 @@ func ServiceCreateContext(ctx context.Context, d *schema.ResourceData, m any) di
 
 	d.SetId(s.Id)
 
+	// `status` and `archived_at` are Computed: unknown in the plan when the
+	// configuration omits them, so Create has to land a concrete value or state
+	// keeps the empty string until the next refresh.
+	createdStatus := s.Status
+	if createdStatus == "" {
+		createdStatus = status
+	}
+	if err := d.Set("status", createdStatus); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("archived_at", s.ArchivedAt); err != nil {
+		return diag.FromErr(err)
+	}
+
 	if !importMode(d) {
 		attrs, _ := d.Get("attributes").(map[string]interface{})
 		if err := triggerServiceAction(ctx, nullOps, s.Id, s.SpecificationId, "create", attrs, d.Timeout(schema.TimeoutCreate)); err != nil {
 			return diag.FromErr(err)
+		}
+		// The create action moved the service out of the 'pending' the POST
+		// returned; read the landed status so state does not keep a transient
+		// value. Best effort: the service exists and the action succeeded, so a
+		// failed read must not fail the apply — the next refresh corrects it.
+		if refreshed, refreshErr := nullOps.GetService(s.Id); refreshErr != nil {
+			log.Printf("[WARN] could not re-read service %s after its create action: %v", s.Id, refreshErr)
+		} else if refreshed != nil {
+			if refreshed.Status != "" {
+				if err := d.Set("status", refreshed.Status); err != nil {
+					return diag.FromErr(err)
+				}
+			}
+			if err := d.Set("archived_at", refreshed.ArchivedAt); err != nil {
+				return diag.FromErr(err)
+			}
 		}
 	}
 
@@ -251,6 +328,10 @@ func ServiceReadContext(_ context.Context, d *schema.ResourceData, m any) diag.D
 		return diag.FromErr(err)
 	}
 
+	if err := d.Set("archived_at", s.ArchivedAt); err != nil {
+		return diag.FromErr(err)
+	}
+
 	if err := d.Set("dimensions", s.Dimensions); err != nil {
 		return diag.FromErr(err)
 	}
@@ -279,12 +360,18 @@ func ServiceReadContext(_ context.Context, d *schema.ResourceData, m any) diag.D
 	return nil
 }
 
-func ServiceUpdateContext(_ context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
+func ServiceUpdateContext(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
 	serviceID := d.Id()
 
 	log.Println("serviceID:", serviceID)
+
+	// Classify the status change before the PATCH: archive and restore are their
+	// own verbs on the API, and a specification whose archive/unarchive action is
+	// managed runs them asynchronously, so the PATCH only *starts* the
+	// transition. Everything else stays a single PATCH with no polling.
+	transition, fromStatus := serviceStatusTransition(d)
 
 	ps := &Service{}
 
@@ -340,6 +427,21 @@ func ServiceUpdateContext(_ context.Context, d *schema.ResourceData, m any) diag
 		}
 	}
 
+	if transition != "" {
+		s, err := waitForServiceStatusTerminal(ctx, nullOps, serviceID, transition, fromStatus, d.Timeout(schema.TimeoutUpdate))
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		if s != nil {
+			if err := d.Set("status", s.Status); err != nil {
+				return diag.FromErr(err)
+			}
+			if err := d.Set("archived_at", s.ArchivedAt); err != nil {
+				return diag.FromErr(err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -347,7 +449,15 @@ func ServiceDeleteContext(ctx context.Context, d *schema.ResourceData, m any) di
 	nullOps := m.(NullOps)
 	serviceID := d.Id()
 
-	if importMode(d) || d.Get("force_destroy").(bool) {
+	forceDestroy := d.Get("force_destroy").(bool)
+
+	// force_destroy is the escape hatch and outranks archive_on_destroy: someone
+	// reaching for it wants the record gone, not preserved.
+	if d.Get("archive_on_destroy").(bool) && !forceDestroy {
+		return archiveServiceOnDestroy(ctx, d, nullOps, serviceID)
+	}
+
+	if importMode(d) || forceDestroy {
 		if err := nullOps.DeleteService(serviceID, true); err != nil {
 			return diag.FromErr(err)
 		}
@@ -361,14 +471,27 @@ func ServiceDeleteContext(ctx context.Context, d *schema.ResourceData, m any) di
 	// case by reading the live status and force-delete instead. Without this,
 	// users would have to either (a) untaint+apply force_destroy=true into
 	// state then destroy, or (b) manually clean up via the API.
+	//
+	// An `archived` service needs nothing special here: the delete action's
+	// status guard admits active/failed/cancelled/archived, so it falls through
+	// to the ordinary delete-action path below. `archiving` does not, and its
+	// refusal is an opaque 400 from the mint — name it instead.
 	current, err := nullOps.GetService(serviceID)
-	if err == nil && current != nil && current.Status == "failed" {
-		log.Printf("[INFO] service %s is in status=failed; force-deleting instead of triggering delete action", serviceID)
-		if err := nullOps.DeleteService(serviceID, true); err != nil {
-			return diag.FromErr(err)
+	if err == nil && current != nil {
+		if current.Status == "failed" {
+			log.Printf("[INFO] service %s is in status=failed; force-deleting instead of triggering delete action", serviceID)
+			if err := nullOps.DeleteService(serviceID, true); err != nil {
+				return diag.FromErr(err)
+			}
+			d.SetId("")
+			return nil
 		}
-		d.SetId("")
-		return nil
+		if current.Status == "archiving" {
+			return diag.Errorf("service %s is being archived and cannot be deleted yet: the delete "+
+				"action only runs on an active, failed, cancelled or archived service. Wait for the "+
+				"archive to reach `archived` and destroy again, or apply `force_destroy = true` to "+
+				"remove the record directly.", serviceID)
+		}
 	}
 
 	specificationID := d.Get("specification_id").(string)
@@ -381,7 +504,143 @@ func ServiceDeleteContext(ctx context.Context, d *schema.ResourceData, m any) di
 	return nil
 }
 
-const actionPollInterval = 15 * time.Second
+// archiveServiceOnDestroy implements `archive_on_destroy`: destroy archives the
+// service instead of deleting it, then drops it from state. The row, its
+// attributes and its infrastructure survive and stay restorable.
+func archiveServiceOnDestroy(ctx context.Context, d *schema.ResourceData, nullOps NullOps, serviceID string) diag.Diagnostics {
+	current, err := nullOps.GetService(serviceID)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("reading service %s before archiving it on destroy: %w", serviceID, err))
+	}
+	if current == nil {
+		d.SetId("")
+		return nil
+	}
+
+	switch current.Status {
+	case "archived":
+		// Already archived out of band, or by a destroy that died after the
+		// transition landed. Re-PATCHing `archived` is refused (only an active,
+		// failed or cancelled service archives), so there is nothing left to do.
+		log.Printf("[INFO] service %s is already archived; dropping it from state without a status change", serviceID)
+		d.SetId("")
+		return nil
+	case "archiving":
+		// An archive is already running — join it rather than starting a second
+		// one, which the mint would refuse.
+		log.Printf("[INFO] service %s is already archiving; waiting for it to land instead of re-issuing the archive", serviceID)
+	default:
+		if err := nullOps.PatchService(serviceID, &Service{Status: "archived"}); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
+	if _, err := waitForServiceStatusTerminal(ctx, nullOps, serviceID, "archive", current.Status, d.Timeout(schema.TimeoutDelete)); err != nil {
+		return diag.FromErr(err)
+	}
+
+	d.SetId("")
+	return nil
+}
+
+// serviceStatusTransition names the lifecycle verb a `status` change requests
+// and the status the service is transitioning from, or ("", "") for an ordinary
+// metadata update.
+//
+// Mirrors the API's own classification: `archived` always requests an archive,
+// while `active` is a restore only when the service is currently archived —
+// `active` on anything else stays the legacy direct write it always was.
+func serviceStatusTransition(d *schema.ResourceData) (transition, fromStatus string) {
+	if !d.HasChange("status") {
+		return "", ""
+	}
+	previous, desired := d.GetChange("status")
+	from, _ := previous.(string)
+	to, _ := desired.(string)
+
+	if to == "archived" {
+		return "archive", from
+	}
+	if to == "active" && from == "archived" {
+		return "unarchive", from
+	}
+	return "", ""
+}
+
+// A var rather than a const so tests can shrink it.
+var actionPollInterval = 15 * time.Second
+
+// statusPollInterval is shorter than actionPollInterval: a status transition can
+// be over before the first poll (an unmanaged specification flips it inside the
+// PATCH), so the wait should not be dominated by the interval. A var rather than
+// a const so tests can shrink it.
+var statusPollInterval = 5 * time.Second
+
+// waitForServiceStatusTerminal polls the service until an archive or a restore
+// lands.
+//
+// Sibling of waitForActionTerminal, watching the instance instead of an action,
+// because there is not always an action to watch: a specification with a managed
+// archive/unarchive action mints one and the PATCH returns while the transition
+// is still running, but a specification with no such action flips the status
+// synchronously and mints nothing. Polling the instance covers both, and the
+// synchronous case costs exactly one GET.
+//
+// The transient statuses come from the API's action-outcome table: an archive
+// sits in `archiving`, and a restore has no `unarchiving` status of its own — it
+// transits `updating` and lands on the ordinary `active` success path.
+func waitForServiceStatusTerminal(ctx context.Context, nullOps NullOps, serviceID, transition, fromStatus string, timeout time.Duration) (*Service, error) {
+	var pending, target []string
+	// A service may be archived from `failed`, so `failed` cannot double as the
+	// failure signal when that is where the transition started.
+	failedIsFailure := fromStatus != "failed"
+
+	switch transition {
+	case "archive":
+		// Only an active, failed or cancelled service archives.
+		pending = []string{"active", "cancelled", "archiving"}
+		if !failedIsFailure {
+			pending = append(pending, "failed")
+		}
+		target = []string{"archived"}
+	case "unarchive":
+		// Only an archived service restores.
+		pending = []string{"archived", "updating"}
+		target = []string{"active"}
+	default:
+		return nil, fmt.Errorf("unknown service status transition %q", transition)
+	}
+
+	stateConf := &retry.StateChangeConf{
+		Pending: pending,
+		Target:  target,
+		Refresh: func() (interface{}, string, error) {
+			s, err := nullOps.GetService(serviceID)
+			if err != nil {
+				return nil, "", err
+			}
+			if s.Status == "failed" && failedIsFailure {
+				return s, s.Status, fmt.Errorf("service %s ended in status %q while running %s: %s",
+					serviceID, s.Status, transition, summarizeMessages(s.Messages))
+			}
+			return s, s.Status, nil
+		},
+		Timeout: timeout,
+		// No initial delay: an unmanaged specification has already flipped the
+		// status by the time the PATCH returns, and that case must not pay a
+		// poll interval it does not need.
+		Delay:      0,
+		MinTimeout: statusPollInterval,
+	}
+	raw, err := stateConf.WaitForStateContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if s, ok := raw.(*Service); ok {
+		return s, nil
+	}
+	return nil, nil
+}
 
 func waitForActionTerminal(ctx context.Context, nullOps NullOps, serviceID, actionID string, timeout time.Duration) (*ActionInstance, error) {
 	stateConf := &retry.StateChangeConf{

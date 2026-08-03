@@ -19,6 +19,7 @@ type Service struct {
 	EntityNrn              string                 `json:"entity_nrn,omitempty"`
 	LinkableTo             []interface{}          `json:"linkable_to,omitempty"`
 	Status                 string                 `json:"status,omitempty"`
+	ArchivedAt             string                 `json:"archived_at,omitempty"`
 	Slug                   string                 `json:"slug,omitempty"`
 	Messages               []interface{}          `json:"messages,omitempty"`
 	Selectors              *Selectors             `json:"selectors,omitempty"` // Use the new struct
@@ -72,8 +73,13 @@ func (c *NullClient) PatchService(serviceId string, s *Service) error {
 	defer res.Body.Close()
 
 	if (res.StatusCode != http.StatusOK) && (res.StatusCode != http.StatusNoContent) {
-		io.Copy(os.Stdout, res.Body)
-		return fmt.Errorf("error patching service resource, got %d", res.StatusCode)
+		// Keep the response body in the error rather than on stdout: the archive
+		// and restore refusals all arrive as a 400 whose message is the only thing
+		// that says which guard rejected the request ("cannot carry attributes",
+		// "has non-archived links", "use the 'archive' action instead"), and
+		// Terraform shows the operator the error, not the provider's stdout.
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("error patching service resource, got %d: %s", res.StatusCode, string(bodyBytes))
 	}
 
 	return nil

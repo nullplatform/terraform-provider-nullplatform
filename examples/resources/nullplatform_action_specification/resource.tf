@@ -110,3 +110,25 @@ resource "nullplatform_action_specification" "delete_redis_action" {
     values = {}
   })
 }
+
+# Archive opt-in. A specification created with `use_default_actions` generates
+# create/update/delete/archive automatically; `unarchive` is never generated,
+# and a specification that predates archive gains neither. Declaring them here
+# is the opt-in that turns `nullplatform_service.status = "archived"` into a
+# managed action instead of a direct status flip.
+#
+# Their content is platform-generated from the specification's attributes
+# schema, so `parameters` and `results` must be omitted — sending either is
+# refused. Only `name` is yours, and it survives regeneration. Deleting these
+# resources is the opt-out: archive falls back to the direct status flip.
+resource "nullplatform_action_specification" "archive_redis_action" {
+  name                     = "Archive Redis Instance"
+  type                     = "archive"
+  service_specification_id = "your-service-spec-id"
+}
+
+resource "nullplatform_action_specification" "unarchive_redis_action" {
+  name                     = "Restore Redis Instance"
+  type                     = "unarchive"
+  service_specification_id = "your-service-spec-id"
+}

@@ -79,10 +79,11 @@ output "link" {
 - `dimensions` (Map of String) Object representing dimensions with key-value pairs.
 - `linkable_to` (List of String) A list of NRN representing the visibility settings for the entity. Specifies what/who can see this entity. Value must match regular expression `^organization=[0-9]+(:account=[0-9]+)?(:namespace=[0-9]+)?(:application=[0-9]+)?(:scope=[0-9]+)?$`.
 - `selectors` (Map of String) Key-value object representing instance selectors.
-- `status` (String) Status of the link. Should be one of: [`pending_create`, `pending`, `creating`, `updating`, `deleting`, `active`, `deleted`, `failed`]
+- `status` (String) Status of the link. Should be one of: [`pending_create`, `pending`, `creating`, `updating`, `deleting`, `archiving`, `active`, `archived`, `deleted`, `failed`, `cancelled`]. Leave it unset to track the platform's value: Terraform then never plans a status change on its own. Setting `archived` archives the link (which removes its parameters) and setting `active` on an archived link restores them.
 
 ### Read-Only
 
+- `archived_at` (String) Timestamp of the last time the link was archived. Empty while the link is not archived.
 - `desired_specification_id` (String) Desired unique identifier for the associated specification.
 - `id` (String) The ID of this resource.
 - `slug` (String) Slug of the entity. Automatically generated from `name`.

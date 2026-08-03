@@ -90,3 +90,50 @@ variable "provisioned_specification_id" {
   description = "Specification ID for a service whose create+delete actions should be triggered."
   type        = string
 }
+
+# Archive instead of delete: `terraform destroy` PATCHes the service to
+# `archived` and waits for the transition, leaving the row, its attributes and
+# its infrastructure in place. Terraform reads the flag from state at destroy
+# time, so it has to be applied before the destroy runs.
+resource "nullplatform_service" "open_weather_archivable" {
+  name             = "open-weather-archivable"
+  specification_id = var.provisioned_specification_id
+  entity_nrn       = data.nullplatform_application.app.nrn
+  linkable_to      = [data.nullplatform_application.app.nrn]
+
+  import             = false
+  archive_on_destroy = true
+
+  timeouts {
+    create = "10m"
+    update = "10m"
+    delete = "10m"
+  }
+
+  attributes = {
+    api_key = var.open_weather_api_key
+  }
+  dimensions = {}
+}
+
+# Archiving on demand. Leave `status` out of the configuration — as every
+# example above does — to let Terraform track whatever the platform reports; a
+# service archived outside Terraform then stays archived instead of being
+# restored by the next unrelated apply. Set `status` explicitly only when the
+# apply is meant to archive (`archived`) or restore (`active`) an existing
+# service; a service cannot be *created* archived. When the specification runs
+# archive/unarchive as managed actions, the apply waits for the transition, so
+# give the resource an `update` timeout.
+#
+#   resource "nullplatform_service" "open_weather_test" {
+#     # ...
+#     status = "archived"
+#
+#     timeouts {
+#       update = "10m"
+#     }
+#   }
+
+output "open_weather_archived_at" {
+  value = nullplatform_service.open_weather_test.archived_at
+}
