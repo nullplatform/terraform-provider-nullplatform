@@ -88,9 +88,27 @@ func resourceLink() *schema.Resource {
 				Description: "Key-value object representing instance selectors.",
 			},
 			"status": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "Status of the link. Should be one of: [`pending_create`, `pending`, `creating`, `updating`, `deleting`, `active`, `deleted`, `failed`]",
+				Type:     schema.TypeString,
+				Optional: true,
+				// Optional+Computed: an omitted `status` tracks whatever the platform
+				// reports. Without Computed, an unset configuration read back as "" and
+				// diffed against the `active` the API assigns, so every plan showed a
+				// phantom `active` -> `""` change that PATCHed nothing; and once archive
+				// exists, that same diff would be a silent restore of a link archived
+				// out of band.
+				Computed: true,
+				Description: "Status of the link. Should be one of: [`pending_create`, `pending`, " +
+					"`creating`, `updating`, `deleting`, `archiving`, `active`, `archived`, `deleted`, " +
+					"`failed`, `cancelled`]. Leave it unset to track the platform's value: Terraform " +
+					"then never plans a status change on its own. Setting `archived` archives the " +
+					"link (which removes its parameters) and setting `active` on an archived link " +
+					"restores them.",
+			},
+			"archived_at": {
+				Type:     schema.TypeString,
+				Computed: true,
+				Description: "Timestamp of the last time the link was archived. Empty while the link " +
+					"is not archived.",
 			},
 		},
 	}
@@ -128,6 +146,16 @@ func LinkCreate(d *schema.ResourceData, m any) error {
 	}
 
 	d.SetId(l.Id)
+
+	// `status` and `archived_at` are Computed: unknown in the plan when the
+	// configuration omits them, so Create has to land a concrete value or state
+	// keeps the empty string until the next refresh.
+	if err := d.Set("status", l.Status); err != nil {
+		return err
+	}
+	if err := d.Set("archived_at", l.ArchivedAt); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -172,6 +200,10 @@ func LinkRead(d *schema.ResourceData, m any) error {
 	}
 
 	if err := d.Set("status", l.Status); err != nil {
+		return err
+	}
+
+	if err := d.Set("archived_at", l.ArchivedAt); err != nil {
 		return err
 	}
 
