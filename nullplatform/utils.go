@@ -4,7 +4,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
+
+// configuredBool reports an Optional+Computed boolean attribute only when the
+// practitioner actually declared it in the configuration, returning nil
+// otherwise so the caller can leave the field out of the request body and let
+// the API keep applying its own default.
+//
+// d.Get cannot make this distinction: an omitted bool and an explicit false
+// both read back as false, so the raw configuration has to be consulted. The
+// value itself still comes from d.Get, which is always resolved by the time
+// create and update run.
+func configuredBool(d *schema.ResourceData, key string) *bool {
+	raw := d.GetRawConfig()
+	if raw.IsNull() {
+		return nil
+	}
+	if attr := raw.GetAttr(key); attr.IsNull() {
+		return nil
+	}
+	v := d.Get(key).(bool)
+	return &v
+}
 
 func serializeHelper(value any) (any, error) {
 	rv := reflect.ValueOf(value)

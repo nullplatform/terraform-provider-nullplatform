@@ -19,6 +19,10 @@ type Selectors struct {
 	SubCategory string `json:"sub_category"`
 }
 
+// ServiceSpecification models the API payload. UseDefaultActions and
+// UseDefaultNaming are pointers rather than plain bools because omitempty drops
+// a false bool, which made an explicit false impossible to transmit; nil means
+// the attribute was not configured and the API default applies.
 type ServiceSpecification struct {
 	Id                string                 `json:"id,omitempty"`
 	Name              string                 `json:"name,omitempty"`
@@ -30,7 +34,8 @@ type ServiceSpecification struct {
 	Type              string                 `json:"type,omitempty"`
 	Attributes        map[string]interface{} `json:"attributes,omitempty"`
 	Selectors         *Selectors             `json:"selectors,omitempty"` // Use the new struct
-	UseDefaultActions bool                   `json:"use_default_actions,omitempty"`
+	UseDefaultActions *bool                  `json:"use_default_actions,omitempty"`
+	UseDefaultNaming  *bool                  `json:"use_default_naming,omitempty"`
 	Scopes            map[string]interface{} `json:"scopes,omitempty"`
 }
 

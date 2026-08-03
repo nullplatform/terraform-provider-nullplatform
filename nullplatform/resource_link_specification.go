@@ -86,8 +86,14 @@ func resourceLinkSpecification() *schema.Resource {
 			"use_default_actions": {
 				Type:        schema.TypeBool,
 				Optional:    true,
-				Default:     false,
-				Description: "Indicates whether to use default actions for the link specification",
+				Computed:    true,
+				Description: "Indicates whether to use default actions for the link specification. Left to the API default when not set",
+			},
+			"use_default_naming": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+				Description: "Indicates whether the entry point of the link specification actions is derived from the default naming convention (`<service-slug>/link/<action-slug>`). Left to the API default when not set",
 			},
 			"scopes": {
 				Type:             schema.TypeString,
@@ -192,7 +198,8 @@ func CreateLinkSpecification(_ context.Context, d *schema.ResourceData, m interf
 		AssignableTo:      d.Get("assignable_to").(string),
 		Attributes:        attributes,
 		Selectors:         &selectors,
-		UseDefaultActions: d.Get("use_default_actions").(bool),
+		UseDefaultActions: configuredBool(d, "use_default_actions"),
+		UseDefaultNaming:  configuredBool(d, "use_default_naming"),
 		Scopes:            scopes,
 	}
 
@@ -237,8 +244,15 @@ func ReadLinkSpecification(_ context.Context, d *schema.ResourceData, m interfac
 	if err := d.Set("visible_to", spec.VisibleTo); err != nil {
 		return diag.FromErr(err)
 	}
-	if err := d.Set("use_default_actions", spec.UseDefaultActions); err != nil {
-		return diag.FromErr(err)
+	if spec.UseDefaultActions != nil {
+		if err := d.Set("use_default_actions", *spec.UseDefaultActions); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+	if spec.UseDefaultNaming != nil {
+		if err := d.Set("use_default_naming", *spec.UseDefaultNaming); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	dimensionsJSON, err := json.Marshal(spec.Dimensions)
@@ -316,6 +330,14 @@ func UpdateLinkSpecification(ctx context.Context, d *schema.ResourceData, m inte
 
 	spec.Unique = d.Get("unique").(bool)
 
+	// Send these two whenever the configuration declares them, not only on
+	// change, so that flipping true -> false actually reaches the API. When the
+	// attribute is absent the helper yields nil, keeping it out of the PATCH
+	// body: gating on d.HasChange instead would leave the Go zero value behind
+	// and turn the flag off on unrelated updates.
+	spec.UseDefaultActions = configuredBool(d, "use_default_actions")
+	spec.UseDefaultNaming = configuredBool(d, "use_default_naming")
+
 	if d.HasChange("visible_to") {
 		if v, ok := d.GetOk("visible_to"); ok {
 			visibleToRaw := v.([]interface{})
@@ -325,10 +347,6 @@ func UpdateLinkSpecification(ctx context.Context, d *schema.ResourceData, m inte
 			}
 			spec.VisibleTo = visibleTo
 		}
-	}
-
-	if d.HasChange("use_default_actions") {
-		spec.UseDefaultActions = d.Get("use_default_actions").(bool)
 	}
 
 	if d.HasChange("dimensions") {

@@ -77,7 +77,8 @@ resource "nullplatform_link_specification" "redis_link_spec" {
 - `external` (String) JSON string with the configuration for resolving external context data via the nullplatform agent
 - `scopes` (String) JSON string containing scope configurations. Example: {"provider": {"values": ["AWS:SERVERLESS:LAMBDA"]}}
 - `selectors` (Block List, Max: 1) Selectors for the service specification (see [below for nested schema](#nestedblock--selectors))
-- `use_default_actions` (Boolean) Indicates whether to use default actions for the link specification
+- `use_default_actions` (Boolean) Indicates whether to use default actions for the link specification. Left to the API default when not set
+- `use_default_naming` (Boolean) Indicates whether the entry point of the link specification actions is derived from the default naming convention (`<service-slug>/link/<action-slug>`). Left to the API default when not set
 - `visible_to` (List of String) Array representing visibility settings for the link specification
 
 ### Read-Only
