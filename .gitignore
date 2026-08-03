@@ -9,3 +9,10 @@ dist/
 .terraformrc
 .idea
 bin
+.vscode
+.DS_Store
+.claude/
+.env
+.env.*
+!.env.example
+/terraform-provider-nullplatform
