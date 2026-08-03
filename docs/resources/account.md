@@ -37,6 +37,13 @@ resource "nullplatform_account" "gitlab_account" {
   slug                = "gitlab-account"
 }
 
+resource "nullplatform_account" "bitbucket_account" {
+  name                = "My Bitbucket Account"
+  repository_prefix   = "my-workspace"
+  repository_provider = "bitbucket"
+  slug                = "bitbucket-account"
+}
+
 output "github_account_id" {
   description = "The ID of the GitHub account"
   value       = nullplatform_account.github_account.id

@@ -54,6 +54,21 @@ resource "nullplatform_notification_channel" "github" {
   }
 }
 
+resource "nullplatform_notification_channel" "bitbucket" {
+  nrn    = "organization=1:account=2:namespace=3:application=123"
+  type   = "bitbucket"
+  source = ["service"]
+
+  configuration {
+    bitbucket {
+      workspace  = "my-bitbucket-workspace"
+      repository = "my-awesome-repo"
+      reference  = "main"
+      pipeline   = "provisioning" # custom pipeline name from bitbucket-pipelines.yml (pipelines.custom.<name>)
+    }
+  }
+}
+
 resource "nullplatform_notification_channel" "agent" {
   nrn    = "organization=1:account=2:namespace=3:application=123"
   type   = "agent"
@@ -85,6 +100,10 @@ output "webhook_channel_url" {
 
 output "github_channel_repository" {
   value = nullplatform_notification_channel.github.configuration[0].github[0].repository
+}
+
+output "bitbucket_channel_pipeline" {
+  value = nullplatform_notification_channel.bitbucket.configuration[0].bitbucket[0].pipeline
 }
 
 output "agent_channel_command" {

@@ -35,7 +35,7 @@ func resourceNotificationChannel() *schema.Resource {
 			"type": {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "Channel type (slack, http, gitlab, github, azure)",
+				Description: "Channel type (slack, http, gitlab, github, azure, bitbucket)",
 			},
 			"source": {
 				Type:     schema.TypeList,
@@ -203,6 +203,31 @@ func resourceNotificationChannel() *schema.Resource {
 								},
 							},
 						},
+						"bitbucket": {
+							Type:     schema.TypeList,
+							Optional: true,
+							MaxItems: 1,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"workspace": {
+										Type:     schema.TypeString,
+										Required: true,
+									},
+									"repository": {
+										Type:     schema.TypeString,
+										Required: true,
+									},
+									"reference": {
+										Type:     schema.TypeString,
+										Required: true,
+									},
+									"pipeline": {
+										Type:     schema.TypeString,
+										Required: true,
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -291,6 +316,14 @@ func NotificationChannelCreate(d *schema.ResourceData, m any) error {
 			flatConfig["repository"] = githubMap["repository"]
 			flatConfig["workflow_id"] = githubMap["workflow_id"]
 			flatConfig["installation_id"] = githubMap["installation_id"]
+		}
+	case "bitbucket":
+		if bitbucketConfig, ok := config["bitbucket"].([]interface{}); ok && len(bitbucketConfig) > 0 {
+			bitbucketMap := bitbucketConfig[0].(map[string]interface{})
+			flatConfig["workspace"] = bitbucketMap["workspace"]
+			flatConfig["repository"] = bitbucketMap["repository"]
+			flatConfig["reference"] = bitbucketMap["reference"]
+			flatConfig["pipeline"] = bitbucketMap["pipeline"]
 		}
 	}
 
@@ -438,6 +471,15 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 				"installation_id": channel.Configuration["installation_id"],
 			},
 		}
+	case "bitbucket":
+		config["bitbucket"] = []interface{}{
+			map[string]interface{}{
+				"workspace":  channel.Configuration["workspace"],
+				"repository": channel.Configuration["repository"],
+				"reference":  channel.Configuration["reference"],
+				"pipeline":   channel.Configuration["pipeline"],
+			},
+		}
 	}
 
 	if err := d.Set("configuration", []interface{}{config}); err != nil {
@@ -528,6 +570,14 @@ func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 				flatConfig["repository"] = githubMap["repository"]
 				flatConfig["workflow_id"] = githubMap["workflow_id"]
 				flatConfig["installation_id"] = githubMap["installation_id"]
+			}
+		case "bitbucket":
+			if bitbucketConfig, ok := config["bitbucket"].([]interface{}); ok && len(bitbucketConfig) > 0 {
+				bitbucketMap := bitbucketConfig[0].(map[string]interface{})
+				flatConfig["workspace"] = bitbucketMap["workspace"]
+				flatConfig["repository"] = bitbucketMap["repository"]
+				flatConfig["reference"] = bitbucketMap["reference"]
+				flatConfig["pipeline"] = bitbucketMap["pipeline"]
 			}
 		}
 
