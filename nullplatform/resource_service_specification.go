@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -20,11 +21,17 @@ func resourceServiceSpecification() *schema.Resource {
 
 		// Recompute the BOM attributes (last_snapshot_id, action_specifications)
 		// when the spec's content changes, so a package pinning them can't hit an
-		// "inconsistent final plan" on update.
-		CustomizeDiff: specBOMCustomizeDiff(
-			"name", "description", "slug", "visible_to", "dimensions",
-			"assignable_to", "type", "attributes", "use_default_actions",
-			"use_default_naming", "scopes", "selectors",
+		// "inconsistent final plan" on update. use_managed_actions is content
+		// too: flipping it re-stamps the generated actions. The second check
+		// mirrors the API's own guard so `use_managed_actions` without
+		// `use_default_actions` is refused at plan time, not as a 400 mid-apply.
+		CustomizeDiff: customdiff.All(
+			specBOMCustomizeDiff(
+				"name", "description", "slug", "visible_to", "dimensions",
+				"assignable_to", "type", "attributes", "use_default_actions",
+				"use_default_naming", "use_managed_actions", "scopes", "selectors",
+			),
+			validateManagedRequiresDefaultActions,
 		),
 
 		Importer: &schema.ResourceImporter{
@@ -111,6 +118,13 @@ func resourceServiceSpecification() *schema.Resource {
 				Optional:    true,
 				Computed:    true,
 				Description: "Indicates whether the entry point of the service specification actions is derived from the default naming convention based on the service and action slugs. Left to the API default when not set",
+			},
+			"use_managed_actions": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Computed: true,
+				Description: "Indicates whether the CRUD verbs on instances of this specification run through the generated actions instead of writing directly: a PATCH mints the `update` action, a DELETE mints `delete`, and `status = \"archived\"` mints `archive`. " +
+					"Requires `use_default_actions` — a specification that authors its own actions has none to stamp as managed. Left to the API default (false) when not set",
 			},
 			"scopes": {
 				Type:             schema.TypeString,
@@ -203,6 +217,7 @@ func CreateServiceSpecification(_ context.Context, d *schema.ResourceData, m int
 		Selectors:         &selectors,
 		UseDefaultActions: configuredBool(d, "use_default_actions"),
 		UseDefaultNaming:  configuredBool(d, "use_default_naming"),
+		UseManagedActions: configuredBool(d, "use_managed_actions"),
 		Scopes:            scopes,
 	}
 
@@ -259,6 +274,11 @@ func ReadServiceSpecification(_ context.Context, d *schema.ResourceData, m inter
 			return diag.FromErr(err)
 		}
 	}
+	if spec.UseManagedActions != nil {
+		if err := d.Set("use_managed_actions", *spec.UseManagedActions); err != nil {
+			return diag.FromErr(err)
+		}
+	}
 
 	dimensionsJSON, err := json.Marshal(spec.Dimensions)
 	if err != nil {
@@ -291,16 +311,20 @@ func ReadServiceSpecification(_ context.Context, d *schema.ResourceData, m inter
 		return diag.FromErr(err)
 	}
 
-	selectors := []map[string]interface{}{
-		{
-			"category":     spec.Selectors.Category,
-			"imported":     spec.Selectors.Imported,
-			"provider":     spec.Selectors.Provider,
-			"sub_category": spec.Selectors.SubCategory,
-		},
-	}
-	if err := d.Set("selectors", selectors); err != nil {
-		return diag.FromErr(err)
+	// A response without `selectors` must not crash the plugin — the data
+	// source already guards this dereference, the resource did not.
+	if spec.Selectors != nil {
+		selectors := []map[string]interface{}{
+			{
+				"category":     spec.Selectors.Category,
+				"imported":     spec.Selectors.Imported,
+				"provider":     spec.Selectors.Provider,
+				"sub_category": spec.Selectors.SubCategory,
+			},
+		}
+		if err := d.Set("selectors", selectors); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	return nil
@@ -319,6 +343,7 @@ func UpdateServiceSpecification(ctx context.Context, d *schema.ResourceData, m i
 	// and turn the flag off on unrelated updates.
 	spec.UseDefaultActions = configuredBool(d, "use_default_actions")
 	spec.UseDefaultNaming = configuredBool(d, "use_default_naming")
+	spec.UseManagedActions = configuredBool(d, "use_managed_actions")
 
 	if d.HasChange("name") {
 		spec.Name = d.Get("name").(string)
