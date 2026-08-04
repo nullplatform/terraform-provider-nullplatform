@@ -371,7 +371,7 @@ func ServiceUpdateContext(ctx context.Context, d *schema.ResourceData, m any) di
 	// own verbs on the API, and a specification whose archive/unarchive action is
 	// managed runs them asynchronously, so the PATCH only *starts* the
 	// transition. Everything else stays a single PATCH with no polling.
-	transition, fromStatus := serviceStatusTransition(d)
+	transition, fromStatus := statusTransition(d)
 
 	ps := &Service{}
 
@@ -417,6 +417,20 @@ func ServiceUpdateContext(ctx context.Context, d *schema.ResourceData, m any) di
 				Provider:    selectorsMap["provider"].(string),
 				SubCategory: selectorsMap["sub_category"].(string),
 			}
+		}
+	}
+
+	// An archive/restore request cannot carry attributes: the minted action's
+	// parameters are `{}` and the direct flip writes none, so the API refuses the
+	// combination rather than dropping them silently. Terraform users routinely
+	// change both in one apply, so send the attributes first on their own and let
+	// the status transition follow — the same two applies they would otherwise be
+	// told to run by hand.
+	if transition != "" && ps.Attributes != nil {
+		attributesOnly := &Service{Attributes: ps.Attributes}
+		ps.Attributes = nil
+		if err := nullOps.PatchService(serviceID, attributesOnly); err != nil {
+			return diag.FromErr(err)
 		}
 	}
 
@@ -543,14 +557,14 @@ func archiveServiceOnDestroy(ctx context.Context, d *schema.ResourceData, nullOp
 	return nil
 }
 
-// serviceStatusTransition names the lifecycle verb a `status` change requests
-// and the status the service is transitioning from, or ("", "") for an ordinary
-// metadata update.
+// statusTransition names the lifecycle verb a `status` change requests and the
+// status the instance is transitioning from, or ("", "") for an ordinary
+// metadata update. Services and links classify identically, so they share this.
 //
 // Mirrors the API's own classification: `archived` always requests an archive,
-// while `active` is a restore only when the service is currently archived —
+// while `active` is a restore only when the instance is currently archived —
 // `active` on anything else stays the legacy direct write it always was.
-func serviceStatusTransition(d *schema.ResourceData) (transition, fromStatus string) {
+func statusTransition(d *schema.ResourceData) (transition, fromStatus string) {
 	if !d.HasChange("status") {
 		return "", ""
 	}
@@ -590,49 +604,20 @@ var statusPollInterval = 5 * time.Second
 // sits in `archiving`, and a restore has no `unarchiving` status of its own — it
 // transits `updating` and lands on the ordinary `active` success path.
 func waitForServiceStatusTerminal(ctx context.Context, nullOps NullOps, serviceID, transition, fromStatus string, timeout time.Duration) (*Service, error) {
-	var pending, target []string
-	// A service may be archived from `failed`, so `failed` cannot double as the
-	// failure signal when that is where the transition started.
-	failedIsFailure := fromStatus != "failed"
-
-	switch transition {
-	case "archive":
-		// Only an active, failed or cancelled service archives.
-		pending = []string{"active", "cancelled", "archiving"}
-		if !failedIsFailure {
-			pending = append(pending, "failed")
-		}
-		target = []string{"archived"}
-	case "unarchive":
-		// Only an archived service restores.
-		pending = []string{"archived", "updating"}
-		target = []string{"active"}
-	default:
-		return nil, fmt.Errorf("unknown service status transition %q", transition)
-	}
-
-	stateConf := &retry.StateChangeConf{
-		Pending: pending,
-		Target:  target,
-		Refresh: func() (interface{}, string, error) {
+	raw, err := waitForInstanceStatusTerminal(ctx, instanceStatusWait{
+		entity:     "service",
+		id:         serviceID,
+		transition: transition,
+		fromStatus: fromStatus,
+		timeout:    timeout,
+		read: func() (any, string, []interface{}, error) {
 			s, err := nullOps.GetService(serviceID)
 			if err != nil {
-				return nil, "", err
+				return nil, "", nil, err
 			}
-			if s.Status == "failed" && failedIsFailure {
-				return s, s.Status, fmt.Errorf("service %s ended in status %q while running %s: %s",
-					serviceID, s.Status, transition, summarizeMessages(s.Messages))
-			}
-			return s, s.Status, nil
+			return s, s.Status, s.Messages, nil
 		},
-		Timeout: timeout,
-		// No initial delay: an unmanaged specification has already flipped the
-		// status by the time the PATCH returns, and that case must not pay a
-		// poll interval it does not need.
-		Delay:      0,
-		MinTimeout: statusPollInterval,
-	}
-	raw, err := stateConf.WaitForStateContext(ctx)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -640,6 +625,67 @@ func waitForServiceStatusTerminal(ctx context.Context, nullOps NullOps, serviceI
 		return s, nil
 	}
 	return nil, nil
+}
+
+// instanceStatusWait is the input to waitForInstanceStatusTerminal. `read`
+// returns the entity itself (handed back to the caller), its status, and any
+// messages to quote when the transition fails — links carry none.
+type instanceStatusWait struct {
+	entity     string
+	id         string
+	transition string
+	fromStatus string
+	timeout    time.Duration
+	read       func() (any, string, []interface{}, error)
+}
+
+// waitForInstanceStatusTerminal polls a service or a link until an archive or a
+// restore lands. Both entities have the same status machine, so they share the
+// waiter rather than keeping twin copies that drift.
+func waitForInstanceStatusTerminal(ctx context.Context, w instanceStatusWait) (any, error) {
+	var pending, target []string
+	// An instance may be archived from `failed`, so `failed` cannot double as the
+	// failure signal when that is where the transition started.
+	failedIsFailure := w.fromStatus != "failed"
+
+	switch w.transition {
+	case "archive":
+		// Only an active, failed or cancelled instance archives.
+		pending = []string{"active", "cancelled", "archiving"}
+		if !failedIsFailure {
+			pending = append(pending, "failed")
+		}
+		target = []string{"archived"}
+	case "unarchive":
+		// Only an archived instance restores.
+		pending = []string{"archived", "updating"}
+		target = []string{"active"}
+	default:
+		return nil, fmt.Errorf("unknown %s status transition %q", w.entity, w.transition)
+	}
+
+	stateConf := &retry.StateChangeConf{
+		Pending: pending,
+		Target:  target,
+		Refresh: func() (interface{}, string, error) {
+			entity, status, messages, err := w.read()
+			if err != nil {
+				return nil, "", err
+			}
+			if status == "failed" && failedIsFailure {
+				return entity, status, fmt.Errorf("%s %s ended in status %q while running %s: %s",
+					w.entity, w.id, status, w.transition, summarizeMessages(messages))
+			}
+			return entity, status, nil
+		},
+		Timeout: w.timeout,
+		// No initial delay: an unmanaged specification has already flipped the
+		// status by the time the PATCH returns, and that case must not pay a
+		// poll interval it does not need.
+		Delay:      0,
+		MinTimeout: statusPollInterval,
+	}
+	return stateConf.WaitForStateContext(ctx)
 }
 
 func waitForActionTerminal(ctx context.Context, nullOps NullOps, serviceID, actionID string, timeout time.Duration) (*ActionInstance, error) {

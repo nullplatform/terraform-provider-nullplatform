@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -206,11 +207,35 @@ func ActionSpecificationCreate(ctx context.Context, d *schema.ResourceData, m in
 
 	newSpec, err := nullOps.CreateActionSpecification(spec)
 	if err != nil {
-		return diag.FromErr(err)
+		return diag.FromErr(annotateExistingActionTypeError(err, spec))
 	}
 
 	d.SetId(newSpec.Id)
 	return ActionSpecificationRead(ctx, d, m)
+}
+
+// annotateExistingActionTypeError turns the API's duplicate-type refusal into an
+// instruction. A specification created with `use_default_actions` already owns a
+// generated `archive` action (the create quartet), so declaring one is refused
+// with a bare "There is already an action of type ...". The row is caller-owned
+// and deletable, so the fix is to adopt it — but adoption belongs to `terraform
+// import`, not to a create that silently takes over an object it did not make.
+// Name the command instead.
+func annotateExistingActionTypeError(err error, spec *ActionSpecification) error {
+	if err == nil || !strings.Contains(err.Error(), "already an action of type") {
+		return err
+	}
+	parentID := spec.ServiceSpecificationId
+	if parentID == "" {
+		parentID = spec.LinkSpecificationId
+	}
+	return fmt.Errorf("%w\n\n"+
+		"A specification created with `use_default_actions` already has a generated `%s` action "+
+		"(specification create builds create/update/delete/archive; `unarchive` is never "+
+		"generated). Import the existing one instead of creating it:\n"+
+		"    terraform import <resource address> <action specification id>\n"+
+		"Find the id with: np service specification action list --service-specification-id %s",
+		err, spec.Type, parentID)
 }
 
 func ActionSpecificationRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {

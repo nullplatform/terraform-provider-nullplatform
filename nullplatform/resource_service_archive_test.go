@@ -267,7 +267,7 @@ func TestServiceStatusTransition_ClassifiesTheVerb(t *testing.T) {
 			}
 			d := serviceDataWithDiff(t, tc.state, config)
 
-			transition, from := serviceStatusTransition(d)
+			transition, from := statusTransition(d)
 			if transition != tc.wantTransition {
 				t.Errorf("got transition %q, want %q", transition, tc.wantTransition)
 			}
@@ -669,5 +669,87 @@ func TestServiceDelete_ArchivedServiceUsesTheDeleteAction(t *testing.T) {
 	}
 	if d.Id() != "" {
 		t.Error("the resource must be dropped from state")
+	}
+}
+
+// The API refuses an archive request that carries attributes (the minted
+// action's parameters are `{}` and the direct flip writes none). Changing both
+// in one apply is ordinary Terraform, so the provider sends the attributes on
+// their own first instead of handing the operator a 400.
+func TestServiceUpdate_AttributesAndArchiveTravelInSeparatePatches(t *testing.T) {
+	shortenPolling(t)
+
+	var patches []Service
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			var body Service
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			patches = append(patches, body)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: "active"})
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: "archived", ArchivedAt: "2026-08-02T09:00:00.000Z"})
+	}))
+	defer server.Close()
+
+	state := archivedServiceState()
+	state.Attributes["status"] = "active"
+	state.Attributes["archived_at"] = ""
+	state.Attributes["attributes.%"] = "1"
+	state.Attributes["attributes.size"] = "small"
+	d := serviceDataWithDiff(t, state, map[string]any{
+		"name":             "redis-cache",
+		"specification_id": "spec-1",
+		"entity_nrn":       "organization=1:account=2",
+		"status":           "archived",
+		"attributes":       map[string]any{"size": "large"},
+	})
+
+	if diags := ServiceUpdateContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if len(patches) != 2 {
+		t.Fatalf("expected 2 PATCHes (attributes, then status), got %d: %+v", len(patches), patches)
+	}
+	if patches[0].Attributes["size"] != "large" || patches[0].Status != "" {
+		t.Errorf("first PATCH should carry only the attributes, got %+v", patches[0])
+	}
+	if patches[1].Status != "archived" || patches[1].Attributes != nil {
+		t.Errorf("second PATCH should carry only the status, got %+v", patches[1])
+	}
+}
+
+// An ordinary attribute change is still one PATCH — the split is reserved for
+// the combination the API refuses.
+func TestServiceUpdate_AttributesWithoutATransitionStaySingle(t *testing.T) {
+	var patches int
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			patches++
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: "active"})
+	}))
+	defer server.Close()
+
+	state := archivedServiceState()
+	state.Attributes["status"] = "active"
+	state.Attributes["archived_at"] = ""
+	state.Attributes["attributes.%"] = "1"
+	state.Attributes["attributes.size"] = "small"
+	d := serviceDataWithDiff(t, state, map[string]any{
+		"name":             "redis-cache",
+		"specification_id": "spec-1",
+		"entity_nrn":       "organization=1:account=2",
+		"attributes":       map[string]any{"size": "large"},
+	})
+
+	if diags := ServiceUpdateContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if patches != 1 {
+		t.Errorf("expected a single PATCH, got %d", patches)
 	}
 }
