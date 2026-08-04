@@ -105,7 +105,9 @@ resource "nullplatform_service_specification" "redis_service_spec" {
 
 ### Read-Only
 
+- `action_specifications` (List of Object) Default-created action specifications for this spec (populated when use_default_actions is true). Pin each into a package BOM component: resource_id = id, resource_revision_id = last_snapshot_id, parent_id = this spec's id. (see [below for nested schema](#nestedatt--action_specifications))
 - `id` (String) The ID of this resource.
+- `last_snapshot_id` (String) Newest snapshot id of this specification. Pin it as a package BOM component's resource_revision_id to freeze this exact version into a package.
 - `slug` (String) The computed slug for the service specification
 
 <a id="nestedblock--selectors"></a>
@@ -117,3 +119,14 @@ Required:
 - `imported` (Boolean) Indicates whether the service is imported
 - `provider` (String) Provider of the service (e.g., AWS, GCP)
 - `sub_category` (String) Sub-category of the service
+
+
+<a id="nestedatt--action_specifications"></a>
+### Nested Schema for `action_specifications`
+
+Read-Only:
+
+- `id` (String)
+- `last_snapshot_id` (String)
+- `name` (String)
+- `slug` (String)
