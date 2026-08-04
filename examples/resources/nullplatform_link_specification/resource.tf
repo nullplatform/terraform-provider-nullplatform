@@ -17,7 +17,10 @@ resource "nullplatform_link_specification" "redis_link_spec" {
     "organization=1255165411:account=*",
   ]
 
-  use_default_actions = true
+  # See the service specification example for the three behaviour flags. New
+  # specifications should take the platform defaults (`use_default_actions` and
+  # `use_default_naming` are both true) and opt into managed CRUD:
+  use_managed_actions = true
 
   scopes = jsonencode({
     provider = {
