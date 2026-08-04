@@ -3,8 +3,10 @@ package nullplatform
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -161,5 +163,39 @@ func TestDecodeOptionalJSONObject(t *testing.T) {
 
 	if _, err := decodeOptionalJSONObject("not json"); err == nil {
 		t.Error("malformed JSON must still be an error")
+	}
+}
+
+// A specification created with `use_default_actions` already owns a generated
+// `archive` action, so declaring one is refused. The bare API message does not
+// say what to do about it; the provider names the import.
+func TestAnnotateExistingActionTypeError(t *testing.T) {
+	spec := &ActionSpecification{Type: "archive", ServiceSpecificationId: "spec-1"}
+	err := annotateExistingActionTypeError(
+		errors.New(`error creating action specification, got 400: {"message":"There is already an action of type \"archive\" for service specification spec-1"}`),
+		spec,
+	)
+
+	for _, want := range []string{
+		"already an action of type", // the API's own message survives
+		"terraform import",          // and the way out is named
+		"spec-1",                    // pointed at the right specification
+		"`unarchive` is never generated",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("annotated error is missing %q:\n%s", want, err.Error())
+		}
+	}
+}
+
+// Every other failure is passed through untouched — the annotation must not
+// turn unrelated errors into archive advice.
+func TestAnnotateExistingActionTypeError_LeavesOtherErrorsAlone(t *testing.T) {
+	original := errors.New("error creating action specification, got 500")
+	if got := annotateExistingActionTypeError(original, &ActionSpecification{Type: "custom"}); got != original {
+		t.Errorf("unrelated error was rewritten: %v", got)
+	}
+	if got := annotateExistingActionTypeError(nil, &ActionSpecification{Type: "custom"}); got != nil {
+		t.Errorf("nil error became %v", got)
 	}
 }

@@ -46,3 +46,23 @@ resource "nullplatform_link" "link_redis" {
 output "link" {
   value = nullplatform_link.link_redis
 }
+
+# Archive instead of delete. Set this on the links of a service that also uses
+# `archive_on_destroy`: the API refuses to archive a service while any of its
+# links is not archived, and Terraform destroys links before the service they
+# belong to — so without this the destroy hard-deletes the links and leaves a
+# restorable service with nothing attached.
+#
+#   resource "nullplatform_link" "link_redis" {
+#     # ...
+#     archive_on_destroy = true
+#
+#     timeouts {
+#       update = "10m"
+#       delete = "10m"
+#     }
+#   }
+
+output "link_archived_at" {
+  value = nullplatform_link.link_redis.archived_at
+}

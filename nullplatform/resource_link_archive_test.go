@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -24,6 +25,7 @@ func linkState(status, archivedAt string) *terraform.InstanceState {
 			"entity_nrn":               "organization=1:account=2",
 			"status":                   status,
 			"archived_at":              archivedAt,
+			"archive_on_destroy":       "false",
 			"linkable_to.#":            "0",
 		},
 	}
@@ -136,5 +138,175 @@ func TestLinkRead_RecordsArchivedAt(t *testing.T) {
 	}
 	if got := d.Get("archived_at").(string); got != "2026-08-02T09:00:00.000Z" {
 		t.Errorf("got archived_at %q, want the timestamp the API reported", got)
+	}
+}
+
+func linkDataWithDiff(t *testing.T, state *terraform.InstanceState, config map[string]any) *schema.ResourceData {
+	t.Helper()
+	diff := linkDiff(t, state, config)
+	d, err := schema.InternalMap(resourceLink().Schema).Data(state, diff)
+	if err != nil {
+		t.Fatalf("building resource data: %v", err)
+	}
+	return d
+}
+
+// A managed link archive returns from the PATCH while the transition is still
+// running. Without a waiter the apply finished on `archiving`, and the next plan
+// re-PATCHed `archived` — which the API refuses, because only an active, failed
+// or cancelled link archives.
+func TestLinkUpdate_ArchiveWaitsForTheTransition(t *testing.T) {
+	shortenPolling(t)
+
+	var patched Link
+	var gets int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			_ = json.NewDecoder(r.Body).Decode(&patched)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Link{Id: "lnk-1", Status: "active"})
+			return
+		}
+		status, archivedAt := "archiving", ""
+		if atomic.AddInt32(&gets, 1) >= 2 {
+			status, archivedAt = "archived", "2026-08-02T09:00:00.000Z"
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Link{Id: "lnk-1", Status: status, ArchivedAt: archivedAt})
+	}))
+	defer server.Close()
+
+	d := linkDataWithDiff(t, linkState("active", ""), linkConfig(map[string]any{"status": "archived"}))
+
+	if diags := LinkUpdateContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if patched.Status != "archived" {
+		t.Errorf("PATCH sent status %q, want archived", patched.Status)
+	}
+	if got := d.Get("status").(string); got != "archived" {
+		t.Errorf("state kept status %q, want the landed archived", got)
+	}
+	if got := d.Get("archived_at").(string); got != "2026-08-02T09:00:00.000Z" {
+		t.Errorf("state kept archived_at %q, want the timestamp the transition produced", got)
+	}
+}
+
+// A restore transits `updating`; there is no `unarchiving` status.
+func TestLinkUpdate_RestoreTransitsUpdating(t *testing.T) {
+	shortenPolling(t)
+
+	var gets int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Link{Id: "lnk-1", Status: "updating"})
+			return
+		}
+		status := "updating"
+		if atomic.AddInt32(&gets, 1) >= 2 {
+			status = "active"
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Link{Id: "lnk-1", Status: status})
+	}))
+	defer server.Close()
+
+	d := linkDataWithDiff(t, linkState("archived", "2026-08-01T10:00:00.000Z"), linkConfig(map[string]any{"status": "active"}))
+
+	if diags := LinkUpdateContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if got := d.Get("status").(string); got != "active" {
+		t.Errorf("state kept status %q, want active", got)
+	}
+}
+
+// The reason archive_on_destroy exists on links at all: a service cannot be
+// archived while any of its links is not archived, and Terraform destroys the
+// links first.
+func TestLinkDelete_ArchiveOnDestroyArchivesInsteadOfDeleting(t *testing.T) {
+	shortenPolling(t)
+
+	var deleted bool
+	var patchedStatus string
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "DELETE":
+			deleted = true
+			w.WriteHeader(http.StatusOK)
+		case "PATCH":
+			var body Link
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			patchedStatus = body.Status
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Link{Id: "lnk-1", Status: "archiving"})
+		default:
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Link{Id: "lnk-1", Status: statusAfterArchivePatch(patchedStatus)})
+		}
+	}))
+	defer server.Close()
+
+	state := linkState("active", "")
+	state.Attributes["archive_on_destroy"] = "true"
+	d, err := schema.InternalMap(resourceLink().Schema).Data(state, nil)
+	if err != nil {
+		t.Fatalf("building resource data: %v", err)
+	}
+
+	if diags := LinkDeleteContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if deleted {
+		t.Error("archive_on_destroy must not issue a DELETE")
+	}
+	if patchedStatus != "archived" {
+		t.Errorf("PATCH sent status %q, want archived", patchedStatus)
+	}
+	if d.Id() != "" {
+		t.Error("the resource must leave state once the archive lands")
+	}
+}
+
+// statusAfterArchivePatch reports `archived` once the archive PATCH has been
+// issued, so the waiter's first GET terminates.
+func statusAfterArchivePatch(patched string) string {
+	if patched == "archived" {
+		return "archived"
+	}
+	return "active"
+}
+
+// Re-archiving an already-archived link is refused by the API, so destroy must
+// recognise the state and just drop the resource.
+func TestLinkDelete_ArchiveOnDestroyIsANoOpOnAnArchivedLink(t *testing.T) {
+	shortenPolling(t)
+
+	var mutated bool
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			mutated = true
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Link{Id: "lnk-1", Status: "archived", ArchivedAt: "2026-08-01T10:00:00.000Z"})
+	}))
+	defer server.Close()
+
+	state := linkState("archived", "2026-08-01T10:00:00.000Z")
+	state.Attributes["archive_on_destroy"] = "true"
+	d, err := schema.InternalMap(resourceLink().Schema).Data(state, nil)
+	if err != nil {
+		t.Fatalf("building resource data: %v", err)
+	}
+
+	if diags := LinkDeleteContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if mutated {
+		t.Error("an already-archived link must not be PATCHed or DELETEd again")
+	}
+	if d.Id() != "" {
+		t.Error("the resource must leave state")
 	}
 }
