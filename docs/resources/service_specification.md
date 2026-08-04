@@ -101,7 +101,8 @@ resource "nullplatform_service_specification" "redis_service_spec" {
 - `scopes` (String) JSON string containing scope configurations. Example: {"provider": {"values": ["AWS:SERVERLESS:LAMBDA"]}}
 - `selectors` (Block List, Max: 1) Selectors for the service specification (see [below for nested schema](#nestedblock--selectors))
 - `type` (String) Type of the service specification
-- `use_default_actions` (Boolean) Indicates whether to use default actions for the service specification
+- `use_default_actions` (Boolean) Indicates whether to use default actions for the service specification. Left to the API default when not set
+- `use_default_naming` (Boolean) Indicates whether the entry point of the service specification actions is derived from the default naming convention based on the service and action slugs. Left to the API default when not set
 
 ### Read-Only
 

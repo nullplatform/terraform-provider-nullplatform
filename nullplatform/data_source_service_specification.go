@@ -60,6 +60,11 @@ func dataSourceServiceSpecification() *schema.Resource {
 				Computed:    true,
 				Description: "Indicates whether the service specification uses default actions.",
 			},
+			"use_default_naming": {
+				Type:        schema.TypeBool,
+				Computed:    true,
+				Description: "Indicates whether the entry point of the service specification actions is derived from the default naming convention.",
+			},
 			"scopes": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -111,8 +116,15 @@ func dataSourceServiceSpecificationRead(_ context.Context, d *schema.ResourceDat
 	if err := d.Set("visible_to", spec.VisibleTo); err != nil {
 		return diag.FromErr(err)
 	}
-	if err := d.Set("use_default_actions", spec.UseDefaultActions); err != nil {
-		return diag.FromErr(err)
+	if spec.UseDefaultActions != nil {
+		if err := d.Set("use_default_actions", *spec.UseDefaultActions); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+	if spec.UseDefaultNaming != nil {
+		if err := d.Set("use_default_naming", *spec.UseDefaultNaming); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 	if err := d.Set("assignable_to", spec.AssignableTo); err != nil {
 		return diag.FromErr(err)

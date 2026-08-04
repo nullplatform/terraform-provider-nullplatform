@@ -51,6 +51,7 @@ output "service_specification_name" {
 - `slug` (String) The computed slug for the service specification.
 - `type` (String) Type of the service specification.
 - `use_default_actions` (Boolean) Indicates whether the service specification uses default actions.
+- `use_default_naming` (Boolean) Indicates whether the entry point of the service specification actions is derived from the default naming convention.
 - `visible_to` (List of String) Array representing visibility settings for the service specification.
 
 <a id="nestedatt--selectors"></a>
