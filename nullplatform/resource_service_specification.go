@@ -47,6 +47,7 @@ func resourceServiceSpecification() *schema.Resource {
 				Description: "Newest snapshot id of this specification. Pin it as a package BOM " +
 					"component's resource_revision_id to freeze this exact version into a package.",
 			},
+			"action_specifications": actionSpecificationsComputedSchema(),
 			"visible_to": {
 				Type:     schema.TypeList,
 				Required: true,
@@ -220,6 +221,12 @@ func ReadServiceSpecification(_ context.Context, d *schema.ResourceData, m inter
 	// don't fail the read if the lookup hiccups — leave it empty.
 	if snapshotID, snapErr := nullOps.GetLatestSnapshotID("service_specification", specId); snapErr == nil {
 		if err := d.Set("last_snapshot_id", snapshotID); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+	// Best-effort: expose the default-created action specs for package pinning.
+	if actions, actErr := nullOps.ListActionSpecifications(specId); actErr == nil {
+		if err := d.Set("action_specifications", actionSpecsToComputedList(nullOps, actions)); err != nil {
 			return diag.FromErr(err)
 		}
 	}

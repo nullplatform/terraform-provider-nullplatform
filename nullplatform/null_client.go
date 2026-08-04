@@ -200,6 +200,7 @@ type NullOps interface {
 	CreateActionSpecification(s *ActionSpecification) (*ActionSpecification, error)
 	GetActionSpecification(specId string, parentType string, parentId string) (*ActionSpecification, error)
 	ListActionSpecifications(serviceSpecId string) ([]*ActionSpecification, error)
+	ListLinkActionSpecifications(linkSpecId string) ([]*ActionSpecification, error)
 	PatchActionSpecification(specId string, s *ActionSpecification, parentType string, parentId string) error
 	DeleteActionSpecification(specId string, parentType string, parentId string) error
 
