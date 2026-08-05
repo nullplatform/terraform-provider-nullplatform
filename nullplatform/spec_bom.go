@@ -1,6 +1,9 @@
 package nullplatform
 
 import (
+	"context"
+	"sort"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -36,9 +39,19 @@ func actionSpecificationsComputedSchema() *schema.Schema {
 // `action_specifications` computed list, resolving each action's newest
 // snapshot id (best-effort — a missing snapshot yields an empty string rather
 // than failing the read).
+//
+// The list is sorted by slug so its order is STABLE across reads and applies.
+// A slug (create-/update-/delete-<spec>) is a stable identity even when the
+// underlying action is re-created with a new id on a spec update, so a package
+// BOM that pins these components as an ordered list keeps a consistent order
+// and Terraform's positional tracking never sees a component "move".
 func actionSpecsToComputedList(nullOps NullOps, actions []*ActionSpecification) []map[string]interface{} {
-	out := make([]map[string]interface{}, 0, len(actions))
-	for _, a := range actions {
+	sorted := make([]*ActionSpecification, len(actions))
+	copy(sorted, actions)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Slug < sorted[j].Slug })
+
+	out := make([]map[string]interface{}, 0, len(sorted))
+	for _, a := range sorted {
 		snapshotID, _ := nullOps.GetLatestSnapshotID("action_specification", a.Id)
 		out = append(out, map[string]interface{}{
 			"id":               a.Id,
@@ -48,4 +61,37 @@ func actionSpecsToComputedList(nullOps NullOps, actions []*ActionSpecification) 
 		})
 	}
 	return out
+}
+
+// specBOMCustomizeDiff forces the computed BOM attributes (last_snapshot_id and
+// action_specifications) to recompute whenever any of the given content fields
+// change on an existing spec.
+//
+// A spec update mints a NEW snapshot and re-creates its default actions with new
+// ids. Without this, the plan keeps the OLD (known) snapshot/action values while
+// the apply produces the new ones, so any package that pins them into its
+// components list fails at apply with "Provider produced inconsistent final
+// plan". Marking these unknown at plan lets apply resolve the new values
+// consistently. On create (empty Id) everything is already unknown, so this is a
+// no-op there and on plans that don't touch the spec's content.
+func specBOMCustomizeDiff(contentFields ...string) schema.CustomizeDiffFunc {
+	return func(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+		if d.Id() == "" {
+			return nil
+		}
+		changed := false
+		for _, f := range contentFields {
+			if d.HasChange(f) {
+				changed = true
+				break
+			}
+		}
+		if !changed {
+			return nil
+		}
+		if err := d.SetNewComputed("last_snapshot_id"); err != nil {
+			return err
+		}
+		return d.SetNewComputed("action_specifications")
+	}
 }

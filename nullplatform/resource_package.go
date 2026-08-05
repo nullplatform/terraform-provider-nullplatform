@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -28,6 +29,17 @@ func resourcePackage() *schema.Resource {
 			},
 		},
 
+		// A package is anchored to its spec (1 spec = 1 package), not to its slug.
+		// A slug that only goes "unknown" at plan — e.g. derived from a spec whose
+		// computed BOM fields recompute on update — must NOT force a replace; it
+		// resolves to the same value after apply. Force a new package only on a
+		// genuine rename: both old and new known, and different.
+		CustomizeDiff: customdiff.ForceNewIfChange("slug", func(ctx context.Context, old, new, meta interface{}) bool {
+			o, _ := old.(string)
+			n, _ := new.(string)
+			return o != "" && n != "" && o != n
+		}),
+
 		Schema: map[string]*schema.Schema{
 			"nrn": {
 				Type:        schema.TypeString,
@@ -38,8 +50,9 @@ func resourcePackage() *schema.Resource {
 			"slug": {
 				Type:        schema.TypeString,
 				Required:    true,
-				ForceNew:    true,
-				Description: "URL-safe identifier, unique per NRN. Together with nrn it is the publish key.",
+				Description: "URL-safe identifier, unique per NRN. Together with nrn it is the publish key. " +
+					"Replaces the package only on a real rename (see CustomizeDiff), not when it merely " +
+					"resolves to the same value after apply.",
 			},
 			"name": {
 				Type:        schema.TypeString,
