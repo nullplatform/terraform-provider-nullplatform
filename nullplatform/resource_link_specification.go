@@ -18,6 +18,16 @@ func resourceLinkSpecification() *schema.Resource {
 		UpdateContext: UpdateLinkSpecification,
 		DeleteContext: DeleteLinkSpecification,
 
+		// Recompute the BOM attributes (last_snapshot_id, action_specifications)
+		// when the spec's content changes, so a package pinning them can't hit an
+		// "inconsistent final plan" on update.
+		CustomizeDiff: specBOMCustomizeDiff(
+			"name", "slug", "unique", "specification_id", "visible_to",
+			"dimensions", "assignable_to", "attributes", "use_default_actions",
+			"use_default_naming", "scopes", "external", "external_resolution",
+			"selectors",
+		),
+
 		Importer: &schema.ResourceImporter{
 			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
 				d.Set("id", d.Id())

@@ -18,6 +18,15 @@ func resourceServiceSpecification() *schema.Resource {
 		UpdateContext: UpdateServiceSpecification,
 		DeleteContext: DeleteServiceSpecification,
 
+		// Recompute the BOM attributes (last_snapshot_id, action_specifications)
+		// when the spec's content changes, so a package pinning them can't hit an
+		// "inconsistent final plan" on update.
+		CustomizeDiff: specBOMCustomizeDiff(
+			"name", "description", "slug", "visible_to", "dimensions",
+			"assignable_to", "type", "attributes", "use_default_actions",
+			"use_default_naming", "scopes", "selectors",
+		),
+
 		Importer: &schema.ResourceImporter{
 			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
 				d.Set("id", d.Id())
