@@ -71,7 +71,7 @@ resource "nullplatform_package" "pinned" {
 - `components` (Block List, Min: 1) Bill of materials: one entry per component, each pinning an exact resource revision. (see [below for nested schema](#nestedblock--components))
 - `name` (String) Human-readable display name.
 - `nrn` (String) The owner NRN of the package. Writes (publishes, patches, delete) are gated on it.
-- `slug` (String) URL-safe identifier, unique per NRN. Together with nrn it is the publish key.
+- `slug` (String) URL-safe identifier, unique per NRN. Together with nrn it is the publish key. Replaces the package only on a real rename (see CustomizeDiff), not when it merely resolves to the same value after apply.
 - `version` (String) Semver of the revision this configuration publishes. Bump it together with `components` changes to publish a new revision; re-applying the same version with the same components is an idempotent no-op.
 
 ### Optional
