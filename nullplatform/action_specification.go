@@ -142,6 +142,33 @@ func (c *NullClient) ListActionSpecifications(serviceSpecId string) ([]*ActionSp
 	return result.Results, nil
 }
 
+// ListLinkActionSpecifications lists the action specifications owned by a link
+// specification (GET /link_specification/:id/action_specification). Mirrors
+// ListActionSpecifications, which is service-specification-only.
+func (c *NullClient) ListLinkActionSpecifications(linkSpecId string) ([]*ActionSpecification, error) {
+	path := fmt.Sprintf("/link_specification/%s/action_specification", linkSpecId)
+
+	res, err := c.MakeRequest("GET", path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make API request: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("failed to list link action specifications: status code %d, response: %s", res.StatusCode, string(bodyBytes))
+	}
+
+	var result struct {
+		Results []*ActionSpecification `json:"results"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode API response: %v", err)
+	}
+
+	return result.Results, nil
+}
+
 func (c *NullClient) DeleteActionSpecification(specId string, parentType, parentId string) error {
 	basePath := getActionSpecificationPath(parentType, parentId)
 	path := fmt.Sprintf("%s/%s", basePath, specId)

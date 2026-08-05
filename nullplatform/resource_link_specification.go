@@ -36,6 +36,13 @@ func resourceLinkSpecification() *schema.Resource {
 				Computed:    true,
 				Description: "The computed slug for the link specification",
 			},
+			"last_snapshot_id": {
+				Type:     schema.TypeString,
+				Computed: true,
+				Description: "Newest snapshot id of this link specification. Pin it as a package BOM " +
+					"component's resource_revision_id to freeze this exact version into a package.",
+			},
+			"action_specifications": actionSpecificationsComputedSchema(),
 			"unique": {
 				Type:        schema.TypeBool,
 				Required:    true,
@@ -251,6 +258,17 @@ func ReadLinkSpecification(_ context.Context, d *schema.ResourceData, m interfac
 	}
 	if spec.UseDefaultNaming != nil {
 		if err := d.Set("use_default_naming", *spec.UseDefaultNaming); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+	// Best-effort snapshot + default-action exposure for package pinning.
+	if snapshotID, snapErr := nullOps.GetLatestSnapshotID("link_specification", specId); snapErr == nil {
+		if err := d.Set("last_snapshot_id", snapshotID); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+	if actions, actErr := nullOps.ListLinkActionSpecifications(specId); actErr == nil {
+		if err := d.Set("action_specifications", actionSpecsToComputedList(nullOps, actions)); err != nil {
 			return diag.FromErr(err)
 		}
 	}
