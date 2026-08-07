@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
-"""Which lines THIS branch added are still uncovered?
+"""The coverage gate: two rules, one run.
 
-The bar is coverage on the code a change introduces, not the repository's
-historical total: take the added lines from `git diff <base>...HEAD`,
-intersect them with the uncovered statements in a Go coverprofile, and
-report only the intersection. Exits non-zero when uncovered added lines
-remain, so CI can enforce it.
+1. NEW code is fully covered — the lines `git diff <base>...HEAD` added,
+   intersected with the never-executed statements in the coverprofile,
+   must be empty (minus the documented-unreachable entries in
+   scripts/coverage_accepted.txt).
+2. TOTAL coverage never falls — the profile's statement coverage must be
+   at or above the floor in scripts/coverage_floor.txt. The floor is a
+   RATCHET, not a target: it only ever rises. When a branch lifts the
+   total meaningfully above it, raise the floor in the same PR. It is
+   deliberately not "every commit must improve the total": deleting
+   well-covered dead code and pure refactors are legitimate and flat.
+
+Together they make the total climb monotonically — every change is born
+covered, so new code can only dilute the uncovered remainder — without
+punishing deletions or refactors.
 
 Usage:
     go test ./... -coverprofile=coverage.out
     python3 scripts/new_code_coverage.py [base-ref] [profile]
 
 Defaults: base-ref origin/main, profile coverage.out.
-Test files and generated docs never count; only *.go under version control do.
+Test files never count; only *.go under version control do.
 """
 
 import re
@@ -23,6 +32,7 @@ from collections import defaultdict
 BASE = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
 PROFILE = sys.argv[2] if len(sys.argv) > 2 else "coverage.out"
 ACCEPTED = "scripts/coverage_accepted.txt"
+FLOOR = "scripts/coverage_floor.txt"
 
 
 def module_path():
@@ -85,6 +95,49 @@ def uncovered_lines_by_file(module):
     return uncovered
 
 
+def total_statement_coverage(module):
+    """Covered / total statements across the module, as a percentage."""
+    covered = total = 0
+    prefix = module + "/"
+    with open(PROFILE) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("mode:"):
+                continue
+            location, _, count = line.rpartition(" ")
+            location, _, statements = location.rpartition(" ")
+            if not location.startswith(prefix):
+                continue
+            total += int(statements)
+            if int(count) != 0:
+                covered += int(statements)
+    return 100.0 * covered / total if total else 100.0
+
+
+def check_floor(module):
+    """Rule 2: the ratchet. Returns an error message or None."""
+    try:
+        with open(FLOOR) as fh:
+            floor = float(fh.read().split("#", 1)[0].strip())
+    except FileNotFoundError:
+        return None
+    coverage = total_statement_coverage(module)
+    print(f"total statement coverage: {coverage:.1f}%   floor: {floor:.1f}%")
+    if coverage < floor:
+        return (
+            f"total coverage {coverage:.1f}% fell below the floor {floor:.1f}% "
+            f"({FLOOR}). Cover what this change uncovered, or — only if the drop "
+            f"comes from DELETING covered code — lower the floor in the same PR "
+            f"and say so in the commit message."
+        )
+    if coverage >= floor + 1.0:
+        print(
+            f"note: coverage is {coverage - floor:.1f} points above the floor — "
+            f"consider raising {FLOOR} to {coverage:.1f} in this PR"
+        )
+    return None
+
+
 def accepted_lines_by_file():
     """Documented-unreachable lines (scripts/coverage_accepted.txt)."""
     accepted = defaultdict(set)
@@ -104,9 +157,11 @@ def accepted_lines_by_file():
 
 
 def main():
+    module = module_path()
     added = added_lines_by_file()
-    uncovered = uncovered_lines_by_file(module_path())
+    uncovered = uncovered_lines_by_file(module)
     accepted = accepted_lines_by_file()
+    floor_error = check_floor(module)
     accepted_hits = 0
     for path, lines in accepted.items():
         accepted_hits += len(uncovered.get(path, set()) & lines)
@@ -126,13 +181,15 @@ def main():
         f"added lines: {total_added}   uncovered among them: {total_gap}"
         f"   (+{accepted_hits} accepted as unreachable, see {ACCEPTED})\n"
     )
-    if not gaps:
-        print("every line this branch added is covered")
-        return
     for path, missing in gaps:
         print(f"{path}")
         print(f"   uncovered: {compact(missing)}\n")
-    sys.exit(1)
+    if not gaps:
+        print("every line this branch added is covered")
+    if floor_error:
+        print(f"\n{floor_error}")
+    if gaps or floor_error:
+        sys.exit(1)
 
 
 def compact(lines):
