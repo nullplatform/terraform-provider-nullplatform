@@ -75,9 +75,9 @@ func New() *Server {
 	return s
 }
 
-func (s *Server) Close()                   { s.ts.Close() }
-func (s *Server) URL() string              { return s.ts.URL }
-func (s *Server) HTTP() *httptest.Server   { return s.ts }
+func (s *Server) Close()                 { s.ts.Close() }
+func (s *Server) URL() string            { return s.ts.URL }
+func (s *Server) HTTP() *httptest.Server { return s.ts }
 
 // Register mounts a collection at /<name> with generic CRUD + the hooks.
 // idPrefix names generated ids ("svc" -> svc-1, svc-2, ...).
