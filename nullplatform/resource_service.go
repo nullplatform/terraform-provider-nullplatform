@@ -135,6 +135,11 @@ func resourceService() *schema.Resource {
 			"selectors": {
 				Type:     schema.TypeList,
 				Optional: true,
+				// Computed too: the API answers a selectors object even when the
+				// configuration declares none, and Read records it. Without
+				// Computed, a config that omits the block planned its removal on
+				// every run — a perpetual diff the functional harness caught.
+				Computed: true,
 				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
@@ -272,24 +277,16 @@ func ServiceCreateContext(ctx context.Context, d *schema.ResourceData, m any) di
 		if err := triggerServiceAction(ctx, nullOps, s.Id, s.SpecificationId, "create", attrs, d.Timeout(schema.TimeoutCreate)); err != nil {
 			return diag.FromErr(err)
 		}
-		// The create action moved the service out of the 'pending' the POST
-		// returned; read the landed status so state does not keep a transient
-		// value. Best effort: the service exists and the action succeeded, so a
-		// failed read must not fail the apply — the next refresh corrects it.
-		if refreshed, refreshErr := nullOps.GetService(s.Id); refreshErr != nil {
-			log.Printf("[WARN] could not re-read service %s after its create action: %v", s.Id, refreshErr)
-		} else if refreshed != nil {
-			if refreshed.Status != "" {
-				if err := d.Set("status", refreshed.Status); err != nil {
-					return diag.FromErr(err)
-				}
-			}
-			if err := d.Set("archived_at", refreshed.ArchivedAt); err != nil {
-				return diag.FromErr(err)
-			}
-		}
 	}
 
+	// Create ends in Read — the SDK's recommended shape — so EVERY computed
+	// attribute lands in state and the post-apply plan is empty without a
+	// refresh (`messages` alone stayed unknown forever before this). Best
+	// effort: the service exists (and any create action has succeeded), so a
+	// failed read must not fail the apply — the next refresh corrects it.
+	if diags := ServiceReadContext(ctx, d, m); diags.HasError() {
+		log.Printf("[WARN] could not read service %s back after create: %v", s.Id, diags)
+	}
 	return nil
 }
 
@@ -324,8 +321,12 @@ func ServiceReadContext(_ context.Context, d *schema.ResourceData, m any) diag.D
 		return diag.FromErr(err)
 	}
 
-	if err := d.Set("status", s.Status); err != nil {
-		return diag.FromErr(err)
+	// Guarded like the create fallback: an older API that answers no status
+	// must not blank a value state already holds.
+	if s.Status != "" {
+		if err := d.Set("status", s.Status); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	if err := d.Set("archived_at", s.ArchivedAt); err != nil {
@@ -340,16 +341,20 @@ func ServiceReadContext(_ context.Context, d *schema.ResourceData, m any) diag.D
 		return diag.FromErr(err)
 	}
 
-	selectors := []map[string]interface{}{
-		{
-			"category":     s.Selectors.Category,
-			"imported":     s.Selectors.Imported,
-			"provider":     s.Selectors.Provider,
-			"sub_category": s.Selectors.SubCategory,
-		},
-	}
-	if err := d.Set("selectors", selectors); err != nil {
-		return diag.FromErr(err)
+	// A response without `selectors` must not crash the plugin — the same
+	// guard both specification resources carry.
+	if s.Selectors != nil {
+		selectors := []map[string]interface{}{
+			{
+				"category":     s.Selectors.Category,
+				"imported":     s.Selectors.Imported,
+				"provider":     s.Selectors.Provider,
+				"sub_category": s.Selectors.SubCategory,
+			},
+		}
+		if err := d.Set("selectors", selectors); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	attributeMap := mapOfInterfacesToMapOfStrings(s.Attributes)
