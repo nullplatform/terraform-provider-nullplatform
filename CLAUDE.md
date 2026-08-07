@@ -1,70 +1,70 @@
-# terraform-provider-nullplatform — Project Instructions
+# terraform-provider-nullplatform
 
-## Language & Tooling
+Terraform provider (SDKv2) for nullplatform, published to the public registry.
+It is a client of `main-service-api`; that repo's `docs/CASES-MATRIX.md` is the
+behavioral reference for anything touching lifecycle, status, actions or
+specifications.
 
-- **[Learned] This is a Go repository: repo tooling is written in Go, never Python or
-  shell-with-logic.** The coverage gate lives in `tools/covergate` (pure stdlib, run via
-  `go run ./tools/covergate`) precisely because a Python version was rejected. New tools
-  follow the same pattern: a `package main` under `tools/`, stdlib-only unless there is a
-  strong reason, no new entries in the main `go.mod`.
-- Docs under `docs/` are **generated** (`make update-docs` / tfplugindocs, kept in sync by
-  `.github/workflows/docs.yml`). Never hand-edit them; change the schema `Description`s and
-  `examples/` instead. Custom templates in `templates/` exist only where generation cannot
-  express the page.
+## Commands
 
-## Coverage — two rules, enforced by CI
+| Task | Command |
+| --- | --- |
+| Build | `make build` · install locally: `make install` |
+| Unit tests | `go test ./nullplatform/ -count=1` |
+| Coverage + gate | `make coverage-new` (runs `tools/covergate`, same gate as CI) |
+| Acceptance tests | `make testacc` (needs `TF_ACC=1` + real credentials) |
+| Regenerate docs | `make update-docs` (tfplugindocs; CI re-runs it on every PR) |
 
-`make coverage-new` (and the `test` workflow on every PR) runs `tools/covergate`:
+CI: `.github/workflows/test.yml` (vet, unit suite with `-race`, coverage gate),
+`docs.yml` (docs sync), `release.yml` (goreleaser).
 
-1. **Every line a branch adds under `nullplatform/` must be executed by some test.**
-   The bar applies to the change, not the repo's historical total.
-2. **Total statement coverage never falls below `scripts/coverage_floor.txt`.** The floor
-   is a ratchet: raise it when a PR lifts the total; lower it ONLY when deleting covered
-   code, in the same PR, saying so in the commit message. It is deliberately not "every
-   commit must improve the total" — deleting covered dead code and pure refactors are
-   legitimate and flat.
+## Provider practices
 
-- `scripts/coverage_accepted.txt` lists lines accepted as uncovered, each with its reason.
-  **An entry is a claim of impossibility, not of inconvenience** (e.g. `d.Set` error arms
-  that only fire on a schema type mismatch). Review the file like code; a growing file is
-  a smell. Coverage output (`coverage.out`, `coverage.html`) is build product — gitignored,
-  never committed.
+- **Every schema attribute carries a `Description`. This is public registry
+  documentation** — say what the attribute does, its default, and its
+  interaction with other attributes (see `archive_on_destroy` for the bar).
+- Booleans the API defaults: `Optional+Computed`, **no schema `Default`**,
+  `*bool` + `omitempty` on the wire, presence via `configuredBool` (utils.go).
+  The provider never guesses a platform default — a wrong guess silently
+  rewrites resources on the next apply.
+- **Errors carry the API's response body** — the 400 message is the only thing
+  naming the guard that refused ("archive its links first"). Never
+  `io.Copy(os.Stdout, ...)`; two legacy delete/get paths still do — fix if
+  touched, never add more.
+- Async transitions poll through the shared waiter
+  (`waitForInstanceStatusTerminal`) with `Timeouts` declared on the resource;
+  ordinary operations must never enter a waiter.
+- Use the `Context` CRUD variants; return `diag.Diagnostics`; support
+  `Importer` on every resource.
 
-## Testing
+## Documentation
 
-- **Watch every regression test fail first** against the unfixed code, for the stated
-  reason, then go green. A test that never failed proves nothing (the approval-race test in
-  `resource_service_archive_test.go` documents a real bug caught exactly this way).
-- **The suite must be deterministic.** The `TestGenerateParameterValueID` flake was a real
-  production bug (id hashed in map-iteration order); it is fixed with sorted keys and a
-  100-round determinism test. Treat any new intermittent failure as a bug to root-cause,
-  never as noise to retry past.
-- Unit tests drive resources through the **Context functions Terraform actually invokes**
-  (`ServiceCreateContext`, `LinkDeleteContext`, …) against `httptest` fakes via
-  `newTestClient`. Defensive arms unreachable through the HTTP client (nil-instance
-  checks) are still contract: drive them through the `NullOps` interface with an embedded
-  stub (`nullOpsWithNilService` pattern).
-- Waiter/polling tests call `shortenPolling(t)`; intervals are vars for exactly this.
+`docs/` is **generated** — never hand-edit. Change schema `Description`s and
+`examples/`, then `make update-docs`. Custom `templates/` only where generation
+cannot express the page.
 
-## API contract — the provider is a client of main-service-api
+## Testing — regression is non-negotiable
 
-- **`main-service-api`'s `docs/CASES-MATRIX.md` is the behavioral reference** (§13a
-  Z1–Z21 for archive). Provider changes that touch lifecycle, status, actions or
-  specifications are validated against it case by case — PR #147's body carries the
-  disposition table as the template for how to do this.
-- **Error bodies must reach the operator.** Every refusal arrives as a 400 whose message
-  is the only thing naming the guard ("archive its links first", the archived-twin
-  "unarchive it, or request its deletion"). Client methods include the response body in
-  returned errors — never `io.Copy(os.Stdout, ...)` (two legacy delete/get paths still do;
-  fix them if touched, and never add new ones).
-- Tri-state booleans (`use_default_actions`, `use_managed_actions`, …) follow the
-  `configuredBool` idiom from `utils.go`: `Optional+Computed`, `*bool` + `omitempty` on
-  the wire, presence detected via raw config. No schema `Default` for values the API
-  defaults — the provider must not guess the platform's defaults.
-- **Match main's idiom over introducing a parallel helper.** PR #148 was rewritten when
-  main landed `configuredBool` independently: one mechanism, main's name, ours deleted.
+- **Never change existing behavior as a side effect.** Old configurations must
+  produce byte-identical requests and identical plans. Any deliberate behavior
+  change is named in the commit and the PR, with its migration story.
+- **Red first**: watch every regression test fail against the unfixed code for
+  the stated reason, then go green.
+- Unit tests drive the **Context functions Terraform actually invokes** against
+  `httptest` fakes (`newTestClient`). Defensive arms unreachable through the
+  HTTP client are still contract — drive them through the `NullOps` interface
+  (`nullOpsWithNilService` pattern). Polling tests call `shortenPolling(t)`.
+- **The suite is deterministic.** An intermittent failure is a bug to
+  root-cause (the map-order id flake was a production bug), never noise to
+  retry past.
+- Coverage gate (CI-enforced): every added line under `nullplatform/` is
+  executed by some test, and the total never falls below
+  `scripts/coverage_floor.txt` (a ratchet — lower it only when deleting covered
+  code, in the same PR, saying so). `scripts/coverage_accepted.txt` entries are
+  claims of **impossibility**, not inconvenience.
 
-## Conventions
+## Tooling
 
-- Conventional commits; never any Claude attribution.
-- `git add -A` is how `coverage.out` once got committed — stage deliberately.
+Repo tooling is **Go only** (`tools/`, stdlib, `go run ./tools/<name>`) — no
+Python, no logic in shell. Coverage output (`coverage.out`, `coverage.html`) is
+build product: gitignored, never committed. Stage deliberately — no `git add -A`.
