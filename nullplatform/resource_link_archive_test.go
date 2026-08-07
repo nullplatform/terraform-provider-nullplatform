@@ -310,3 +310,48 @@ func TestLinkDelete_ArchiveOnDestroyIsANoOpOnAnArchivedLink(t *testing.T) {
 		t.Error("the resource must leave state")
 	}
 }
+
+// The link half of the attributes/archive split. It is the LINK update's own
+// branch (`l.Attributes`, a plain string map — not the service's), so the
+// service test proves nothing about it: an archive PATCH cannot carry
+// attributes, and a Terraform apply that changes both must send them as two
+// PATCHes — attributes first, then the bare status.
+func TestLinkUpdate_AttributesAndArchiveTravelInSeparatePatches(t *testing.T) {
+	shortenPolling(t)
+
+	var patches []Link
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			var body Link
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			patches = append(patches, body)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Link{Id: "lnk-1", Status: "active"})
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Link{Id: "lnk-1", Status: "archived", ArchivedAt: "2026-08-02T09:00:00.000Z"})
+	}))
+	defer server.Close()
+
+	state := linkState("active", "")
+	state.Attributes["attributes.%"] = "1"
+	state.Attributes["attributes.size"] = "small"
+	d := linkDataWithDiff(t, state, linkConfig(map[string]any{
+		"status":     "archived",
+		"attributes": map[string]any{"size": "large"},
+	}))
+
+	if diags := LinkUpdateContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if len(patches) != 2 {
+		t.Fatalf("expected 2 PATCHes (attributes, then status), got %d: %+v", len(patches), patches)
+	}
+	if patches[0].Attributes["size"] != "large" || patches[0].Status != "" {
+		t.Errorf("first PATCH should carry only the attributes, got %+v", patches[0])
+	}
+	if patches[1].Status != "archived" || patches[1].Attributes != nil {
+		t.Errorf("second PATCH should carry only the status, got %+v", patches[1])
+	}
+}
