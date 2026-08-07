@@ -71,14 +71,25 @@ func main() {
 	}
 	floorErr := checkFloor(totalPct)
 
-	acceptedHits := 0
+	acceptedHits, staleAccepted := 0, 0
 	for path, lines := range accepted {
 		for line := range lines {
 			if _, ok := uncovered[path][line]; ok {
 				delete(uncovered[path], line)
 				acceptedHits++
+			} else {
+				// The entry no longer matches an uncovered line: the code
+				// moved, or the line became covered. Either way the file has
+				// rotted and must be re-synced — silently keeping stale
+				// entries would let them mask a real gap after the next
+				// shift.
+				staleAccepted++
 			}
 		}
+	}
+	if staleAccepted > 0 {
+		fmt.Printf("note: %d accepted line(s) in %s match nothing uncovered — re-sync the file to the current line numbers\n",
+			staleAccepted, acceptedFile)
 	}
 
 	totalAdded, gapCount := 0, 0

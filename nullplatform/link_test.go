@@ -76,3 +76,18 @@ func TestCreateService_SurfacesTheArchivedTwinMessage(t *testing.T) {
 		t.Errorf("error %q should carry the API's resolution guidance", err.Error())
 	}
 }
+
+// The API answers a link delete with 204 No Content; the client treated
+// anything but 200 as failure, so every hard link delete errored with
+// "got 204" AFTER the row was already gone. Found by the functional fake
+// enforcing the API's real status codes on the framework's post-test destroy.
+func TestDeleteLink_AcceptsNoContent(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	if err := newTestClient(server).DeleteLink("lnk-1"); err != nil {
+		t.Fatalf("a 204 delete is success, got: %v", err)
+	}
+}

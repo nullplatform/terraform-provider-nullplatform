@@ -99,9 +99,12 @@ func (c *NullClient) DeleteLink(linkId string) error {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
-		io.Copy(os.Stdout, res.Body)
-		return fmt.Errorf("error deleting link resource, got %d for %s", res.StatusCode, linkId)
+	// The API answers a link delete with 204 No Content (200 kept for
+	// tolerance); treating 204 as failure errored every hard delete AFTER the
+	// row was already gone. Same accepted set as DeleteService.
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("error deleting link resource, got %d for %s: %s", res.StatusCode, linkId, string(bodyBytes))
 	}
 
 	return nil
