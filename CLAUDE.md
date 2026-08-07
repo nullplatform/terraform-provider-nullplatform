@@ -74,7 +74,7 @@ cannot express the page.
      (`newTestClient`). Defensive arms unreachable through the HTTP client are
      still contract — drive them through the `NullOps` interface
      (`nullOpsWithNilService` pattern). Polling tests call `shortenPolling(t)`.
-  2. **Functional** (`functional_test.go` + `internal/fakeplatform`) —
+  2. **Functional** (`functional_*_test.go` + `internal/fakeplatform`) —
      `resource.UnitTest` runs REAL `terraform plan/apply/import/destroy`
      against the in-process provider, backed by the fake platform. Only
      `ConfigureContextFunc` is swapped. The framework re-plans after every
@@ -106,6 +106,11 @@ cannot express the page.
        apply + assertion (`ExpectError` on the refusal message, or attribute
        checks). Use `Seed` to arrange state without invoking behavior,
        `Items`/`Deletes` for CheckDestroy assertions.
+     - **One file per concern**, harness separate: `functional_harness_test.go`
+       (fake wiring, provider factories, config builders) and one
+       `functional_<area>_test.go` per behavior area (lifecycles, refusals,
+       approval, stack). A new area gets its own file, never an append to an
+       existing one.
 
      The fake is our executable belief about the API: when the API's behavior
      changes, change the behavior module in the same breath, and use
