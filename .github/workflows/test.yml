@@ -2,10 +2,10 @@
 #
 # Two gates:
 #   1. `go vet` + the unit suite (with -race).
-#   2. New-code coverage: every line a PR adds must be executed by some test
-#      (scripts/new_code_coverage.py — the repo-wide total is history, the
-#      bar applies to the change). Runs only on pull requests, where there
-#      is a base to diff against.
+#   2. The coverage gate (tools/covergate): every line a PR adds must be
+#      executed by some test, and the repo total must not fall below the
+#      floor in scripts/coverage_floor.txt. Runs only on pull requests,
+#      where there is a base to diff against.
 #
 # The full profile is uploaded as an artifact so reviewers can open the
 # annotated HTML (`go tool cover -html=coverage.out`) locally.
@@ -47,12 +47,12 @@ jobs:
       - name: coverage summary
         run: go tool cover -func=coverage.out | tail -5
 
-      - name: new-code coverage gate (PRs)
+      - name: coverage gate (PRs)
         if: github.event_name == 'pull_request'
         env:
           # Through an env var, never interpolated into the command line.
           BASE_REF: ${{ github.base_ref }}
-        run: python3 scripts/new_code_coverage.py "origin/${BASE_REF}"
+        run: go run ./tools/covergate -base "origin/${BASE_REF}"
 
       - name: upload profile
         if: always()

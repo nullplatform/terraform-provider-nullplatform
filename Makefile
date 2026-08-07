@@ -36,12 +36,13 @@ test-coverage:
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "open coverage.html for the annotated source"
 
-# Coverage on NEW code only: the lines this branch added (vs BASE, default
-# origin/main) that no test executes. Fails when any remain, so it doubles as
-# a CI gate. The repo-wide total is history; this is the bar for a change.
+# The coverage gate (tools/covergate): every line this branch added (vs BASE,
+# default origin/main) must be executed by some test, and the repo total must
+# not fall below scripts/coverage_floor.txt. Fails otherwise — the same gate
+# CI enforces.
 BASE ?= origin/main
 coverage-new: test-coverage
-	python3 scripts/new_code_coverage.py $(BASE)
+	go run ./tools/covergate -base $(BASE)
 
 testacc:
 	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 120m
