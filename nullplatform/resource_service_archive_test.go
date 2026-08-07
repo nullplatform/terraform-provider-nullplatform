@@ -862,3 +862,353 @@ func TestWaitForServiceStatusTerminal_UnrelatedParkedActionIsNotBlamed(t *testin
 		t.Errorf("got status %q, want archived", s.Status)
 	}
 }
+
+// A create whose POST answers no status (older API shape) falls back to the
+// status the provider sent, so state never holds an empty string.
+func TestServiceResource_CreateWithoutStatusInResponseFallsBack(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Service{Id: "svc-1"}) // no status
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, resourceService().Schema, map[string]any{
+		"name": "redis-cache", "specification_id": "spec-1",
+		"entity_nrn": "organization=1:account=2",
+	})
+	if diags := ServiceCreateContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if got := d.Get("status").(string); got != "active" {
+		t.Errorf("state kept status %q, want the declarative default", got)
+	}
+}
+
+// The post-create-action refresh is best-effort: a failing re-read must warn
+// and keep the apply green — the service exists and its action succeeded.
+func TestServiceResource_CreateSurvivesAFailingPostActionRefresh(t *testing.T) {
+	shortenPolling(t)
+	var serviceGets int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "POST" && r.URL.Path == "/service":
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", SpecificationId: "spec-1", Status: "pending"})
+		case r.URL.Path == "/service_specification/spec-1/action_specification":
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"results": []*ActionSpecification{{Id: "as-1", Type: "create"}}})
+		case r.Method == "POST" && r.URL.Path == "/service/svc-1/action":
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(ActionInstance{Id: "act-1", Status: "success"})
+		case r.URL.Path == "/service/svc-1/action/act-1":
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(ActionInstance{Id: "act-1", Status: "success"})
+		case r.Method == "GET" && r.URL.Path == "/service/svc-1":
+			atomic.AddInt32(&serviceGets, 1)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("not json"))
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, resourceService().Schema, map[string]any{
+		"name": "redis-cache", "specification_id": "spec-1",
+		"entity_nrn": "organization=1:account=2", "import": false,
+	})
+	if diags := ServiceCreateContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("a best-effort refresh must not fail the apply: %v", diags)
+	}
+	if atomic.LoadInt32(&serviceGets) == 0 {
+		t.Error("the refresh was never attempted")
+	}
+}
+
+// The ordinary read records archived_at, which is how an out-of-band archive
+// becomes visible in state at the next refresh.
+func TestServiceReadContext_RecordsArchivedAt(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Service{
+			Id: "svc-1", Status: "archived", ArchivedAt: "2026-08-01T10:00:00.000Z",
+			Attributes: map[string]interface{}{}, Selectors: &Selectors{},
+		})
+	}))
+	defer server.Close()
+
+	d, err := schema.InternalMap(resourceService().Schema).Data(archivedServiceState(), nil)
+	if err != nil {
+		t.Fatalf("building resource data: %v", err)
+	}
+	if diags := ServiceReadContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if got := d.Get("archived_at").(string); got != "2026-08-01T10:00:00.000Z" {
+		t.Errorf("read kept archived_at %q, want the API's value", got)
+	}
+}
+
+// The service-side refusal arms of the update path, mirroring the link tests.
+func TestServiceUpdate_RefusalsAbortTheApply(t *testing.T) {
+	shortenPolling(t)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"message":"refused by a guard"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: "active"})
+	}))
+	defer server.Close()
+
+	state := archivedServiceState()
+	state.Attributes["status"] = "active"
+	state.Attributes["archived_at"] = ""
+	state.Attributes["attributes.%"] = "1"
+	state.Attributes["attributes.size"] = "small"
+	d := serviceDataWithDiff(t, state, map[string]any{
+		"name": "redis-cache", "specification_id": "spec-1",
+		"entity_nrn": "organization=1:account=2",
+		"status":     "archived", "attributes": map[string]any{"size": "large"},
+	})
+	diags := ServiceUpdateContext(context.Background(), d, newTestClient(server))
+	if !diags.HasError() {
+		t.Fatal("a refused PATCH must abort the apply")
+	}
+	if !strings.Contains(diags[0].Summary, "refused by a guard") {
+		t.Errorf("diagnostic %q should carry the API's message", diags[0].Summary)
+	}
+}
+
+func TestServiceUpdate_WaiterSurfacesAReadError(t *testing.T) {
+	shortenPolling(t)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: "active"})
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("not json"))
+	}))
+	defer server.Close()
+
+	state := archivedServiceState()
+	state.Attributes["status"] = "active"
+	state.Attributes["archived_at"] = ""
+	d := serviceDataWithDiff(t, state, map[string]any{
+		"name": "redis-cache", "specification_id": "spec-1",
+		"entity_nrn": "organization=1:account=2", "status": "archived",
+	})
+	if diags := ServiceUpdateContext(context.Background(), d, newTestClient(server)); !diags.HasError() {
+		t.Fatal("a broken read during the wait must abort the apply")
+	}
+}
+
+// A failed service force-deletes instead of minting a delete action it could
+// never satisfy — the pre-archive escape hatch, kept exactly as it was.
+func TestServiceDelete_FailedServiceForceDeletes(t *testing.T) {
+	var deletedWithForce bool
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "DELETE" {
+			deletedWithForce = strings.Contains(r.URL.RawQuery, "force=true")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: "failed"})
+	}))
+	defer server.Close()
+
+	state := archivedServiceState()
+	state.Attributes["status"] = "failed"
+	state.Attributes["import"] = "false"
+	d, err := schema.InternalMap(resourceService().Schema).Data(state, nil)
+	if err != nil {
+		t.Fatalf("building resource data: %v", err)
+	}
+	if diags := ServiceDeleteContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if !deletedWithForce {
+		t.Error("a failed service must be force-deleted")
+	}
+	if d.Id() != "" {
+		t.Error("the resource must leave state")
+	}
+}
+
+func TestServiceDelete_ArchiveOnDestroyJoinsARunningArchive(t *testing.T) {
+	shortenPolling(t)
+	var patched bool
+	var gets int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			patched = true
+		}
+		status, archivedAt := "archiving", ""
+		if atomic.AddInt32(&gets, 1) >= 3 {
+			status, archivedAt = "archived", "2026-08-07T10:00:00.000Z"
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: status, ArchivedAt: archivedAt})
+	}))
+	defer server.Close()
+
+	state := archivedServiceState()
+	state.Attributes["status"] = "archiving"
+	state.Attributes["archive_on_destroy"] = "true"
+	d, err := schema.InternalMap(resourceService().Schema).Data(state, nil)
+	if err != nil {
+		t.Fatalf("building resource data: %v", err)
+	}
+	if diags := ServiceDeleteContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if patched {
+		t.Error("joining a running archive must not re-PATCH")
+	}
+	if d.Id() != "" {
+		t.Error("the resource must leave state once the join lands")
+	}
+}
+
+func TestServiceDelete_ArchiveOnDestroyRefusals(t *testing.T) {
+	shortenPolling(t)
+	for name, handler := range map[string]http.HandlerFunc{
+		"pre-read fails": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("not json"))
+		},
+		"archive patch refused": func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "PATCH" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"message":"Service has non-archived links"}`))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: "active"})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewTLSServer(handler)
+			defer server.Close()
+			state := archivedServiceState()
+			state.Attributes["status"] = "active"
+			state.Attributes["archive_on_destroy"] = "true"
+			d, err := schema.InternalMap(resourceService().Schema).Data(state, nil)
+			if err != nil {
+				t.Fatalf("building resource data: %v", err)
+			}
+			if diags := ServiceDeleteContext(context.Background(), d, newTestClient(server)); !diags.HasError() {
+				t.Fatal("the destroy must surface the failure")
+			}
+		})
+	}
+}
+
+// See nullOpsWithNilLink: the defensive nil arm, reachable only through the
+// interface, asserted as contract.
+type nullOpsWithNilService struct{ NullOps }
+
+func (nullOpsWithNilService) GetService(string) (*Service, error) { return nil, nil }
+
+func TestServiceDelete_ArchiveOnDestroyOnAVanishedServiceJustForgetsIt(t *testing.T) {
+	state := archivedServiceState()
+	state.Attributes["archive_on_destroy"] = "true"
+	state.Attributes["status"] = "active"
+	d, err := schema.InternalMap(resourceService().Schema).Data(state, nil)
+	if err != nil {
+		t.Fatalf("building resource data: %v", err)
+	}
+	if diags := ServiceDeleteContext(context.Background(), d, nullOpsWithNilService{}); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if d.Id() != "" {
+		t.Error("a vanished service must simply leave state")
+	}
+}
+
+// The waiter's own error arms: a broken read mid-wait, and a transition name
+// nothing declares (a programming error, reported rather than looped on).
+func TestWaitForServiceStatusTerminal_SurfacesAReadError(t *testing.T) {
+	shortenPolling(t)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("not json"))
+	}))
+	defer server.Close()
+	if _, err := waitForServiceStatusTerminal(context.Background(), newTestClient(server), "svc-1", "archive", "active", time.Minute); err == nil {
+		t.Fatal("a broken read must surface, not poll forever")
+	}
+}
+
+func TestWaitForInstanceStatusTerminal_RefusesAnUnknownTransition(t *testing.T) {
+	_, err := waitForServiceStatusTerminal(context.Background(), nil, "svc-1", "resurrect", "active", time.Minute)
+	if err == nil || !strings.Contains(err.Error(), "unknown") {
+		t.Fatalf("want an unknown-transition error, got %v", err)
+	}
+}
+
+// The service twin of the link's failing-wait destroy case.
+func TestServiceDelete_ArchiveOnDestroySurfacesAFailingWait(t *testing.T) {
+	shortenPolling(t)
+	var gets int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: "active"})
+			return
+		}
+		if atomic.AddInt32(&gets, 1) == 1 {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: "active"})
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("not json"))
+	}))
+	defer server.Close()
+
+	state := archivedServiceState()
+	state.Attributes["status"] = "active"
+	state.Attributes["archive_on_destroy"] = "true"
+	d, err := schema.InternalMap(resourceService().Schema).Data(state, nil)
+	if err != nil {
+		t.Fatalf("building resource data: %v", err)
+	}
+	if diags := ServiceDeleteContext(context.Background(), d, newTestClient(server)); !diags.HasError() {
+		t.Fatal("a failing wait must surface")
+	}
+}
+
+// A force-delete of a failed service that the API refuses must abort, not
+// silently drop the resource from state with the row still on the platform.
+func TestServiceDelete_FailedServiceRefusedForceDeleteAborts(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "DELETE" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: "failed"})
+	}))
+	defer server.Close()
+
+	state := archivedServiceState()
+	state.Attributes["status"] = "failed"
+	state.Attributes["import"] = "false"
+	d, err := schema.InternalMap(resourceService().Schema).Data(state, nil)
+	if err != nil {
+		t.Fatalf("building resource data: %v", err)
+	}
+	if diags := ServiceDeleteContext(context.Background(), d, newTestClient(server)); !diags.HasError() {
+		t.Fatal("a refused force-delete must abort the destroy")
+	}
+	if d.Id() == "" {
+		t.Error("state must keep the resource when the delete was refused")
+	}
+}

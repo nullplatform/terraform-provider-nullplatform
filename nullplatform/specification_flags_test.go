@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/go-cty/cty"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
@@ -263,5 +264,122 @@ func TestSpecificationRead_SurvivesAResponseWithoutSelectors(t *testing.T) {
 	linkData.SetId("spec-1")
 	if diags := ReadLinkSpecification(context.Background(), linkData, newTestClient(server)); diags.HasError() {
 		t.Errorf("link specification read: %v", diags)
+	}
+}
+
+// A full-bodied read: all three flags and the selectors block land in state.
+// The no-selectors test above proves the guard; this one proves the values —
+// including the data source, whose read is its own code path.
+func TestSpecificationRead_RecordsFlagsAndSelectors(t *testing.T) {
+	managed := true
+	defaults := true
+	naming := false
+	body := map[string]any{
+		"id": "spec-1", "name": "redis",
+		"use_default_actions": defaults, "use_default_naming": naming, "use_managed_actions": managed,
+		"selectors": map[string]any{"category": "Databases", "imported": false, "provider": "AWS", "sub_category": "Key Value"},
+	}
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(body)
+	}))
+	defer server.Close()
+
+	serviceData := schema.TestResourceDataRaw(t, resourceServiceSpecification().Schema, map[string]any{"name": "redis"})
+	serviceData.SetId("spec-1")
+	if diags := ReadServiceSpecification(context.Background(), serviceData, newTestClient(server)); diags.HasError() {
+		t.Fatalf("service specification read: %v", diags)
+	}
+	if !serviceData.Get("use_managed_actions").(bool) || serviceData.Get("use_default_naming").(bool) {
+		t.Errorf("flags did not land: managed=%v naming=%v",
+			serviceData.Get("use_managed_actions"), serviceData.Get("use_default_naming"))
+	}
+	selectors := serviceData.Get("selectors").([]interface{})
+	if len(selectors) != 1 || selectors[0].(map[string]interface{})["category"] != "Databases" {
+		t.Errorf("selectors did not land: %v", selectors)
+	}
+
+	linkData := schema.TestResourceDataRaw(t, resourceLinkSpecification().Schema, map[string]any{"name": "redis"})
+	linkData.SetId("spec-1")
+	if diags := ReadLinkSpecification(context.Background(), linkData, newTestClient(server)); diags.HasError() {
+		t.Fatalf("link specification read: %v", diags)
+	}
+	if !linkData.Get("use_managed_actions").(bool) {
+		t.Error("link specification did not record use_managed_actions")
+	}
+	linkSelectors := linkData.Get("selectors").([]interface{})
+	if len(linkSelectors) != 1 {
+		t.Errorf("link selectors did not land: %v", linkSelectors)
+	}
+
+	dsData := schema.TestResourceDataRaw(t, dataSourceServiceSpecification().Schema, map[string]any{"id": "spec-1"})
+	if diags := dataSourceServiceSpecificationRead(context.Background(), dsData, newTestClient(server)); diags.HasError() {
+		t.Fatalf("data source read: %v", diags)
+	}
+	if !dsData.Get("use_managed_actions").(bool) {
+		t.Error("data source did not record use_managed_actions")
+	}
+}
+
+// Updates carry every configured flag — including the managed one — through
+// the same always-send rule #146 established, on BOTH specification resources.
+func TestSpecificationUpdate_ConfiguredFlagsTravel(t *testing.T) {
+	for name, tc := range map[string]struct {
+		resource *schema.Resource
+		update   func(context.Context, *schema.ResourceData, any) diag.Diagnostics
+	}{
+		"service": {resourceServiceSpecification(), UpdateServiceSpecification},
+		"link":    {resourceLinkSpecification(), UpdateLinkSpecification},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var patched map[string]any
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == "PATCH" {
+					_ = json.NewDecoder(r.Body).Decode(&patched)
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(map[string]any{"id": "spec-1", "name": "redis"})
+			}))
+			defer server.Close()
+
+			config := map[string]any{"name": "redis", "use_default_actions": true, "use_managed_actions": true}
+			if name == "link" {
+				config["specification_id"] = "svc-spec-1"
+			}
+			d := specificationData(t, tc.resource, config)
+			d.SetId("spec-1")
+
+			if diags := tc.update(context.Background(), d, newTestClient(server)); diags.HasError() {
+				t.Fatalf("unexpected error: %v", diags)
+			}
+			if patched["use_managed_actions"] != true {
+				t.Errorf("use_managed_actions did not travel on update: %v", patched)
+			}
+		})
+	}
+}
+
+// The link specification CREATE sends the managed flag too — its payload is
+// built by different code than the service one.
+func TestLinkSpecificationCreate_ManagedFlagTravels(t *testing.T) {
+	var posted map[string]any
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			_ = json.NewDecoder(r.Body).Decode(&posted)
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "lspec-1", "name": "redis"})
+	}))
+	defer server.Close()
+
+	d := specificationData(t, resourceLinkSpecification(), map[string]any{
+		"name": "redis", "specification_id": "svc-spec-1",
+		"use_default_actions": true, "use_managed_actions": true,
+	})
+	if diags := CreateLinkSpecification(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if posted["use_managed_actions"] != true {
+		t.Errorf("use_managed_actions did not travel on create: %v", posted)
 	}
 }

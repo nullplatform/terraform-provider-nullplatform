@@ -53,6 +53,12 @@ func TestGenerateParameterValueID(t *testing.T) {
 		t.Errorf("Expected hash: 6523e8f336a33e0da14184b31454be7df1224f64466ee090e0e28f0c41c4a261, got: %s", expectedHash4)
 	}
 
+	// The multi-dimension expectations below are the SORTED-order hashes
+	// (country before environment). The previous constants encoded whichever
+	// random map order the author's run produced, so this test failed whenever
+	// the runtime picked the other order — the same nondeterminism that made a
+	// two-dimension value miss its own read lookup.
+
 	// Test case 5: At Application level with Dimensions nor Value
 	param5 := &ParameterValue{
 		Nrn: "organization=1:account=2:namespace=3:application=4",
@@ -63,8 +69,8 @@ func TestGenerateParameterValueID(t *testing.T) {
 	}
 
 	expectedHash5 := generateParameterValueID(param5, parameterId)
-	if expectedHash5 != "1d6830039cf4e3143c23e3d36dd45850f7ba5241660d2ec8c5eb77dbe7c2f15d" {
-		t.Errorf("Expected hash: 1d6830039cf4e3143c23e3d36dd45850f7ba5241660d2ec8c5eb77dbe7c2f15d, got: %s", expectedHash5)
+	if expectedHash5 != "617957040f4f6a292ef3f01a7db627363d91a661cb1b03473d2ddbdc99f376e9" {
+		t.Errorf("Expected hash: 617957040f4f6a292ef3f01a7db627363d91a661cb1b03473d2ddbdc99f376e9, got: %s", expectedHash5)
 	}
 
 	// Test case 6: At Application level with Value, and Dimensions
@@ -78,8 +84,8 @@ func TestGenerateParameterValueID(t *testing.T) {
 	}
 
 	expectedHash6 := generateParameterValueID(param6, parameterId)
-	if expectedHash6 != "1d6830039cf4e3143c23e3d36dd45850f7ba5241660d2ec8c5eb77dbe7c2f15d" {
-		t.Errorf("Expected hash: 1d6830039cf4e3143c23e3d36dd45850f7ba5241660d2ec8c5eb77dbe7c2f15d, got: %s", expectedHash6)
+	if expectedHash6 != "617957040f4f6a292ef3f01a7db627363d91a661cb1b03473d2ddbdc99f376e9" {
+		t.Errorf("Expected hash: 617957040f4f6a292ef3f01a7db627363d91a661cb1b03473d2ddbdc99f376e9, got: %s", expectedHash6)
 	}
 
 	// Test case 7: At Scope level with Value, and Dimensions. This case shoud not exists but it can be handled
@@ -93,8 +99,8 @@ func TestGenerateParameterValueID(t *testing.T) {
 	}
 
 	expectedHash7 := generateParameterValueID(param7, parameterId)
-	if expectedHash7 != "972d76cb3b1db5b9a145dea7aa72395ae6459f02e05ac18f7f6439904a93326f" {
-		t.Errorf("Expected hash: 972d76cb3b1db5b9a145dea7aa72395ae6459f02e05ac18f7f6439904a93326f, got: %s", expectedHash7)
+	if expectedHash7 != "fd120e5ce41a86b23b3bcca38378ea81cfd03388ba4ca602afe5c0cf39d458b5" {
+		t.Errorf("Expected hash: fd120e5ce41a86b23b3bcca38378ea81cfd03388ba4ca602afe5c0cf39d458b5, got: %s", expectedHash7)
 	}
 }
 
@@ -125,5 +131,28 @@ func TestIsRetryableError(t *testing.T) {
 				t.Errorf("isRetryableError(%v) = %v, want %v", tt.err, got, tt.want)
 			}
 		})
+	}
+}
+
+// The id is recomputed on every read and compared against the one in state, so
+// it must be a pure function of its inputs. It was not: dimensions were
+// concatenated in Go's randomized map-iteration order, so a value with two or
+// more dimensions failed its own lookup on most reads. One hundred rounds make
+// the old behavior fail this test virtually every run.
+func TestGenerateParameterValueID_DeterministicAcrossDimensionOrder(t *testing.T) {
+	value := &ParameterValue{
+		Nrn: "organization=1:account=2:namespace=3:application=4",
+		Dimensions: map[string]string{
+			"environment": "production",
+			"country":     "argentina",
+			"region":      "coastal",
+		},
+	}
+
+	first := generateParameterValueID(value, 7)
+	for i := 0; i < 100; i++ {
+		if got := generateParameterValueID(value, 7); got != first {
+			t.Fatalf("round %d: id %s differs from %s — the hash depends on map iteration order", i, got, first)
+		}
 	}
 }

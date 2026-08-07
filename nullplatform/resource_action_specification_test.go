@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
 // The API's action type enum gained `archive` and `unarchive`; a specification
@@ -197,5 +198,120 @@ func TestAnnotateExistingActionTypeError_LeavesOtherErrorsAlone(t *testing.T) {
 	}
 	if got := annotateExistingActionTypeError(nil, &ActionSpecification{Type: "custom"}); got != nil {
 		t.Errorf("nil error became %v", got)
+	}
+}
+
+// The annotation resolves the parent from whichever specification id is set —
+// a LINK-owned action must point the import at the link specification.
+func TestAnnotateExistingActionTypeError_LinkParent(t *testing.T) {
+	err := annotateExistingActionTypeError(
+		errors.New(`got 400: {"message":"There is already an action of type \"archive\" for link specification lspec-1"}`),
+		&ActionSpecification{Type: "archive", LinkSpecificationId: "lspec-1"},
+	)
+	if !strings.Contains(err.Error(), "lspec-1") {
+		t.Errorf("annotated error should name the link specification:\n%s", err.Error())
+	}
+}
+
+// The annotation is wired into the CREATE path — the duplicate refusal a real
+// apply hits must come back with the import command, not bare.
+func TestActionSpecificationCreate_DuplicateTypeNamesTheImport(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"message":"There is already an action of type \"archive\" for service specification spec-1"}`))
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, resourceActionSpecification().Schema, map[string]any{
+		"name": "Archive", "type": "archive", "service_specification_id": "spec-1",
+	})
+	diags := ActionSpecificationCreate(context.Background(), d, newTestClient(server))
+	if !diags.HasError() {
+		t.Fatal("the duplicate must be refused")
+	}
+	if !strings.Contains(diags[0].Summary, "terraform import") {
+		t.Errorf("diagnostic %q should name the import", diags[0].Summary)
+	}
+}
+
+// Update decodes parameters/results through the same optional-JSON contract as
+// create: changed valid JSON travels, changed INVALID JSON is refused before
+// any request leaves the provider.
+func TestActionSpecificationUpdate_DecodesChangedParameters(t *testing.T) {
+	var patched map[string]any
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			_ = json.NewDecoder(r.Body).Decode(&patched)
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(ActionSpecification{
+			Id: "as-1", Type: "custom", ServiceSpecificationId: "spec-1",
+			Parameters: map[string]any{"schema": map[string]any{"type": "object"}},
+			Results:    map[string]any{"schema": map[string]any{}},
+		})
+	}))
+	defer server.Close()
+
+	state := &terraform.InstanceState{ID: "as-1", Attributes: map[string]string{
+		"id": "as-1", "name": "verb", "type": "custom",
+		"service_specification_id": "spec-1",
+		"parameters":               `{"schema":{"type":"object"}}`,
+		"results":                  `{"schema":{}}`,
+	}}
+	diff, err := resourceActionSpecification().Diff(context.Background(), state, terraform.NewResourceConfigRaw(map[string]any{
+		"name": "verb", "type": "custom", "service_specification_id": "spec-1",
+		"parameters": `{"schema":{"type":"object","properties":{"x":{"type":"string"}}}}`,
+		"results":    `{"schema":{"type":"object"}}`,
+	}), nil)
+	if err != nil {
+		t.Fatalf("computing the diff: %v", err)
+	}
+	d, err := schema.InternalMap(resourceActionSpecification().Schema).Data(state, diff)
+	if err != nil {
+		t.Fatalf("building resource data: %v", err)
+	}
+	if diags := ActionSpecificationUpdate(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if patched["parameters"] == nil || patched["results"] == nil {
+		t.Errorf("changed parameters/results must travel, got %v", patched)
+	}
+}
+
+func TestActionSpecificationUpdate_RefusesInvalidJSON(t *testing.T) {
+	for field, config := range map[string]map[string]any{
+		"parameters": {"parameters": `{not json`, "results": `{"schema":{}}`},
+		"results":    {"parameters": `{"schema":{}}`, "results": `{not json`},
+	} {
+		t.Run(field, func(t *testing.T) {
+			state := &terraform.InstanceState{ID: "as-1", Attributes: map[string]string{
+				"id": "as-1", "name": "verb", "type": "custom",
+				"service_specification_id": "spec-1",
+				"parameters":               `{"schema":{}}`,
+				"results":                  `{"schema":{}}`,
+			}}
+			full := map[string]any{"name": "verb", "type": "custom", "service_specification_id": "spec-1"}
+			for k, v := range config {
+				full[k] = v
+			}
+			diff, err := resourceActionSpecification().Diff(context.Background(), state, terraform.NewResourceConfigRaw(full), nil)
+			if err != nil {
+				t.Fatalf("computing the diff: %v", err)
+			}
+			d, err := schema.InternalMap(resourceActionSpecification().Schema).Data(state, diff)
+			if err != nil {
+				t.Fatalf("building resource data: %v", err)
+			}
+			// The refusal must fire before any request leaves the provider.
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Errorf("unexpected %s %s: invalid JSON must be refused locally", r.Method, r.URL.Path)
+				w.WriteHeader(http.StatusInternalServerError)
+			}))
+			defer server.Close()
+			diags := ActionSpecificationUpdate(context.Background(), d, newTestClient(server))
+			if !diags.HasError() {
+				t.Fatalf("invalid %s JSON must be refused before any request", field)
+			}
+		})
 	}
 }
