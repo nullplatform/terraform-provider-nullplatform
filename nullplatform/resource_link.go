@@ -372,12 +372,12 @@ func waitForLinkStatusTerminal(ctx context.Context, nullOps NullOps, linkID, tra
 		transition: transition,
 		fromStatus: fromStatus,
 		timeout:    timeout,
-		read: func() (any, string, []interface{}, error) {
+		read: func() (any, string, []interface{}, []ActionInProgress, error) {
 			l, err := nullOps.GetLink(linkID)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, "", nil, nil, err
 			}
-			return l, l.Status, nil, nil
+			return l, l.Status, nil, l.ActionsInProgress, nil
 		},
 	})
 	if err != nil {

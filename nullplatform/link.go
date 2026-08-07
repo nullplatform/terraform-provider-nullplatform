@@ -22,6 +22,7 @@ type Link struct {
 	LinkableTo             []interface{}          `json:"linkable_to,omitempty"`
 	Status                 string                 `json:"status,omitempty"`
 	ArchivedAt             string                 `json:"archived_at,omitempty"`
+	ActionsInProgress      []ActionInProgress     `json:"actions_in_progress,omitempty"`
 	Selectors              map[string]interface{} `json:"selectors,omitempty"`
 	Dimensions             map[string]interface{} `json:"dimensions,omitempty"`
 	Attributes             map[string]interface{} `json:"attributes,omitempty"`
