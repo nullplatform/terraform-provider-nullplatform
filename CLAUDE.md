@@ -1,9 +1,12 @@
 # terraform-provider-nullplatform
 
 Terraform provider (SDKv2) for nullplatform, published to the public registry.
-It is a client of `main-service-api`; that repo's `docs/CASES-MATRIX.md` is the
-behavioral reference for anything touching lifecycle, status, actions or
-specifications.
+It is a client of ALL nullplatform APIs (services, scopes, parameters,
+packages, approvals, notification channels, …). Where an API documents its
+behavior, that document is the reference — `main-service-api`'s
+`docs/CASES-MATRIX.md` covers services/links/actions/specifications; consult
+the owning API repo for the rest, and validate provider changes against the
+API's actual responses, never against assumptions.
 
 ## Commands
 
