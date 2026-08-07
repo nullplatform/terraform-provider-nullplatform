@@ -17,10 +17,14 @@ nullplatform/resource_link.go:354-355    # d.Set(status, string) arm after wait
 nullplatform/resource_link.go:357-358    # d.Set(archived_at, string) arm after wait
 nullplatform/resource_link_specification.go:291-292  # d.Set(use_managed_actions, bool) arm
 nullplatform/resource_link_specification.go:366-367  # d.Set(selectors, list) arm
-nullplatform/resource_service.go:269      # d.Set(status, string) arm in create
+nullplatform/resource_service.go:269-270  # d.Set(status, string) arm in create
+nullplatform/resource_service.go:272-273  # d.Set(archived_at, string) arm in create
+nullplatform/resource_service.go:328-329  # d.Set(status, string) arm in read
 nullplatform/resource_service.go:333-334  # d.Set(archived_at, string) arm in read
+nullplatform/resource_service.go:356-357  # d.Set(selectors, list) arm in read
 nullplatform/resource_service.go:363      # d.Set(messages, list) arm in read
 nullplatform/resource_service.go:456-457  # d.Set(status, string) arm after wait
+nullplatform/resource_service.go:459-460  # d.Set(archived_at, string) arm after wait
 nullplatform/resource_service_specification.go:279-280  # d.Set(use_managed_actions, bool) arm
 nullplatform/resource_service_specification.go:326-327  # d.Set(selectors, list) arm
 #

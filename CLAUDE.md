@@ -76,11 +76,16 @@ cannot express the page.
      (`nullOpsWithNilService` pattern). Polling tests call `shortenPolling(t)`.
   2. **Functional** (`functional_test.go`) — `resource.UnitTest` runs REAL
      `terraform plan/apply/import/destroy` against the in-process provider
-     backed by the stateful `platformMock`; only `ConfigureContextFunc` is
-     swapped. The framework re-plans after every apply and fails on any diff —
-     the perpetual-diff regression class is checked for free. Runs on every
-     `go test`, no credentials (it found the unset-`messages` diff, the
-     `selectors` perpetual diff and a third `Selectors` nil-panic on day one).
+     backed by `fakePlatform`, a stateful executable copy of the platform
+     API's archive contract (guards, refusal messages, managed/unmanaged/
+     approval resolution, link rules); only `ConfigureContextFunc` is swapped.
+     The framework re-plans after every apply and fails on any diff — the
+     perpetual-diff class is checked for free. Runs on every `go test`, no
+     credentials. Day one it found the unset-`messages` diff, the `selectors`
+     perpetual diff, a third `Selectors` nil-panic and the link delete
+     treating the API's 204 as failure. The fake is our belief about the API:
+     when the API's behavior changes, change the fake in the same breath, and
+     use `make testacc` as the on-demand check that the real API still agrees.
   3. **Acceptance** (`make testacc`, `TestAcc*`) — real API, real credentials,
      gated on `TF_ACC=1`.
 - **The suite is deterministic.** An intermittent failure is a bug to
