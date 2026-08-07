@@ -76,18 +76,39 @@ cannot express the page.
      (`nullOpsWithNilService` pattern). Polling tests call `shortenPolling(t)`.
   2. **Functional** (`functional_test.go` + `internal/fakeplatform`) —
      `resource.UnitTest` runs REAL `terraform plan/apply/import/destroy`
-     against the in-process provider, backed by the fake platform: a generic
-     stateful REST engine (`Register` mounts a new endpoint family in one
-     call) plus behavior modules (`archive.go`) holding the contract — guards,
-     refusal messages, chain resolution keyed on `specification_id` exactly as
-     the real API resolves it, the approval machine, link rules. Only
+     against the in-process provider, backed by the fake platform. Only
      `ConfigureContextFunc` is swapped. The framework re-plans after every
      apply and fails on any diff — the perpetual-diff class is checked for
      free. Runs on every `go test`, no credentials. Day one it found the
      unset-`messages` diff, the `selectors` perpetual diff, a third
      `Selectors` nil-panic and the link delete treating the API's 204 as
-     failure. The fake is our executable belief about the API: when the API's
-     behavior changes, change the behavior module in the same breath, and use
+     failure.
+
+     **How to use the fake — the division of labor is the design:**
+
+     - `server.go` is the finished ENGINE (routing, storage, id sequences,
+       get-counters, refusal encoding). Don't grow it per resource.
+     - A new endpoint family is ONE registration with empty hooks:
+       `fake.Register("runtime_configuration", "rc", fakeplatform.Hooks{})`
+       gives stateful CRUD at `/runtime_configuration`, echoing whatever the
+       client stores (items are raw JSON — no schema needed).
+     - **A rule the API enforces becomes a hook in a behavior MODULE**
+       (`archive.go` is the template): `OnCreate`/`OnPatch`/`OnDelete` return
+       `Refuse(...)` with the API's REAL message — messages are contract, the
+       provider surfaces them to operators and tests assert them verbatim.
+       `OnGet` is where asynchronous transitions progress, one observation at
+       a time (`Gets`/`ResetGets`), so the provider's waiters genuinely wait.
+     - **Scenario selection mirrors the API's own decision structure**: a
+       spec's archive chain is keyed on `specification_id` (the document the
+       real API resolves it from), declared per test — never by name hacks
+       or global flags.
+     - Tests stay six lines of shape: chain declaration + HCL config + real
+       apply + assertion (`ExpectError` on the refusal message, or attribute
+       checks). Use `Seed` to arrange state without invoking behavior,
+       `Items`/`Deletes` for CheckDestroy assertions.
+
+     The fake is our executable belief about the API: when the API's behavior
+     changes, change the behavior module in the same breath, and use
      `make testacc` as the on-demand check that the real API still agrees.
   3. **Acceptance** (`make testacc`, `TestAcc*`) — real API, real credentials,
      gated on `TF_ACC=1`.
