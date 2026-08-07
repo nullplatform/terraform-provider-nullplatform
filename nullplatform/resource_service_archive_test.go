@@ -1212,3 +1212,118 @@ func TestServiceDelete_FailedServiceRefusedForceDeleteAborts(t *testing.T) {
 		t.Error("state must keep the resource when the delete was refused")
 	}
 }
+
+// The context-level create refusal: the archived-twin aviso must reach the
+// operator through the full CreateContext path, not only the client method.
+func TestServiceCreateContext_RefusedCreateSurfacesTheMessage(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"message":"An archived service (id svc-9) with the same specification, entity and dimensions already exists - unarchive it, or request its deletion"}`))
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, resourceService().Schema, map[string]any{
+		"name": "twin", "specification_id": "spec-1", "entity_nrn": "organization=1:account=2",
+	})
+	diags := ServiceCreateContext(context.Background(), d, newTestClient(server))
+	if !diags.HasError() {
+		t.Fatal("a refused create must error")
+	}
+	if !strings.Contains(diags[0].Summary, "unarchive it") {
+		t.Errorf("diagnostic %q should carry the aviso", diags[0].Summary)
+	}
+}
+
+// An action-mode create whose create action cannot even be resolved aborts the
+// apply — with the row already in state (SetId ran), so the operator can retry
+// or destroy rather than leak an untracked service.
+func TestServiceCreateContext_FailedCreateActionAborts(t *testing.T) {
+	shortenPolling(t)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" && r.URL.Path == "/service" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", SpecificationId: "spec-1", Status: "pending"})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"message":"boom"}`))
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, resourceService().Schema, map[string]any{
+		"name": "redis-cache", "specification_id": "spec-1",
+		"entity_nrn": "organization=1:account=2", "import": false,
+	})
+	diags := ServiceCreateContext(context.Background(), d, newTestClient(server))
+	if !diags.HasError() {
+		t.Fatal("a failed create action must abort the apply")
+	}
+	if d.Id() == "" {
+		t.Error("the id must stay in state — the service exists on the platform")
+	}
+}
+
+// The bare status PATCH being refused (attributes matching state, so the split
+// does not fire) — the service twin of the link case, other error arm.
+func TestServiceUpdate_StatusPatchRefusedWithoutSplit(t *testing.T) {
+	shortenPolling(t)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"message":"use the 'archive' action instead"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: "active"})
+	}))
+	defer server.Close()
+
+	state := archivedServiceState()
+	state.Attributes["status"] = "active"
+	state.Attributes["archived_at"] = ""
+	state.Attributes["attributes.%"] = "1"
+	state.Attributes["attributes.size"] = "small"
+	d := serviceDataWithDiff(t, state, map[string]any{
+		"name": "redis-cache", "specification_id": "spec-1",
+		"entity_nrn": "organization=1:account=2",
+		"status":     "archived", "attributes": map[string]any{"size": "small"},
+	})
+	diags := ServiceUpdateContext(context.Background(), d, newTestClient(server))
+	if !diags.HasError() {
+		t.Fatal("the refused status PATCH must abort")
+	}
+	if !strings.Contains(diags[0].Summary, "use the 'archive' action") {
+		t.Errorf("diagnostic %q should carry the guard's message", diags[0].Summary)
+	}
+}
+
+// A selectors change travels on update — the block that builds the Selectors
+// struct out of the configured list.
+func TestServiceUpdate_SelectorsTravel(t *testing.T) {
+	var patched Service
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			_ = json.NewDecoder(r.Body).Decode(&patched)
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(Service{Id: "svc-1", Status: "active"})
+	}))
+	defer server.Close()
+
+	state := archivedServiceState()
+	state.Attributes["status"] = "active"
+	state.Attributes["archived_at"] = ""
+	d := serviceDataWithDiff(t, state, map[string]any{
+		"name": "redis-cache", "specification_id": "spec-1",
+		"entity_nrn": "organization=1:account=2",
+		"selectors": []any{map[string]any{
+			"category": "Databases", "imported": false, "provider": "AWS", "sub_category": "KV",
+		}},
+	})
+	if diags := ServiceUpdateContext(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if patched.Selectors == nil || patched.Selectors.Category != "Databases" {
+		t.Errorf("selectors did not travel: %+v", patched.Selectors)
+	}
+}

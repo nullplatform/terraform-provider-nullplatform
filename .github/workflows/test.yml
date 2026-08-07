@@ -38,6 +38,13 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # The functional tests (resource.UnitTest) drive real terraform
+      # plan/apply cycles against the in-process provider; pin the CLI here
+      # rather than letting the framework download one per run.
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
       - name: vet
         run: go vet ./...
 

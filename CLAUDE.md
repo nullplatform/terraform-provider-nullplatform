@@ -68,10 +68,21 @@ cannot express the page.
   change is named in the commit and the PR, with its migration story.
 - **Red first**: watch every regression test fail against the unfixed code for
   the stated reason, then go green.
-- Unit tests drive the **Context functions Terraform actually invokes** against
-  `httptest` fakes (`newTestClient`). Defensive arms unreachable through the
-  HTTP client are still contract — drive them through the `NullOps` interface
-  (`nullOpsWithNilService` pattern). Polling tests call `shortenPolling(t)`.
+- **Three layers**, all on `terraform-plugin-testing` idioms (never the
+  deprecated SDKv2 `helper/resource` — the two cannot share a test binary):
+  1. **Unit** — the Context functions against `httptest` fakes
+     (`newTestClient`). Defensive arms unreachable through the HTTP client are
+     still contract — drive them through the `NullOps` interface
+     (`nullOpsWithNilService` pattern). Polling tests call `shortenPolling(t)`.
+  2. **Functional** (`functional_test.go`) — `resource.UnitTest` runs REAL
+     `terraform plan/apply/import/destroy` against the in-process provider
+     backed by the stateful `platformMock`; only `ConfigureContextFunc` is
+     swapped. The framework re-plans after every apply and fails on any diff —
+     the perpetual-diff regression class is checked for free. Runs on every
+     `go test`, no credentials (it found the unset-`messages` diff, the
+     `selectors` perpetual diff and a third `Selectors` nil-panic on day one).
+  3. **Acceptance** (`make testacc`, `TestAcc*`) — real API, real credentials,
+     gated on `TF_ACC=1`.
 - **The suite is deterministic.** An intermittent failure is a bug to
   root-cause (the map-order id flake was a production bug), never noise to
   retry past.
