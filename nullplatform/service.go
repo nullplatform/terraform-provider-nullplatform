@@ -20,6 +20,7 @@ type Service struct {
 	LinkableTo             []interface{}          `json:"linkable_to,omitempty"`
 	Status                 string                 `json:"status,omitempty"`
 	ArchivedAt             string                 `json:"archived_at,omitempty"`
+	ActionsInProgress      []ActionInProgress     `json:"actions_in_progress,omitempty"`
 	Slug                   string                 `json:"slug,omitempty"`
 	Messages               []interface{}          `json:"messages,omitempty"`
 	Selectors              *Selectors             `json:"selectors,omitempty"` // Use the new struct

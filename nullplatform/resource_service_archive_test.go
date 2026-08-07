@@ -753,3 +753,112 @@ func TestServiceUpdate_AttributesWithoutATransitionStaySingle(t *testing.T) {
 		t.Errorf("expected a single PATCH, got %d", patches)
 	}
 }
+
+// approvalSequenceServer answers each successive GET with the next
+// (status, actions_in_progress) pair, holding the last one thereafter.
+func approvalSequenceServer(t *testing.T, steps []Service) *httptest.Server {
+	t.Helper()
+	var calls int32
+	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		i := int(atomic.AddInt32(&calls, 1)) - 1
+		if i >= len(steps) {
+			i = len(steps) - 1
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(steps[i])
+	}))
+}
+
+// An archive behind an approval policy parks its action in `pending_create` and
+// the service stays `active` — which must read as "waiting", not "stuck". When
+// the approval lands, the action leaves `pending_create` for a RUNNING status
+// while the service still reads `active` for a beat; mistaking that window for
+// a denial was a real bug in the first draft of this waiter, which keyed the
+// denial check on "no longer parked" instead of "no longer present".
+func TestWaitForServiceStatusTerminal_ApprovedMidWaitCompletes(t *testing.T) {
+	shortenPolling(t)
+	parked := []ActionInProgress{{Id: "act-1", Type: "archive", Status: "pending_create"}}
+	approved := []ActionInProgress{{Id: "act-1", Type: "archive", Status: "in_progress"}}
+	server := approvalSequenceServer(t, []Service{
+		{Id: "svc-1", Status: "active", ActionsInProgress: parked},
+		{Id: "svc-1", Status: "active", ActionsInProgress: approved},
+		{Id: "svc-1", Status: "archiving", ActionsInProgress: approved},
+		{Id: "svc-1", Status: "archived", ArchivedAt: "2026-08-07T09:00:00.000Z"},
+	})
+	defer server.Close()
+
+	s, err := waitForServiceStatusTerminal(context.Background(), newTestClient(server), "svc-1", "archive", "active", time.Minute)
+	if err != nil {
+		t.Fatalf("an approved archive must complete, got: %v", err)
+	}
+	if s.Status != "archived" {
+		t.Errorf("got status %q, want archived", s.Status)
+	}
+}
+
+// A denied (or hand-cancelled) approval removes the action from
+// actions_in_progress while the status never moves. Nothing will ever move
+// again, so the waiter must say so promptly instead of running out the timeout.
+func TestWaitForServiceStatusTerminal_DeniedApprovalFailsFast(t *testing.T) {
+	shortenPolling(t)
+	parked := []ActionInProgress{{Id: "act-1", Type: "archive", Status: "pending_create"}}
+	server := approvalSequenceServer(t, []Service{
+		{Id: "svc-1", Status: "active", ActionsInProgress: parked},
+		{Id: "svc-1", Status: "active"},
+	})
+	defer server.Close()
+
+	_, err := waitForServiceStatusTerminal(context.Background(), newTestClient(server), "svc-1", "archive", "active", time.Minute)
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "act-1") || !strings.Contains(err.Error(), "cancelled while waiting") {
+		t.Errorf("error %q should name the cancelled action and the reason", err.Error())
+	}
+	if !strings.Contains(err.Error(), "Re-run apply") {
+		t.Errorf("error %q should tell the operator how to try again", err.Error())
+	}
+}
+
+// An approval nobody answers holds the instance at its from-status until the
+// update timeout. The timeout error must carry the reason — the platform is not
+// stuck, an action is waiting for a human — instead of a generic "timed out
+// waiting for state".
+func TestWaitForServiceStatusTerminal_UnansweredApprovalExplainsTheTimeout(t *testing.T) {
+	shortenPolling(t)
+	parked := []ActionInProgress{{Id: "act-1", Type: "archive", Status: "pending_create"}}
+	server := approvalSequenceServer(t, []Service{
+		{Id: "svc-1", Status: "active", ActionsInProgress: parked},
+	})
+	defer server.Close()
+
+	_, err := waitForServiceStatusTerminal(context.Background(), newTestClient(server), "svc-1", "archive", "active", 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected a timeout error, got nil")
+	}
+	if !strings.Contains(err.Error(), "waiting for approval") || !strings.Contains(err.Error(), "act-1") {
+		t.Errorf("timeout error %q should explain the parked approval", err.Error())
+	}
+}
+
+// A parked action of a DIFFERENT type (a custom verb behind its own approval)
+// must not be blamed for this wait: the transition match is what keeps the
+// explanation honest.
+func TestWaitForServiceStatusTerminal_UnrelatedParkedActionIsNotBlamed(t *testing.T) {
+	shortenPolling(t)
+	unrelated := []ActionInProgress{{Id: "act-9", Type: "custom", Status: "pending_create"}}
+	server := approvalSequenceServer(t, []Service{
+		{Id: "svc-1", Status: "active", ActionsInProgress: unrelated},
+		{Id: "svc-1", Status: "archiving", ActionsInProgress: unrelated},
+		{Id: "svc-1", Status: "archived", ArchivedAt: "2026-08-07T09:00:00.000Z"},
+	})
+	defer server.Close()
+
+	s, err := waitForServiceStatusTerminal(context.Background(), newTestClient(server), "svc-1", "archive", "active", time.Minute)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s.Status != "archived" {
+		t.Errorf("got status %q, want archived", s.Status)
+	}
+}

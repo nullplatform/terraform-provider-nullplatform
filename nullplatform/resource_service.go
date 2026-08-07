@@ -610,12 +610,12 @@ func waitForServiceStatusTerminal(ctx context.Context, nullOps NullOps, serviceI
 		transition: transition,
 		fromStatus: fromStatus,
 		timeout:    timeout,
-		read: func() (any, string, []interface{}, error) {
+		read: func() (any, string, []interface{}, []ActionInProgress, error) {
 			s, err := nullOps.GetService(serviceID)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, "", nil, nil, err
 			}
-			return s, s.Status, s.Messages, nil
+			return s, s.Status, s.Messages, s.ActionsInProgress, nil
 		},
 	})
 	if err != nil {
@@ -627,16 +627,28 @@ func waitForServiceStatusTerminal(ctx context.Context, nullOps NullOps, serviceI
 	return nil, nil
 }
 
+// ActionInProgress is the summary GET /service/:id and GET /link/:id attach as
+// `actions_in_progress`: every action still running against the instance, with
+// its type joined from the action specification. `pending_create` is the parked
+// state — an action minted behind an approval policy sits there, untouchable by
+// its agent, until someone approves it.
+type ActionInProgress struct {
+	Id     string `json:"id,omitempty"`
+	Type   string `json:"type,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
 // instanceStatusWait is the input to waitForInstanceStatusTerminal. `read`
-// returns the entity itself (handed back to the caller), its status, and any
-// messages to quote when the transition fails — links carry none.
+// returns the entity itself (handed back to the caller), its status, any
+// messages to quote when the transition fails — links carry none — and the
+// instance's in-progress actions, which is where a parked approval shows up.
 type instanceStatusWait struct {
 	entity     string
 	id         string
 	transition string
 	fromStatus string
 	timeout    time.Duration
-	read       func() (any, string, []interface{}, error)
+	read       func() (any, string, []interface{}, []ActionInProgress, error)
 }
 
 // waitForInstanceStatusTerminal polls a service or a link until an archive or a
@@ -664,17 +676,52 @@ func waitForInstanceStatusTerminal(ctx context.Context, w instanceStatusWait) (a
 		return nil, fmt.Errorf("unknown %s status transition %q", w.entity, w.transition)
 	}
 
+	// A managed transition behind an approval policy parks its action in
+	// `pending_create` and the instance NEVER leaves its from-status until a
+	// human (or an approval webhook) decides — which a status poller cannot
+	// tell apart from "slow". Track the parked action so the wait can explain
+	// itself: a WARN while it waits (auto-approvals land in seconds, so the
+	// wait itself is correct), the reason in the timeout error instead of a
+	// generic "timed out", and a prompt failure when the parked action
+	// disappears while the status never moved — that is a denial (or a manual
+	// cancel), and nothing will ever move again.
+	var parked *ActionInProgress
+	parkedWarned := false
+
 	stateConf := &retry.StateChangeConf{
 		Pending: pending,
 		Target:  target,
 		Refresh: func() (interface{}, string, error) {
-			entity, status, messages, err := w.read()
+			entity, status, messages, actions, err := w.read()
 			if err != nil {
 				return nil, "", err
 			}
 			if status == "failed" && failedIsFailure {
 				return entity, status, fmt.Errorf("%s %s ended in status %q while running %s: %s",
 					w.entity, w.id, status, w.transition, summarizeMessages(messages))
+			}
+
+			switch nowParked := parkedTransitionAction(actions, w.transition); {
+			case nowParked != nil:
+				parked = nowParked
+				if !parkedWarned {
+					parkedWarned = true
+					log.Printf("[WARN] %s %s: the %s action %s is waiting for approval; "+
+						"the apply waits for it (timeout %s)", w.entity, w.id, w.transition, parked.Id, w.timeout)
+				}
+			case parked != nil && actionInProgress(actions, parked.Id):
+				// Approved: the action left `pending_create` for a running status.
+				// It is not parked anymore — the ordinary wait takes over (and a
+				// later agent failure reports through the `failed` branch above).
+				parked = nil
+			case parked != nil && status == w.fromStatus:
+				// The parked action is GONE and the status never moved: the
+				// approval was denied (or the action cancelled by hand), and
+				// nothing will ever move again. Say so now, not at the timeout.
+				return entity, status, fmt.Errorf("the %s action %s on %s %s was cancelled while waiting "+
+					"for approval (denied, or cancelled by hand) and the %s stayed %q. Re-run apply to "+
+					"request the %s again",
+					w.transition, parked.Id, w.entity, w.id, w.entity, status, w.transition)
 			}
 			return entity, status, nil
 		},
@@ -685,7 +732,40 @@ func waitForInstanceStatusTerminal(ctx context.Context, w instanceStatusWait) (a
 		Delay:      0,
 		MinTimeout: statusPollInterval,
 	}
-	return stateConf.WaitForStateContext(ctx)
+	raw, err := stateConf.WaitForStateContext(ctx)
+	if err != nil && parked != nil {
+		// The generic timeout would read as the platform being stuck; it is not.
+		return raw, fmt.Errorf("%s %s did not finish its %s within %s because action %s is still "+
+			"waiting for approval. Approve it (or raise the update timeout) and re-run apply: %w",
+			w.entity, w.id, w.transition, w.timeout, parked.Id, err)
+	}
+	return raw, err
+}
+
+// parkedTransitionAction finds the in-progress action that carries this
+// transition and is parked awaiting approval. Matching on type keeps an
+// unrelated parked action (a custom verb waiting for its own approval) from
+// being blamed for this wait.
+func parkedTransitionAction(actions []ActionInProgress, transition string) *ActionInProgress {
+	for i := range actions {
+		if actions[i].Type == transition && actions[i].Status == "pending_create" {
+			return &actions[i]
+		}
+	}
+	return nil
+}
+
+// actionInProgress reports whether the action is still among the instance's
+// in-progress actions, whatever its status. The distinction matters after an
+// approval: the action leaves `pending_create` but stays in-progress, which is
+// the opposite of a denial, where it disappears entirely.
+func actionInProgress(actions []ActionInProgress, id string) bool {
+	for i := range actions {
+		if actions[i].Id == id {
+			return true
+		}
+	}
+	return false
 }
 
 func waitForActionTerminal(ctx context.Context, nullOps NullOps, serviceID, actionID string, timeout time.Duration) (*ActionInstance, error) {
