@@ -36,6 +36,7 @@ type ServiceSpecification struct {
 	Selectors         *Selectors             `json:"selectors,omitempty"` // Use the new struct
 	UseDefaultActions *bool                  `json:"use_default_actions,omitempty"`
 	UseDefaultNaming  *bool                  `json:"use_default_naming,omitempty"`
+	UseManagedActions *bool                  `json:"use_managed_actions,omitempty"`
 	Scopes            map[string]interface{} `json:"scopes,omitempty"`
 }
 

@@ -1,0 +1,35 @@
+# Lines the new-code coverage gate accepts as uncovered, each with its reason.
+# Every entry is a claim that the line CANNOT execute under the current
+# schemas/clients — not that testing it is inconvenient. Reviewers: treat a
+# growing file as a smell; entries should only land alongside the code that
+# makes them unreachable.
+#
+# Format: <repo-relative-path>:<line>[-<line>]  # reason
+#
+# d.Set error arms: helper/schema's Set only errors on a type mismatch with the
+# resource schema; every value below is written with its schema's exact type,
+# so the arm cannot fire. Removing the check instead would violate errcheck.
+nullplatform/data_source_service_specification.go:136-137  # d.Set(use_managed_actions, bool) arm
+nullplatform/resource_link.go:197-198    # d.Set(status, string) arm in create
+nullplatform/resource_link.go:200-201    # d.Set(archived_at, string) arm in create
+nullplatform/resource_link.go:250-251    # d.Set(archived_at, string) arm in read
+nullplatform/resource_link.go:354-355    # d.Set(status, string) arm after wait
+nullplatform/resource_link.go:357-358    # d.Set(archived_at, string) arm after wait
+nullplatform/resource_link_specification.go:291-292  # d.Set(use_managed_actions, bool) arm
+nullplatform/resource_link_specification.go:366-367  # d.Set(selectors, list) arm
+nullplatform/resource_service.go:269-270  # d.Set(status, string) arm in create
+nullplatform/resource_service.go:272-273  # d.Set(archived_at, string) arm in create
+nullplatform/resource_service.go:328-329  # d.Set(status, string) arm in read
+nullplatform/resource_service.go:333-334  # d.Set(archived_at, string) arm in read
+nullplatform/resource_service.go:356-357  # d.Set(selectors, list) arm in read
+nullplatform/resource_service.go:363      # d.Set(messages, list) arm in read
+nullplatform/resource_service.go:456-457  # d.Set(status, string) arm after wait
+nullplatform/resource_service.go:459-460  # d.Set(archived_at, string) arm after wait
+nullplatform/resource_service_specification.go:279-280  # d.Set(use_managed_actions, bool) arm
+nullplatform/resource_service_specification.go:326-327  # d.Set(selectors, list) arm
+#
+# Type-assertion fallthroughs: WaitForStateContext returns the value produced
+# by Refresh, which always returns *Service / *Link when err is nil; the
+# `return nil, nil` after the assert is unreachable through that contract.
+nullplatform/resource_service.go:632  # raw.(*Service) fallthrough
+nullplatform/resource_link.go:389     # raw.(*Link) fallthrough

@@ -1,0 +1,70 @@
+# Unit tests + coverage on every PR and on main.
+#
+# Two gates:
+#   1. `go vet` + the unit suite (with -race).
+#   2. The coverage gate (tools/covergate): every line a PR adds must be
+#      executed by some test, and the repo total must not fall below the
+#      floor in scripts/coverage_floor.txt. Runs only on pull requests,
+#      where there is a base to diff against.
+#
+# The full profile is uploaded as an artifact so reviewers can open the
+# annotated HTML (`go tool cover -html=coverage.out`) locally.
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The new-code check diffs against the PR base, which needs history.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # The functional tests (resource.UnitTest) drive real terraform
+      # plan/apply cycles against the in-process provider; pin the CLI here
+      # rather than letting the framework download one per run.
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: vet
+        run: go vet ./...
+
+      - name: unit tests with coverage
+        run: go test ./nullplatform/ -count=1 -race -coverprofile=coverage.out -timeout=300s
+
+      - name: coverage summary
+        run: go tool cover -func=coverage.out | tail -5
+
+      - name: coverage gate (PRs)
+        if: github.event_name == 'pull_request'
+        env:
+          # Through an env var, never interpolated into the command line.
+          BASE_REF: ${{ github.base_ref }}
+        run: go run ./tools/covergate -base "origin/${BASE_REF}"
+
+      - name: upload profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+          if-no-files-found: ignore
