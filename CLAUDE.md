@@ -126,6 +126,17 @@ cannot express the page.
   code, in the same PR, saying so). `scripts/coverage_accepted.txt` entries are
   claims of **impossibility**, not inconvenience.
 
+## Layout
+
+Tests live next to the code they test — that is the Go toolchain's rule, not
+a habit; there is no `tests/` tree in Go. The remedy for `nullplatform/`
+growing is **package splitting per service area** (the terraform-provider-aws
+model: `internal/service/<area>/` with code and tests together), deliberately
+deferred to the terraform-plugin-framework migration so the tree is
+restructured once, not twice. Until then: new shared test infrastructure goes
+in its own package (`internal/fakeplatform` is the precedent), never as more
+loose files in `nullplatform/`.
+
 ## Tooling
 
 Repo tooling is **Go only** (`tools/`, stdlib, `go run ./tools/<name>`) — no
