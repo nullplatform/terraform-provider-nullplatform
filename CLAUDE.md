@@ -2,11 +2,9 @@
 
 Terraform provider (SDKv2) for nullplatform, published to the public registry.
 It is a client of ALL nullplatform APIs (services, scopes, parameters,
-packages, approvals, notification channels, …). Where an API documents its
-behavior, that document is the reference — `main-service-api`'s
-`docs/CASES-MATRIX.md` covers services/links/actions/specifications; consult
-the owning API repo for the rest, and validate provider changes against the
-API's actual responses, never against assumptions.
+packages, approvals, notification channels, …). The platform API's documented
+behavior is the reference: validate provider changes against the API's actual
+responses, case by case, never against assumptions.
 
 ## Commands
 
@@ -39,6 +37,23 @@ CI: `.github/workflows/test.yml` (vet, unit suite with `-race`, coverage gate),
   ordinary operations must never enter a waiter.
 - Use the `Context` CRUD variants; return `diag.Diagnostics`; support
   `Importer` on every resource.
+
+Industry standards (HashiCorp provider canon), all load-bearing here:
+
+- **Read reconciles drift**: it reports what the API holds, and a deleted
+  resource removes itself from state (`d.SetId("")`) instead of erroring, so
+  the next plan offers re-creation.
+- **Plans are stable** — a clean apply followed by a plan shows no diff, ever.
+  Perpetual diffs are bugs; semantically-equal values get a
+  `DiffSuppressFunc` (`suppressEquivalentJSON`).
+- **`SetId` the moment the resource exists**, before any follow-up call, so a
+  failed enrichment never orphans a live resource; best-effort post-create
+  reads warn and continue, never fail the apply.
+- `ForceNew` only on attributes the API truly cannot mutate. Secrets are
+  `Sensitive: true`.
+- **Schema changes are versioned**: anything that breaks existing state needs
+  `SchemaVersion` + `StateUpgraders`; releases are semver via goreleaser, and
+  a major schema break is a major version.
 
 ## Documentation
 
