@@ -110,3 +110,36 @@ resource "nullplatform_action_specification" "delete_redis_action" {
     values = {}
   })
 }
+
+# Archive opt-in: what makes `nullplatform_service.status = "archived"` run as a
+# managed action instead of a direct status flip.
+#
+# Which of the two you declare depends on where the specification came from:
+#
+#   * Created with `use_default_actions` (the usual case) — the platform already
+#     generated create/update/delete AND `archive`. Declaring `archive` is
+#     refused ("There is already an action of type archive..."); `terraform
+#     import` the generated row if you want it in state. Only `unarchive` is
+#     yours to create, and creating it is what enables managed restores.
+#   * Predates the archive feature, or `use_default_actions = false` — neither is
+#     generated, so declare both.
+#
+# Their content is platform-generated from the specification's attributes
+# schema, so `parameters` and `results` must be omitted — sending either is
+# refused. Only `name` is yours, and it survives regeneration. Deleting these
+# resources is the opt-out: archive falls back to the direct status flip.
+resource "nullplatform_action_specification" "unarchive_redis_action" {
+  name                     = "Restore Redis Instance"
+  type                     = "unarchive"
+  service_specification_id = "your-service-spec-id"
+}
+
+# Only for a specification that has no generated archive action. On a
+# `use_default_actions` specification, import the generated one instead:
+#   terraform import nullplatform_action_specification.archive_redis_action <id>
+#
+#   resource "nullplatform_action_specification" "archive_redis_action" {
+#     name                     = "Archive Redis Instance"
+#     type                     = "archive"
+#     service_specification_id = "your-service-spec-id"
+#   }

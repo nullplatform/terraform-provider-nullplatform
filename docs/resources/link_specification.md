@@ -32,7 +32,10 @@ resource "nullplatform_link_specification" "redis_link_spec" {
     "organization=1255165411:account=*",
   ]
 
-  use_default_actions = true
+  # See the service specification example for the three behaviour flags. New
+  # specifications should take the platform defaults (`use_default_actions` and
+  # `use_default_naming` are both true) and opt into managed CRUD:
+  use_managed_actions = true
 
   scopes = jsonencode({
     provider = {
@@ -79,6 +82,7 @@ resource "nullplatform_link_specification" "redis_link_spec" {
 - `selectors` (Block List, Max: 1) Selectors for the service specification (see [below for nested schema](#nestedblock--selectors))
 - `use_default_actions` (Boolean) Indicates whether to use default actions for the link specification. Left to the API default when not set
 - `use_default_naming` (Boolean) Indicates whether the entry point of the link specification actions is derived from the default naming convention (`<service-slug>/link/<action-slug>`). Left to the API default when not set
+- `use_managed_actions` (Boolean) Indicates whether the CRUD verbs on instances of this specification run through the generated actions instead of writing directly: a PATCH mints the `update` action, a DELETE mints `delete`, and `status = "archived"` mints `archive`. Requires `use_default_actions` — a specification that authors its own actions has none to stamp as managed. Left to the API default (false) when not set
 - `visible_to` (List of String) Array representing visibility settings for the link specification
 
 ### Read-Only

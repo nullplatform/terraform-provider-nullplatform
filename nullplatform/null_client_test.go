@@ -89,60 +89,60 @@ func TestMakeRequest_ContentTypeOnlySetWhenBodyPresent(t *testing.T) {
 
 func TestMakeRequest_RetryOnGet(t *testing.T) {
 	tests := []struct {
-		name             string
-		method           string
+		name              string
+		method            string
 		failuresBefore2xx int32
-		respondStatus    int
-		wantAttempts     int32
-		wantStatus       int
+		respondStatus     int
+		wantAttempts      int32
+		wantStatus        int
 	}{
 		{
-			name:             "GET retries on 503 until success",
-			method:           "GET",
+			name:              "GET retries on 503 until success",
+			method:            "GET",
 			failuresBefore2xx: 2,
-			respondStatus:    http.StatusServiceUnavailable,
-			wantAttempts:     3,
-			wantStatus:       http.StatusOK,
+			respondStatus:     http.StatusServiceUnavailable,
+			wantAttempts:      3,
+			wantStatus:        http.StatusOK,
 		},
 		{
-			name:             "GET stops after max retries",
-			method:           "GET",
+			name:              "GET stops after max retries",
+			method:            "GET",
 			failuresBefore2xx: 10,
-			respondStatus:    http.StatusBadGateway,
-			wantAttempts:     4,
-			wantStatus:       http.StatusBadGateway,
+			respondStatus:     http.StatusBadGateway,
+			wantAttempts:      4,
+			wantStatus:        http.StatusBadGateway,
 		},
 		{
-			name:             "GET does not retry on 200",
-			method:           "GET",
+			name:              "GET does not retry on 200",
+			method:            "GET",
 			failuresBefore2xx: 0,
-			respondStatus:    http.StatusOK,
-			wantAttempts:     1,
-			wantStatus:       http.StatusOK,
+			respondStatus:     http.StatusOK,
+			wantAttempts:      1,
+			wantStatus:        http.StatusOK,
 		},
 		{
-			name:             "GET does not retry on 404",
-			method:           "GET",
+			name:              "GET does not retry on 404",
+			method:            "GET",
 			failuresBefore2xx: 10,
-			respondStatus:    http.StatusNotFound,
-			wantAttempts:     1,
-			wantStatus:       http.StatusNotFound,
+			respondStatus:     http.StatusNotFound,
+			wantAttempts:      1,
+			wantStatus:        http.StatusNotFound,
 		},
 		{
-			name:             "DELETE never retries on 503",
-			method:           "DELETE",
+			name:              "DELETE never retries on 503",
+			method:            "DELETE",
 			failuresBefore2xx: 10,
-			respondStatus:    http.StatusServiceUnavailable,
-			wantAttempts:     1,
-			wantStatus:       http.StatusServiceUnavailable,
+			respondStatus:     http.StatusServiceUnavailable,
+			wantAttempts:      1,
+			wantStatus:        http.StatusServiceUnavailable,
 		},
 		{
-			name:             "POST never retries on 502",
-			method:           "POST",
+			name:              "POST never retries on 502",
+			method:            "POST",
 			failuresBefore2xx: 10,
-			respondStatus:    http.StatusBadGateway,
-			wantAttempts:     1,
-			wantStatus:       http.StatusBadGateway,
+			respondStatus:     http.StatusBadGateway,
+			wantAttempts:      1,
+			wantStatus:        http.StatusBadGateway,
 		},
 	}
 

@@ -65,6 +65,11 @@ func dataSourceServiceSpecification() *schema.Resource {
 				Computed:    true,
 				Description: "Indicates whether the entry point of the service specification actions is derived from the default naming convention.",
 			},
+			"use_managed_actions": {
+				Type:        schema.TypeBool,
+				Computed:    true,
+				Description: "Indicates whether the CRUD verbs on instances of this specification run through the generated actions instead of writing directly.",
+			},
 			"scopes": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -123,6 +128,11 @@ func dataSourceServiceSpecificationRead(_ context.Context, d *schema.ResourceDat
 	}
 	if spec.UseDefaultNaming != nil {
 		if err := d.Set("use_default_naming", *spec.UseDefaultNaming); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+	if spec.UseManagedActions != nil {
+		if err := d.Set("use_managed_actions", *spec.UseManagedActions); err != nil {
 			return diag.FromErr(err)
 		}
 	}

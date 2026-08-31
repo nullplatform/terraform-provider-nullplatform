@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 )
@@ -232,9 +233,19 @@ func (c *NullClient) GetParameterValue(parameterId string, parameterValueId stri
 func generateParameterValueID(value *ParameterValue, parameterId int) string {
 	var concatenatedString string
 
-	// Use a specific order for dimensions that matches the test cases
-	for key, value := range value.Dimensions {
-		concatenatedString += key + ":" + value + ";"
+	// Sorted keys, because this id is recomputed on EVERY read and compared to
+	// the one stored in state. Go map iteration order is random per range, so
+	// the previous unordered walk gave a parameter value with two or more
+	// dimensions a different id on (n!-1)/n! of its reads — the lookup missed,
+	// and Terraform saw a resource that intermittently did not exist. Zero- and
+	// one-dimension values hash identically under any order and are unaffected.
+	keys := make([]string, 0, len(value.Dimensions))
+	for key := range value.Dimensions {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		concatenatedString += key + ":" + value.Dimensions[key] + ";"
 	}
 
 	concatenatedString += value.Nrn + ";"

@@ -29,6 +29,7 @@ type LinkSpecification struct {
 	Selectors          *Selectors             `json:"selectors,omitempty"`
 	UseDefaultActions  *bool                  `json:"use_default_actions,omitempty"`
 	UseDefaultNaming   *bool                  `json:"use_default_naming,omitempty"`
+	UseManagedActions  *bool                  `json:"use_managed_actions,omitempty"`
 	Scopes             map[string]interface{} `json:"scopes,omitempty"`
 	External           map[string]interface{} `json:"external,omitempty"`
 	ExternalResolution map[string]interface{} `json:"external_resolution,omitempty"`
