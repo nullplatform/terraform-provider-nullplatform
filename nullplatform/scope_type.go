@@ -12,6 +12,11 @@ const (
 	SCOPE_TYPE_PATH = "/scope_type"
 )
 
+// ScopeType doubles as the full CreateScopeType body and the partial
+// PatchScopeType body, which populates only the fields d.HasChange reports:
+// every field must stay omitempty or an update blanks the ones it did not set.
+// Empty is not a legal value for name or description (see the resource's
+// ValidateFunc), so omitempty cannot swallow a deliberate clear.
 type ScopeType struct {
 	Id           int    `json:"id,omitempty"`
 	Nrn          string `json:"nrn,omitempty"`
