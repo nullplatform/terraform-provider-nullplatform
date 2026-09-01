@@ -1,4 +1,4 @@
-20.2
+22.8
 # The coverage ratchet: total statement coverage must not fall below this.
 # Raise it when a PR lifts the total; lower it ONLY when deleting covered
 # code, in the same PR, saying so in the commit message.
