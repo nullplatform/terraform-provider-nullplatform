@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -50,10 +51,16 @@ type Hooks struct {
 	OnDelete func(s *Server, item Item) *Refusal
 }
 
+type Options struct {
+	NumericIDs   bool
+	CreateStatus int
+}
+
 type collection struct {
 	prefix string
 	items  map[string]Item
 	seq    int
+	opts   Options
 	hooks  Hooks
 }
 
@@ -82,7 +89,11 @@ func (s *Server) HTTP() *httptest.Server { return s.ts }
 // Register mounts a collection at /<name> with generic CRUD + the hooks.
 // idPrefix names generated ids ("svc" -> svc-1, svc-2, ...).
 func (s *Server) Register(name, idPrefix string, hooks Hooks) {
-	s.collections[name] = &collection{prefix: idPrefix, items: map[string]Item{}, hooks: hooks}
+	s.RegisterWith(name, idPrefix, Options{}, hooks)
+}
+
+func (s *Server) RegisterWith(name, idPrefix string, opts Options, hooks Hooks) {
+	s.collections[name] = &collection{prefix: idPrefix, items: map[string]Item{}, opts: opts, hooks: hooks}
 }
 
 // Items returns every stored item of a collection (for CheckDestroy-style
@@ -135,9 +146,19 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		col.seq++
-		item["id"] = fmt.Sprintf("%s-%d", col.prefix, col.seq)
-		col.items[item["id"].(string)] = item
-		writeJSON(w, item)
+		id := fmt.Sprintf("%s-%d", col.prefix, col.seq)
+		if col.opts.NumericIDs {
+			id = strconv.Itoa(col.seq)
+			item["id"] = col.seq
+		} else {
+			item["id"] = id
+		}
+		col.items[id] = item
+		status := col.opts.CreateStatus
+		if status == 0 {
+			status = http.StatusOK
+		}
+		writeJSONStatus(w, status, item)
 
 	case r.Method == http.MethodGet && id != "":
 		item, ok := col.items[id]
@@ -193,7 +214,11 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
-	w.WriteHeader(http.StatusOK)
+	writeJSONStatus(w, http.StatusOK, v)
+}
+
+func writeJSONStatus(w http.ResponseWriter, status int, v any) {
+	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
 

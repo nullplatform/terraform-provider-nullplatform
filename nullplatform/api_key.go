@@ -34,9 +34,10 @@ type CreateApiKeyResponseBody struct {
 }
 
 type CreateApiKeyRequestBody struct {
-	Name   string        `json:"name"`
-	Grants []ApiKeyGrant `json:"grants"`
-	Tags   []Tag         `json:"tags,omitempty"`
+	Name     string        `json:"name"`
+	Grants   []ApiKeyGrant `json:"grants"`
+	Tags     []Tag         `json:"tags,omitempty"`
+	Internal *bool         `json:"internal,omitempty"`
 }
 
 type PatchApiKeyRequestBody struct {

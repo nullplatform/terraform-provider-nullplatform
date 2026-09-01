@@ -47,6 +47,14 @@ func resourceApiKey() *schema.Resource {
 				Computed:    true,
 				Description: "The ID of the user who owns the API key.",
 			},
+			"internal": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Computed: true,
+				ForceNew: true,
+				Description: "Marks the API key as internal to nullplatform, which hides it from API key listings (`GET /api_key`) while it stays readable by ID. Meant for the keys that are platform plumbing — agents, notification channels — rather than keys a person uses. " +
+					"The API accepts it only on creation and never returns it, so the value cannot be read back: changing it replaces the API key (and its secret), and a key adopted with `terraform import` comes in as unmarked regardless of its real value. Left to the API default (false) when not set",
+			},
 			"grants": {
 				Type:        schema.TypeSet,
 				Required:    true,
@@ -152,8 +160,9 @@ func CreateApiKey(ctx context.Context, d *schema.ResourceData, m any) diag.Diagn
 	nullOps := m.(NullOps)
 
 	body := CreateApiKeyRequestBody{
-		Name:   d.Get("name").(string),
-		Grants: convertToGrants(d),
+		Name:     d.Get("name").(string),
+		Grants:   convertToGrants(d),
+		Internal: configuredBool(d, "internal"),
 	}
 
 	if tags := convertToTags(d); tags != nil {
