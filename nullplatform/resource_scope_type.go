@@ -34,9 +34,10 @@ func resourceScopeType() *schema.Resource {
 				Description:  "The type of scope type.",
 			},
 			"name": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The display name shown to developers to identify the scope type.",
+				Type:         schema.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
+				Description:  "The display name shown to developers to identify the scope type. Cannot be empty: an update clearing it would be dropped from the request body and silently leave the stored value in place.",
 			},
 			"status": {
 				Type:        schema.TypeString,
@@ -44,9 +45,10 @@ func resourceScopeType() *schema.Resource {
 				Description: "Whether this scope type is enabled to be used. Always set to 'active' on creation.",
 			},
 			"description": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "Short description of how the scope type works or what it does.",
+				Type:         schema.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
+				Description:  "Short description of how the scope type works or what it does. Cannot be empty: an update clearing it would be dropped from the request body and silently leave the stored value in place.",
 			},
 			"provider_type": {
 				Type:         schema.TypeString,

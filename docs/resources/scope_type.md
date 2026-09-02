@@ -69,8 +69,8 @@ output "db_backup_scope_type" {
 
 ### Required
 
-- `description` (String) Short description of how the scope type works or what it does.
-- `name` (String) The display name shown to developers to identify the scope type.
+- `description` (String) Short description of how the scope type works or what it does. Cannot be empty: an update clearing it would be dropped from the request body and silently leave the stored value in place.
+- `name` (String) The display name shown to developers to identify the scope type. Cannot be empty: an update clearing it would be dropped from the request body and silently leave the stored value in place.
 - `provider_id` (String) The ID of the entity that implements the scope type.
 
 ### Optional
