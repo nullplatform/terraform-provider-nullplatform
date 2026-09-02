@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
 func resourceNamespace() *schema.Resource {
@@ -26,10 +27,13 @@ func resourceNamespace() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"name": {
-				Type:        schema.TypeString,
-				Required:    true,
-				ForceNew:    true,
-				Description: "The name of the namespace. Maximum length is 60 characters.",
+				Type:     schema.TypeString,
+				Required: true,
+				// A non-empty name is required: the client's omitempty JSON tag
+				// drops an empty name from the PATCH body, which would silently
+				// skip the rename server-side.
+				ValidateFunc: validation.StringLenBetween(1, 60),
+				Description:  "The name of the namespace. Maximum length is 60 characters.",
 			},
 			"slug": {
 				Type:        schema.TypeString,
