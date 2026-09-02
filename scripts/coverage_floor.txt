@@ -1,4 +1,6 @@
-22.8
+24.4
 # The coverage ratchet: total statement coverage must not fall below this.
 # Raise it when a PR lifts the total; lower it ONLY when deleting covered
 # code, in the same PR, saying so in the commit message.
+# Compared against the unrounded total, which the report rounds to one decimal:
+# set this at or below the true total, never to the printed number.

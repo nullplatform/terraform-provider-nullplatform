@@ -124,7 +124,10 @@ cannot express the page.
   executed by some test, and the total never falls below
   `scripts/coverage_floor.txt` (a ratchet — lower it only when deleting covered
   code, in the same PR, saying so). `scripts/coverage_accepted.txt` entries are
-  claims of **impossibility**, not inconvenience.
+  claims of **impossibility**, not inconvenience. The floor is compared against
+  the **unrounded** total, which the report prints to one decimal: a 22.8949%
+  total reports `22.9%` and fails a 22.9 floor. Raise the floor to a value at or
+  below the true total — `covergate` nudges once coverage is a full point above.
 
 ## Layout
 
