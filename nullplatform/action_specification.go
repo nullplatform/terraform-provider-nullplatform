@@ -22,7 +22,10 @@ type ActionSpecification struct {
 	Parallelize            bool                   `json:"parallelize,omitempty"`
 	EnabledWhen            string                 `json:"enabled_when,omitempty"`
 	Icon                   string                 `json:"icon,omitempty"`
-	Annotations            map[string]interface{} `json:"annotations,omitempty"`
+	// Pointer so the three JSON states stay distinguishable under omitempty:
+	// nil = leave untouched (field omitted), &empty = clear (sends {}),
+	// &populated = replace. A plain map cannot send an explicit {}.
+	Annotations *map[string]interface{} `json:"annotations,omitempty"`
 	External               map[string]interface{} `json:"external,omitempty"`
 	ExternalResolution     map[string]interface{} `json:"external_resolution,omitempty"`
 }
