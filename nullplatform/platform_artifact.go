@@ -125,10 +125,15 @@ func (c *NullClient) GetPlatformArtifactRevision(revisionID string) (*PlatformAr
 	return revision, nil
 }
 
+// ListPlatformArtifacts lists the artifacts VISIBLE at nrn — not merely owned
+// by it. The visible_to filter matches artifacts owned at the nrn (visible_to
+// defaults to the owner), shared by ancestors or trailing-wildcard scopes, and
+// globals published with "organization=*" — which an owner-nrn filter can
+// never return, since globals are owned by another organization entirely.
 func (c *NullClient) ListPlatformArtifacts(nrn, artifactType string) ([]*PlatformArtifact, error) {
 	params := map[string]string{}
 	if nrn != "" {
-		params["nrn"] = nrn
+		params["visible_to"] = nrn
 	}
 	if artifactType != "" {
 		params["type"] = artifactType
