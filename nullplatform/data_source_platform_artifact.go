@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -12,17 +13,20 @@ import (
 
 func dataSourcePlatformArtifact() *schema.Resource {
 	return &schema.Resource{
-		Description: "Looks up an existing platform artifact (and one of its revisions) by its " +
-			"meta fields — e.g. a git_repository by { url, reference } or an OCI image by " +
-			"{ registry, repository, digest }. Identity fields select the artifact; when " +
-			"per-revision fields are included the matching revision is resolved, otherwise the " +
-			"latest revision is used. Read-only: never registers anything.",
+		Description: "Looks up a platform artifact (and one of its revisions) VISIBLE at the given " +
+			"nrn — owned there, shared by an ancestor, or published globally with " +
+			"\"organization=*\" — by its meta fields: e.g. a git_repository by { url, reference } " +
+			"or an OCI image by { registry, repository, digest }. Identity fields select the " +
+			"artifact; per-revision fields (digest, reference, tag) select a revision, otherwise " +
+			"the latest is used. Selecting by tag resolves the NEWEST revision carrying that tag " +
+			"and computes its digest — when the tag is re-registered against a new digest, the " +
+			"data source drifts to the new revision by design. Read-only: never registers anything.",
 		ReadContext: dataSourcePlatformArtifactRead,
 		Schema: map[string]*schema.Schema{
 			"nrn": {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "The owner NRN the artifact is registered under.",
+				Description: "The NRN to resolve visibility from: matches artifacts owned there, shared by ancestors, and globals (organization=*).",
 			},
 			"type": {
 				Type:     schema.TypeString,
@@ -39,7 +43,8 @@ func dataSourcePlatformArtifact() *schema.Resource {
 				ValidateFunc: validation.StringIsJSON,
 				Description: "JSON object with the meta fields to match. Identity fields (e.g. url, " +
 					"registry+repository) select the artifact; per-revision fields (e.g. reference, " +
-					"digest) additionally select a specific revision.",
+					"digest, tag) additionally select a specific revision. A tag resolves to the " +
+					"newest revision registered with it.",
 			},
 			"artifact_id": {
 				Type:        schema.TypeString,
@@ -55,6 +60,12 @@ func dataSourcePlatformArtifact() *schema.Resource {
 				Type:        schema.TypeString,
 				Computed:    true,
 				Description: "JSON object with the full meta blob of the resolved revision.",
+			},
+			"digest": {
+				Type:     schema.TypeString,
+				Computed: true,
+				Description: "The resolved revision's content digest (sha256:…), when its meta carries " +
+					"one — the pinnable value a tag-based lookup resolves for you.",
 			},
 			"visible_to": {
 				Type:        schema.TypeList,
@@ -118,11 +129,26 @@ func dataSourcePlatformArtifactRead(_ context.Context, d *schema.ResourceData, m
 			matched = append(matched, artifact)
 		}
 	}
+	// The listing is visibility-scoped, so an artifact owned at the nrn can
+	// coexist with a shared/global one of the same identity. The owned one
+	// wins: it's what this configuration (or its owner) registered, and it
+	// keeps configs written before globals existed resolving unchanged.
+	if len(matched) > 1 {
+		var owned []*PlatformArtifact
+		for _, artifact := range matched {
+			if artifact.Nrn == nrn {
+				owned = append(owned, artifact)
+			}
+		}
+		if len(owned) == 1 {
+			matched = owned
+		}
+	}
 	if len(matched) == 0 {
-		return diag.FromErr(fmt.Errorf("no %s artifact under %s matches meta %v", artifactType, nrn, wantedMeta))
+		return diag.FromErr(fmt.Errorf("no %s artifact visible at %s matches meta %v", artifactType, nrn, wantedMeta))
 	}
 	if len(matched) > 1 {
-		return diag.FromErr(fmt.Errorf("meta %v matches %d %s artifacts under %s; add identity fields to disambiguate", wantedMeta, len(matched), artifactType, nrn))
+		return diag.FromErr(fmt.Errorf("meta %v matches %d %s artifacts visible at %s; add identity fields to disambiguate", wantedMeta, len(matched), artifactType, nrn))
 	}
 	artifact := matched[0]
 
@@ -131,9 +157,16 @@ func dataSourcePlatformArtifactRead(_ context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 
-	// Revision match: newest revision whose meta carries every requested
-	// field. When only identity fields were requested every revision
-	// matches, so this resolves to the latest one.
+	// Revision match: NEWEST revision whose meta carries every requested
+	// field. Sorted here rather than trusting API order — the newest-wins
+	// rule is what gives tag lookups their drift semantics: re-registering a
+	// tag against a new digest mints a newer revision, and the next plan
+	// resolves it (and its digest) instead of the stale one. When only
+	// identity fields were requested every revision matches, so this
+	// resolves to the latest one.
+	sort.SliceStable(revisions, func(i, j int) bool {
+		return revisions[i].CreatedAt > revisions[j].CreatedAt
+	})
 	var revision *PlatformArtifactRevision
 	for _, candidate := range revisions {
 		if metaMatches(wantedMeta, candidate.Meta) {
@@ -158,6 +191,10 @@ func dataSourcePlatformArtifactRead(_ context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 	if err := d.Set("revision_meta", string(revisionMetaJSON)); err != nil {
+		return diag.FromErr(err)
+	}
+	digest, _ := revision.Meta["digest"].(string)
+	if err := d.Set("digest", digest); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := d.Set("visible_to", artifact.VisibleTo); err != nil {
