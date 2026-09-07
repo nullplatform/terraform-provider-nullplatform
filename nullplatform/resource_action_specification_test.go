@@ -315,3 +315,191 @@ func TestActionSpecificationUpdate_RefusesInvalidJSON(t *testing.T) {
 		})
 	}
 }
+
+// The API answers `"annotations": {}` for a spec that never had any; writing
+// "{}" into state against an unset attribute was a permanent phantom diff.
+// Read must keep the attribute empty in that case.
+func TestActionSpecificationRead_EmptyAnnotationsStayAbsent(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		empty := map[string]interface{}{}
+		_ = json.NewEncoder(w).Encode(ActionSpecification{
+			Id:                     "as-1",
+			Name:                   "Deploy",
+			Type:                   "custom",
+			ServiceSpecificationId: "spec-1",
+			Annotations:            &empty,
+		})
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, resourceActionSpecification().Schema, map[string]any{
+		"name": "Deploy", "type": "custom", "service_specification_id": "spec-1",
+	})
+	d.SetId("as-1")
+
+	if diags := ActionSpecificationRead(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if got := d.Get("annotations").(string); got != "" {
+		t.Errorf("annotations = %q, want empty — an empty API object must not reach state", got)
+	}
+}
+
+// Populated annotations still round-trip into state.
+func TestActionSpecificationRead_PopulatedAnnotationsLand(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		anns := map[string]interface{}{"np.ui/group": "ops"}
+		_ = json.NewEncoder(w).Encode(ActionSpecification{
+			Id: "as-1", Name: "Deploy", Type: "custom", ServiceSpecificationId: "spec-1",
+			Annotations: &anns,
+		})
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, resourceActionSpecification().Schema, map[string]any{
+		"name": "Deploy", "type": "custom", "service_specification_id": "spec-1",
+	})
+	d.SetId("as-1")
+
+	if diags := ActionSpecificationRead(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if got := d.Get("annotations").(string); !strings.Contains(got, "np.ui/group") {
+		t.Errorf("annotations = %q, want the populated blob in state", got)
+	}
+}
+
+// Removing the attribute from the configuration must actually clear the
+// stored annotations: the PATCH body carries an explicit empty object (a nil
+// pointer would be dropped by omitempty and the removal would never land).
+func TestActionSpecificationUpdate_RemovedAnnotationsSendEmptyObject(t *testing.T) {
+	var gotBody map[string]any
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(ActionSpecification{Id: "as-1", Name: "Deploy", Type: "custom", ServiceSpecificationId: "spec-1"})
+	}))
+	defer server.Close()
+
+	// Simulate "had annotations, config removed them": old state non-empty,
+	// diff to empty — HasChange fires, GetOk sees nothing.
+	d := schema.TestResourceDataRaw(t, resourceActionSpecification().Schema, map[string]any{
+		"name": "Deploy", "type": "custom", "service_specification_id": "spec-1",
+	})
+	d.SetId("as-1")
+	if err := d.Set("annotations", `{"np.ui/group":"ops"}`); err != nil {
+		t.Fatal(err)
+	}
+	raw := d.State()
+	raw.Attributes["annotations"] = `{"np.ui/group":"ops"}`
+	diff := &terraform.InstanceDiff{Attributes: map[string]*terraform.ResourceAttrDiff{
+		"annotations": {Old: `{"np.ui/group":"ops"}`, New: ""},
+	}}
+	dd, err := schema.InternalMap(resourceActionSpecification().Schema).Data(raw, diff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dd.SetId("as-1")
+
+	if diags := ActionSpecificationUpdate(context.Background(), dd, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	anns, sent := gotBody["annotations"]
+	if !sent {
+		t.Fatal("PATCH body must carry annotations to clear them (omitempty would drop a nil map)")
+	}
+	if m, ok := anns.(map[string]any); !ok || len(m) != 0 {
+		t.Errorf("annotations = %v, want an explicit empty object", anns)
+	}
+}
+
+// The extended suppressor: unset config vs the API's empty object never diffs;
+// real values still compare by JSON equality.
+func TestSuppressEmptyOrEquivalentJSON(t *testing.T) {
+	cases := []struct {
+		old, new string
+		want     bool
+	}{
+		{"", "", true},
+		{"{}", "", true},
+		{"", "{}", true},
+		{"null", "", true},
+		{`{"a":1}`, "", false},
+		{"", `{"a":1}`, false},
+		{`{"a":1}`, `{"a": 1}`, true},
+		{`{"a":1}`, `{"a":2}`, false},
+		{"{", "", false},   // invalid JSON never suppresses
+		{"[]", "", false},  // a non-object JSON value is not "empty annotations"
+	}
+	for _, c := range cases {
+		if got := suppressEmptyOrEquivalentJSON("annotations", c.old, c.new, nil); got != c.want {
+			t.Errorf("suppress(%q, %q) = %v, want %v", c.old, c.new, got, c.want)
+		}
+	}
+}
+
+// Configured annotations reach the POST body on create.
+func TestActionSpecificationCreate_AnnotationsAreSent(t *testing.T) {
+	var gotBody map[string]any
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		}
+		w.WriteHeader(http.StatusOK)
+		anns := map[string]interface{}{"np.ui/group": "ops"}
+		_ = json.NewEncoder(w).Encode(ActionSpecification{Id: "as-1", Name: "Deploy", Type: "custom", ServiceSpecificationId: "spec-1", Annotations: &anns})
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, resourceActionSpecification().Schema, map[string]any{
+		"name": "Deploy", "type": "custom", "service_specification_id": "spec-1",
+		"annotations": `{"np.ui/group":"ops"}`,
+	})
+
+	if diags := ActionSpecificationCreate(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	anns, ok := gotBody["annotations"].(map[string]any)
+	if !ok || anns["np.ui/group"] != "ops" {
+		t.Errorf("POST body annotations = %v, want the configured blob", gotBody["annotations"])
+	}
+}
+
+// Changing annotations to a new value sends the new blob on update.
+func TestActionSpecificationUpdate_ChangedAnnotationsAreSent(t *testing.T) {
+	var gotBody map[string]any
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(ActionSpecification{Id: "as-1", Name: "Deploy", Type: "custom", ServiceSpecificationId: "spec-1"})
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, resourceActionSpecification().Schema, map[string]any{
+		"name": "Deploy", "type": "custom", "service_specification_id": "spec-1",
+	})
+	d.SetId("as-1")
+	raw := d.State()
+	diff := &terraform.InstanceDiff{Attributes: map[string]*terraform.ResourceAttrDiff{
+		"annotations": {Old: "", New: `{"np.ui/group":"ops"}`},
+	}}
+	dd, err := schema.InternalMap(resourceActionSpecification().Schema).Data(raw, diff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dd.SetId("as-1")
+
+	if diags := ActionSpecificationUpdate(context.Background(), dd, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	anns, ok := gotBody["annotations"].(map[string]any)
+	if !ok || anns["np.ui/group"] != "ops" {
+		t.Errorf("PATCH body annotations = %v, want the new blob", gotBody["annotations"])
+	}
+}

@@ -34,3 +34,4 @@ nullplatform/resource_service_specification.go:326-327  # d.Set(selectors, list)
 nullplatform/resource_service.go:632  # raw.(*Service) fallthrough
 nullplatform/resource_link.go:389     # raw.(*Link) fallthrough
 nullplatform/data_source_platform_artifact.go:198-199  # d.Set(digest, string) arm
+nullplatform/resource_action_specification.go:330  # d.Set(annotations, string) arm

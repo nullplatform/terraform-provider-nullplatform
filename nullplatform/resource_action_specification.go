@@ -121,10 +121,12 @@ func resourceActionSpecification() *schema.Resource {
 				Description: "Icon for the action specification",
 			},
 			"annotations": {
-				Type:             schema.TypeString,
-				Optional:         true,
-				Description:      "JSON string containing annotations for the action specification",
-				DiffSuppressFunc: suppressEquivalentJSON,
+				Type:     schema.TypeString,
+				Optional: true,
+				Description: "JSON string containing annotations for the action specification. The API accepts a " +
+					"closed vocabulary — `runs_over` (deployment | scope | instance) and `show_on` (array of " +
+					"scope | performance | manage | deployment) — and silently strips any other key.",
+				DiffSuppressFunc: suppressEmptyOrEquivalentJSON,
 			},
 			"external": {
 				Type:             schema.TypeString,
@@ -193,7 +195,7 @@ func ActionSpecificationCreate(ctx context.Context, d *schema.ResourceData, m in
 		if err := json.Unmarshal([]byte(annotationsStr.(string)), &annotations); err != nil {
 			return diag.FromErr(fmt.Errorf("error parsing annotations JSON: %v", err))
 		}
-		spec.Annotations = annotations
+		spec.Annotations = &annotations
 	}
 
 	// Handle external configuration if provided
@@ -311,7 +313,12 @@ func ActionSpecificationRead(ctx context.Context, d *schema.ResourceData, m inte
 		return diag.FromErr(err)
 	}
 
-	if spec.Annotations != nil {
+	// The API answers an EMPTY object for a spec that never had annotations;
+	// writing "{}" into state against an unset config attribute is a permanent
+	// phantom diff. Empty and absent mean the same thing here, so only a
+	// non-empty blob reaches state (the diff suppressor covers the explicit
+	// `annotations = "{}"` configuration).
+	if spec.Annotations != nil && len(*spec.Annotations) > 0 {
 		annotationsJSON, err := json.Marshal(spec.Annotations)
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("error serializing annotations to JSON: %v", err))
@@ -319,6 +326,8 @@ func ActionSpecificationRead(ctx context.Context, d *schema.ResourceData, m inte
 		if err := d.Set("annotations", string(annotationsJSON)); err != nil {
 			return diag.FromErr(err)
 		}
+	} else if err := d.Set("annotations", ""); err != nil {
+		return diag.FromErr(err)
 	}
 
 	if spec.External != nil {
@@ -411,9 +420,12 @@ func ActionSpecificationUpdate(ctx context.Context, d *schema.ResourceData, m in
 			if err := json.Unmarshal([]byte(annotationsStr.(string)), &annotations); err != nil {
 				return diag.FromErr(fmt.Errorf("error parsing annotations JSON: %v", err))
 			}
-			spec.Annotations = annotations
+			spec.Annotations = &annotations
 		} else {
-			spec.Annotations = nil
+			// Attribute removed from the configuration: send an explicit empty
+			// object so the API actually clears the stored annotations — a nil
+			// pointer would be dropped by omitempty and the removal never lands.
+			spec.Annotations = &map[string]interface{}{}
 		}
 	}
 
@@ -459,4 +471,35 @@ func ActionSpecificationDelete(ctx context.Context, d *schema.ResourceData, m in
 
 	d.SetId("")
 	return nil
+}
+
+// suppressEmptyOrEquivalentJSON is suppressEquivalentJSON extended for
+// OPTIONAL JSON-blob attributes where the API's "no value" is an empty object:
+// an unset configuration ("") and an empty/null JSON object are the same
+// thing, so the combination never diffs. Non-empty sides fall back to deep
+// JSON equality.
+func suppressEmptyOrEquivalentJSON(k, old, new string, d *schema.ResourceData) bool {
+	if emptyJSONBlob(old) && emptyJSONBlob(new) {
+		return true
+	}
+	return suppressEquivalentJSON(k, old, new, d)
+}
+
+// emptyJSONBlob reports whether s carries no annotations at all: the empty
+// string (attribute unset), JSON null, or an object with no keys.
+func emptyJSONBlob(s string) bool {
+	if s == "" {
+		return true
+	}
+	var v interface{}
+	if err := json.Unmarshal([]byte(s), &v); err != nil {
+		return false
+	}
+	switch t := v.(type) {
+	case nil:
+		return true
+	case map[string]interface{}:
+		return len(t) == 0
+	}
+	return false
 }
