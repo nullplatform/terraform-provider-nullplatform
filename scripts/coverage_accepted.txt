@@ -33,3 +33,4 @@ nullplatform/resource_service_specification.go:326-327  # d.Set(selectors, list)
 # `return nil, nil` after the assert is unreachable through that contract.
 nullplatform/resource_service.go:632  # raw.(*Service) fallthrough
 nullplatform/resource_link.go:389     # raw.(*Link) fallthrough
+nullplatform/data_source_platform_artifact.go:198-199  # d.Set(digest, string) arm
