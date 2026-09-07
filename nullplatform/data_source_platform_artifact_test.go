@@ -210,3 +210,40 @@ func TestDataSourcePlatformArtifactRead_AmbiguousOwnedMatchesError(t *testing.T)
 		t.Errorf("unexpected error: %s", diags[0].Summary)
 	}
 }
+
+// Retro-compatibility: a digest in the meta pins its exact revision — even an
+// OLD one — regardless of the newest-first ordering that tag lookups rely on.
+func TestDataSourcePlatformArtifactRead_DigestPinsOldRevision(t *testing.T) {
+	var gotQuery string
+	server := artifactServer(t,
+		[]*PlatformArtifact{{
+			ResourceID:   "art-1",
+			Type:         "oci_image",
+			Nrn:          "organization=4",
+			IdentityMeta: map[string]interface{}{"registry": "r.io", "repository": "org/app"},
+		}},
+		map[string][]*PlatformArtifactRevision{"art-1": {
+			{ResourceRevisionID: "rev-new", Meta: map[string]interface{}{"registry": "r.io", "repository": "org/app", "digest": "sha256:new"}, CreatedAt: "2026-09-03T00:00:00Z"},
+			{ResourceRevisionID: "rev-old", Meta: map[string]interface{}{"registry": "r.io", "repository": "org/app", "digest": "sha256:old"}, CreatedAt: "2026-09-01T00:00:00Z"},
+		}},
+		&gotQuery,
+	)
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, dataSourcePlatformArtifact().Schema, map[string]interface{}{
+		"nrn":  "organization=4",
+		"type": "oci_image",
+		"meta": `{"registry":"r.io","repository":"org/app","digest":"sha256:old"}`,
+	})
+
+	diags := dataSourcePlatformArtifactRead(context.Background(), d, newTestClient(server))
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if got := d.Get("revision_id").(string); got != "rev-old" {
+		t.Errorf("revision_id = %q, want rev-old (digest pins exactly, newer revisions don't shadow it)", got)
+	}
+	if got := d.Get("digest").(string); got != "sha256:old" {
+		t.Errorf("digest = %q, want sha256:old", got)
+	}
+}
