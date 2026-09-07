@@ -28,12 +28,12 @@ jobs:
   unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The new-code check diffs against the PR base, which needs history.
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -41,7 +41,7 @@ jobs:
       # The functional tests (resource.UnitTest) drive real terraform
       # plan/apply cycles against the in-process provider; pin the CLI here
       # rather than letting the framework download one per run.
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_wrapper: false
 
@@ -63,7 +63,7 @@ jobs:
 
       - name: upload profile
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage.out
