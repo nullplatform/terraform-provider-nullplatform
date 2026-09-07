@@ -160,3 +160,53 @@ func TestDataSourcePlatformArtifactRead_OwnedBeatsGlobalOnAmbiguity(t *testing.T
 		t.Errorf("artifact_id = %q, want art-owned (owner match wins over global)", got)
 	}
 }
+
+// No visible artifact matching the identity meta is an explicit error, not an
+// empty result.
+func TestDataSourcePlatformArtifactRead_NoMatchErrors(t *testing.T) {
+	var gotQuery string
+	server := artifactServer(t, []*PlatformArtifact{}, nil, &gotQuery)
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, dataSourcePlatformArtifact().Schema, map[string]interface{}{
+		"nrn":  "organization=4",
+		"type": "oci_image",
+		"meta": `{"registry":"r.io","repository":"org/nope"}`,
+	})
+
+	diags := dataSourcePlatformArtifactRead(context.Background(), d, newTestClient(server))
+	if !diags.HasError() {
+		t.Fatal("expected an error for a meta matching no visible artifact")
+	}
+	if !strings.Contains(diags[0].Summary, "no oci_image artifact visible at organization=4") {
+		t.Errorf("unexpected error: %s", diags[0].Summary)
+	}
+}
+
+// Two DISTINCT owned artifacts matching the identity meta stay ambiguous —
+// the owner-preference tiebreak only resolves owned-vs-shared, never owned-vs-owned.
+func TestDataSourcePlatformArtifactRead_AmbiguousOwnedMatchesError(t *testing.T) {
+	var gotQuery string
+	server := artifactServer(t,
+		[]*PlatformArtifact{
+			{ResourceID: "art-a", Type: "oci_image", Nrn: "organization=4", IdentityMeta: map[string]interface{}{"registry": "r.io"}},
+			{ResourceID: "art-b", Type: "oci_image", Nrn: "organization=4", IdentityMeta: map[string]interface{}{"registry": "r.io"}},
+		},
+		nil, &gotQuery,
+	)
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, dataSourcePlatformArtifact().Schema, map[string]interface{}{
+		"nrn":  "organization=4",
+		"type": "oci_image",
+		"meta": `{"registry":"r.io","repository":"org/app"}`,
+	})
+
+	diags := dataSourcePlatformArtifactRead(context.Background(), d, newTestClient(server))
+	if !diags.HasError() {
+		t.Fatal("expected an ambiguity error for two owned identity matches")
+	}
+	if !strings.Contains(diags[0].Summary, "matches 2 oci_image artifacts") {
+		t.Errorf("unexpected error: %s", diags[0].Summary)
+	}
+}
