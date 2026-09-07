@@ -169,7 +169,7 @@ resource "nullplatform_action_specification" "unarchive_redis_action" {
 
 ### Optional
 
-- `annotations` (String) JSON string containing annotations for the action specification
+- `annotations` (String) JSON string containing annotations for the action specification. The API accepts a closed vocabulary — `runs_over` (deployment | scope | instance) and `show_on` (array of scope | performance | manage | deployment) — and silently strips any other key.
 - `description` (String) Description of the action specification
 - `enabled_when` (String) Condition that must be met for the action to be enabled
 - `external` (String) JSON string with the configuration for resolving external context data via the nullplatform agent

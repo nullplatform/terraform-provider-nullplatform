@@ -121,9 +121,11 @@ func resourceActionSpecification() *schema.Resource {
 				Description: "Icon for the action specification",
 			},
 			"annotations": {
-				Type:             schema.TypeString,
-				Optional:         true,
-				Description:      "JSON string containing annotations for the action specification",
+				Type:     schema.TypeString,
+				Optional: true,
+				Description: "JSON string containing annotations for the action specification. The API accepts a " +
+					"closed vocabulary — `runs_over` (deployment | scope | instance) and `show_on` (array of " +
+					"scope | performance | manage | deployment) — and silently strips any other key.",
 				DiffSuppressFunc: suppressEmptyOrEquivalentJSON,
 			},
 			"external": {

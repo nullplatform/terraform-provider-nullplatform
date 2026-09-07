@@ -432,10 +432,74 @@ func TestSuppressEmptyOrEquivalentJSON(t *testing.T) {
 		{"", `{"a":1}`, false},
 		{`{"a":1}`, `{"a": 1}`, true},
 		{`{"a":1}`, `{"a":2}`, false},
+		{"{", "", false},   // invalid JSON never suppresses
+		{"[]", "", false},  // a non-object JSON value is not "empty annotations"
 	}
 	for _, c := range cases {
 		if got := suppressEmptyOrEquivalentJSON("annotations", c.old, c.new, nil); got != c.want {
 			t.Errorf("suppress(%q, %q) = %v, want %v", c.old, c.new, got, c.want)
 		}
+	}
+}
+
+// Configured annotations reach the POST body on create.
+func TestActionSpecificationCreate_AnnotationsAreSent(t *testing.T) {
+	var gotBody map[string]any
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		}
+		w.WriteHeader(http.StatusOK)
+		anns := map[string]interface{}{"np.ui/group": "ops"}
+		_ = json.NewEncoder(w).Encode(ActionSpecification{Id: "as-1", Name: "Deploy", Type: "custom", ServiceSpecificationId: "spec-1", Annotations: &anns})
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, resourceActionSpecification().Schema, map[string]any{
+		"name": "Deploy", "type": "custom", "service_specification_id": "spec-1",
+		"annotations": `{"np.ui/group":"ops"}`,
+	})
+
+	if diags := ActionSpecificationCreate(context.Background(), d, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	anns, ok := gotBody["annotations"].(map[string]any)
+	if !ok || anns["np.ui/group"] != "ops" {
+		t.Errorf("POST body annotations = %v, want the configured blob", gotBody["annotations"])
+	}
+}
+
+// Changing annotations to a new value sends the new blob on update.
+func TestActionSpecificationUpdate_ChangedAnnotationsAreSent(t *testing.T) {
+	var gotBody map[string]any
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" {
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(ActionSpecification{Id: "as-1", Name: "Deploy", Type: "custom", ServiceSpecificationId: "spec-1"})
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, resourceActionSpecification().Schema, map[string]any{
+		"name": "Deploy", "type": "custom", "service_specification_id": "spec-1",
+	})
+	d.SetId("as-1")
+	raw := d.State()
+	diff := &terraform.InstanceDiff{Attributes: map[string]*terraform.ResourceAttrDiff{
+		"annotations": {Old: "", New: `{"np.ui/group":"ops"}`},
+	}}
+	dd, err := schema.InternalMap(resourceActionSpecification().Schema).Data(raw, diff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dd.SetId("as-1")
+
+	if diags := ActionSpecificationUpdate(context.Background(), dd, newTestClient(server)); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	anns, ok := gotBody["annotations"].(map[string]any)
+	if !ok || anns["np.ui/group"] != "ops" {
+		t.Errorf("PATCH body annotations = %v, want the new blob", gotBody["annotations"])
 	}
 }
