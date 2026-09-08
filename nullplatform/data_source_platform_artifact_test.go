@@ -161,6 +161,140 @@ func TestDataSourcePlatformArtifactRead_OwnedBeatsGlobalOnAmbiguity(t *testing.T
 	}
 }
 
+// An owned artifact registered by digest before the upstream one existed must
+// not shadow the global one forever: when the owned artifact has no revision
+// matching the requested fields (here a tag only the global carries), the
+// lookup falls back to the next candidate instead of failing. Artifacts are
+// immutable and cannot be deleted, so without this a lookup by tag would be
+// impossible from any nrn that ever registered its own copy.
+func TestDataSourcePlatformArtifactRead_FallsBackToGlobalWhenOwnedHasNoMatchingRevision(t *testing.T) {
+	var gotQuery string
+	server := artifactServer(t,
+		[]*PlatformArtifact{
+			{
+				ResourceID:   "art-owned",
+				Type:         "oci_image",
+				Nrn:          "organization=4",
+				IdentityMeta: map[string]interface{}{"registry": "r.io", "repository": "org/app"},
+			},
+			{
+				ResourceID:   "art-global",
+				Type:         "oci_image",
+				Nrn:          "organization=1",
+				IdentityMeta: map[string]interface{}{"registry": "r.io", "repository": "org/app"},
+				VisibleTo:    []string{"organization=*"},
+			},
+		},
+		map[string][]*PlatformArtifactRevision{
+			"art-owned": {
+				{ResourceRevisionID: "rev-owned", Meta: map[string]interface{}{"registry": "r.io", "repository": "org/app", "digest": "sha256:mine"}, CreatedAt: "2026-09-01T00:00:00Z"},
+			},
+			"art-global": {
+				{ResourceRevisionID: "rev-global-tagged", Meta: map[string]interface{}{"registry": "r.io", "repository": "org/app", "tag": "v1.0.0", "digest": "sha256:theirs"}, CreatedAt: "2026-09-02T00:00:00Z"},
+			},
+		},
+		&gotQuery,
+	)
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, dataSourcePlatformArtifact().Schema, map[string]interface{}{
+		"nrn":  "organization=4",
+		"type": "oci_image",
+		"meta": `{"registry":"r.io","repository":"org/app","tag":"v1.0.0"}`,
+	})
+
+	diags := dataSourcePlatformArtifactRead(context.Background(), d, newTestClient(server))
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if got := d.Get("artifact_id").(string); got != "art-global" {
+		t.Errorf("artifact_id = %q, want art-global (owned has no revision with the tag)", got)
+	}
+	if got := d.Get("revision_id").(string); got != "rev-global-tagged" {
+		t.Errorf("revision_id = %q, want rev-global-tagged", got)
+	}
+	if got := d.Get("digest").(string); got != "sha256:theirs" {
+		t.Errorf("digest = %q, want sha256:theirs", got)
+	}
+}
+
+// When no candidate — owned or global — holds a revision matching the requested
+// fields, the error names every artifact that was examined so the reader can
+// tell which registrations were considered and what they lack.
+func TestDataSourcePlatformArtifactRead_NoCandidateRevisionMatchesErrors(t *testing.T) {
+	var gotQuery string
+	server := artifactServer(t,
+		[]*PlatformArtifact{
+			{
+				ResourceID:   "art-owned",
+				Type:         "oci_image",
+				Nrn:          "organization=4",
+				IdentityMeta: map[string]interface{}{"registry": "r.io", "repository": "org/app"},
+			},
+			{
+				ResourceID:   "art-global",
+				Type:         "oci_image",
+				Nrn:          "organization=1",
+				IdentityMeta: map[string]interface{}{"registry": "r.io", "repository": "org/app"},
+				VisibleTo:    []string{"organization=*"},
+			},
+		},
+		map[string][]*PlatformArtifactRevision{
+			"art-owned":  {{ResourceRevisionID: "rev-owned", Meta: map[string]interface{}{"registry": "r.io", "repository": "org/app", "digest": "sha256:mine"}, CreatedAt: "2026-09-01T00:00:00Z"}},
+			"art-global": {{ResourceRevisionID: "rev-global", Meta: map[string]interface{}{"registry": "r.io", "repository": "org/app", "tag": "v1.0.0", "digest": "sha256:theirs"}, CreatedAt: "2026-09-02T00:00:00Z"}},
+		},
+		&gotQuery,
+	)
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, dataSourcePlatformArtifact().Schema, map[string]interface{}{
+		"nrn":  "organization=4",
+		"type": "oci_image",
+		"meta": `{"registry":"r.io","repository":"org/app","tag":"v9.9.9"}`,
+	})
+
+	diags := dataSourcePlatformArtifactRead(context.Background(), d, newTestClient(server))
+	if !diags.HasError() {
+		t.Fatal("expected an error when no candidate has a revision matching the tag")
+	}
+	msg := diags[0].Summary
+	for _, want := range []string{"art-owned", "art-global", "v9.9.9"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q should mention %q", msg, want)
+		}
+	}
+}
+
+// A failure listing a candidate's revisions surfaces as the read's error
+// instead of being skipped as "no match".
+func TestDataSourcePlatformArtifactRead_RevisionListingErrorPropagates(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/artifacts" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(platformArtifactListResponse{Results: []*PlatformArtifact{{
+				ResourceID:   "art-owned",
+				Type:         "oci_image",
+				Nrn:          "organization=4",
+				IdentityMeta: map[string]interface{}{"registry": "r.io", "repository": "org/app"},
+			}}})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, dataSourcePlatformArtifact().Schema, map[string]interface{}{
+		"nrn":  "organization=4",
+		"type": "oci_image",
+		"meta": `{"registry":"r.io","repository":"org/app"}`,
+	})
+
+	diags := dataSourcePlatformArtifactRead(context.Background(), d, newTestClient(server))
+	if !diags.HasError() {
+		t.Fatal("expected the revision listing failure to be returned as an error")
+	}
+}
+
 // No visible artifact matching the identity meta is an explicit error, not an
 // empty result.
 func TestDataSourcePlatformArtifactRead_NoMatchErrors(t *testing.T) {

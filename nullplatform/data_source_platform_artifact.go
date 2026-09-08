@@ -130,52 +130,66 @@ func dataSourcePlatformArtifactRead(_ context.Context, d *schema.ResourceData, m
 		}
 	}
 	// The listing is visibility-scoped, so an artifact owned at the nrn can
-	// coexist with a shared/global one of the same identity. The owned one
-	// wins: it's what this configuration (or its owner) registered, and it
-	// keeps configs written before globals existed resolving unchanged.
-	if len(matched) > 1 {
-		var owned []*PlatformArtifact
-		for _, artifact := range matched {
-			if artifact.Nrn == nrn {
-				owned = append(owned, artifact)
-			}
-		}
-		if len(owned) == 1 {
-			matched = owned
-		}
-	}
+	// coexist with a shared/global one of the same identity. The owned one is
+	// preferred: it's what this configuration (or its owner) registered, and it
+	// keeps configs written before globals existed resolving unchanged. But
+	// preference is not exclusion: artifacts are immutable and cannot be
+	// deleted, so an owned artifact registered by digest before the upstream
+	// one existed would otherwise shadow it forever and make a lookup by tag
+	// (which only the upstream revisions carry) impossible from that nrn. So
+	// candidates are ordered owned-first and the first one holding a revision
+	// that matches every requested field wins.
 	if len(matched) == 0 {
 		return diag.FromErr(fmt.Errorf("no %s artifact visible at %s matches meta %v", artifactType, nrn, wantedMeta))
 	}
-	if len(matched) > 1 {
-		return diag.FromErr(fmt.Errorf("meta %v matches %d %s artifacts visible at %s; add identity fields to disambiguate", wantedMeta, len(matched), artifactType, nrn))
-	}
-	artifact := matched[0]
-
-	revisions, err := nullOps.ListPlatformArtifactRevisions(artifact.ResourceID)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	// Revision match: NEWEST revision whose meta carries every requested
-	// field. Sorted here rather than trusting API order — the newest-wins
-	// rule is what gives tag lookups their drift semantics: re-registering a
-	// tag against a new digest mints a newer revision, and the next plan
-	// resolves it (and its digest) instead of the stale one. When only
-	// identity fields were requested every revision matches, so this
-	// resolves to the latest one.
-	sort.SliceStable(revisions, func(i, j int) bool {
-		return revisions[i].CreatedAt > revisions[j].CreatedAt
+	sort.SliceStable(matched, func(i, j int) bool {
+		return matched[i].Nrn == nrn && matched[j].Nrn != nrn
 	})
+	if len(matched) > 1 {
+		owned := 0
+		for _, artifact := range matched {
+			if artifact.Nrn == nrn {
+				owned++
+			}
+		}
+		if owned > 1 {
+			return diag.FromErr(fmt.Errorf("meta %v matches %d %s artifacts owned at %s; add identity fields to disambiguate", wantedMeta, owned, artifactType, nrn))
+		}
+	}
+
+	var artifact *PlatformArtifact
 	var revision *PlatformArtifactRevision
-	for _, candidate := range revisions {
-		if metaMatches(wantedMeta, candidate.Meta) {
-			revision = candidate
+	for _, candidate := range matched {
+		revisions, err := nullOps.ListPlatformArtifactRevisions(candidate.ResourceID)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		// Revision match: NEWEST revision whose meta carries every requested
+		// field. Sorted here rather than trusting API order — the newest-wins
+		// rule is what gives tag lookups their drift semantics: re-registering a
+		// tag against a new digest mints a newer revision, and the next plan
+		// resolves it (and its digest) instead of the stale one. When only
+		// identity fields were requested every revision matches, so this
+		// resolves to the latest one.
+		sort.SliceStable(revisions, func(i, j int) bool {
+			return revisions[i].CreatedAt > revisions[j].CreatedAt
+		})
+		for _, r := range revisions {
+			if metaMatches(wantedMeta, r.Meta) {
+				artifact, revision = candidate, r
+				break
+			}
+		}
+		if revision != nil {
 			break
 		}
 	}
 	if revision == nil {
-		return diag.FromErr(fmt.Errorf("artifact %s has no revision matching meta %v", artifact.ResourceID, wantedMeta))
+		ids := make([]string, 0, len(matched))
+		for _, candidate := range matched {
+			ids = append(ids, candidate.ResourceID)
+		}
+		return diag.FromErr(fmt.Errorf("no revision of %s artifact(s) %v visible at %s matches meta %v", artifactType, ids, nrn, wantedMeta))
 	}
 
 	revisionMetaJSON, err := json.Marshal(revision.Meta)
