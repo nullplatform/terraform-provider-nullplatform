@@ -218,6 +218,83 @@ func TestDataSourcePlatformArtifactRead_FallsBackToGlobalWhenOwnedHasNoMatchingR
 	}
 }
 
+// When no candidate — owned or global — holds a revision matching the requested
+// fields, the error names every artifact that was examined so the reader can
+// tell which registrations were considered and what they lack.
+func TestDataSourcePlatformArtifactRead_NoCandidateRevisionMatchesErrors(t *testing.T) {
+	var gotQuery string
+	server := artifactServer(t,
+		[]*PlatformArtifact{
+			{
+				ResourceID:   "art-owned",
+				Type:         "oci_image",
+				Nrn:          "organization=4",
+				IdentityMeta: map[string]interface{}{"registry": "r.io", "repository": "org/app"},
+			},
+			{
+				ResourceID:   "art-global",
+				Type:         "oci_image",
+				Nrn:          "organization=1",
+				IdentityMeta: map[string]interface{}{"registry": "r.io", "repository": "org/app"},
+				VisibleTo:    []string{"organization=*"},
+			},
+		},
+		map[string][]*PlatformArtifactRevision{
+			"art-owned":  {{ResourceRevisionID: "rev-owned", Meta: map[string]interface{}{"registry": "r.io", "repository": "org/app", "digest": "sha256:mine"}, CreatedAt: "2026-09-01T00:00:00Z"}},
+			"art-global": {{ResourceRevisionID: "rev-global", Meta: map[string]interface{}{"registry": "r.io", "repository": "org/app", "tag": "v1.0.0", "digest": "sha256:theirs"}, CreatedAt: "2026-09-02T00:00:00Z"}},
+		},
+		&gotQuery,
+	)
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, dataSourcePlatformArtifact().Schema, map[string]interface{}{
+		"nrn":  "organization=4",
+		"type": "oci_image",
+		"meta": `{"registry":"r.io","repository":"org/app","tag":"v9.9.9"}`,
+	})
+
+	diags := dataSourcePlatformArtifactRead(context.Background(), d, newTestClient(server))
+	if !diags.HasError() {
+		t.Fatal("expected an error when no candidate has a revision matching the tag")
+	}
+	msg := diags[0].Summary
+	for _, want := range []string{"art-owned", "art-global", "v9.9.9"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q should mention %q", msg, want)
+		}
+	}
+}
+
+// A failure listing a candidate's revisions surfaces as the read's error
+// instead of being skipped as "no match".
+func TestDataSourcePlatformArtifactRead_RevisionListingErrorPropagates(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/artifacts" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(platformArtifactListResponse{Results: []*PlatformArtifact{{
+				ResourceID:   "art-owned",
+				Type:         "oci_image",
+				Nrn:          "organization=4",
+				IdentityMeta: map[string]interface{}{"registry": "r.io", "repository": "org/app"},
+			}}})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, dataSourcePlatformArtifact().Schema, map[string]interface{}{
+		"nrn":  "organization=4",
+		"type": "oci_image",
+		"meta": `{"registry":"r.io","repository":"org/app"}`,
+	})
+
+	diags := dataSourcePlatformArtifactRead(context.Background(), d, newTestClient(server))
+	if !diags.HasError() {
+		t.Fatal("expected the revision listing failure to be returned as an error")
+	}
+}
+
 // No visible artifact matching the identity meta is an explicit error, not an
 // empty result.
 func TestDataSourcePlatformArtifactRead_NoMatchErrors(t *testing.T) {
