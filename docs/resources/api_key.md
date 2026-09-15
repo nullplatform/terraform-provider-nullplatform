@@ -19,7 +19,7 @@ The API key resource allows you to configure an API key for the nullplatform API
 terraform {
   required_providers {
     nullplatform = {
-      source = "nullplatform/nullplatform"
+      source  = "nullplatform/nullplatform"
     }
   }
 }
@@ -30,17 +30,17 @@ resource "nullplatform_api_key" "my_api_key" {
   name = "Example API Key Name"
 
   grants {
-    nrn       = "organization=1:account=1"
-    role_slug = "account:ops"
+    nrn        = "organization=1:account=1"
+    role_slug  = "account:ops"
   }
 
   grants {
-    nrn       = "organization=1:account=1"
-    role_slug = "account:admin"
+    nrn        = "organization=1:account=1"
+    role_slug  = "account:admin"
   }
 
   tags {
-    key   = "example"
+    key = "example"
     value = "true"
   }
 }
@@ -51,7 +51,7 @@ output "my_api_key_value" {
 }
 
 output "my_api_key_id" {
-  value = nullplatform_api_key.my_api_key.id
+  value     = nullplatform_api_key.my_api_key.id
 }
 ```
 
@@ -61,7 +61,7 @@ output "my_api_key_id" {
 terraform {
   required_providers {
     nullplatform = {
-      source = "nullplatform/nullplatform"
+      source  = "nullplatform/nullplatform"
     }
   }
 }
@@ -71,15 +71,15 @@ provider "nullplatform" {}
 locals {
   grants = [
     {
-      nrn       = "organization=1:account=1"
+      nrn = "organization=1:account=1"
       role_slug = "account:admin"
     },
     {
-      nrn       = "organization=1:account=1"
+      nrn = "organization=1:account=1"
       role_slug = "account:ops"
     },
     {
-      nrn       = "organization=1:account=1"
+      nrn = "organization=1:account=1"
       role_slug = "account:developer"
     }
   ]
@@ -122,11 +122,17 @@ output "my_api_key_value" {
 }
 
 output "my_api_key_id" {
-  value = nullplatform_api_key.my_api_key.id
+  value     = nullplatform_api_key.my_api_key.id
 }
 ```
 
-### Internal API Key
+### Granting actions instead of a role
+
+A grant can carry a literal list of `actions`, or `inherits` existing roles and
+adjust the union with `add_actions` and `remove_actions`. Either way nullplatform
+creates a role private to the key; you never manage it, and it is recreated
+whenever the grants change, so it is deliberately absent from state. What the
+grant resolves to is reported in `effective_actions`.
 
 ```terraform
 terraform {
@@ -139,45 +145,73 @@ terraform {
 
 provider "nullplatform" {}
 
-resource "nullplatform_api_key" "agent" {
-  name     = "AGENT"
-  internal = true
+# A grant does not have to name an existing role. It can list the actions the
+# key may call, or inherit existing roles and adjust the result — in both cases
+# nullplatform creates a role private to this key, which you never manage.
+#
+# You can only grant actions you already hold at that NRN yourself.
+resource "nullplatform_api_key" "ci" {
+  name = "CI pipeline"
 
+  # An existing role, as before.
   grants {
     nrn       = "organization=1:account=1"
-    role_slug = "controlplane:agent"
+    role_slug = "account:ops"
   }
 
+  # Exactly these actions, and nothing else.
   grants {
-    nrn       = "organization=1:account=1"
-    role_slug = "ops"
+    nrn     = "organization=1:account=1:namespace=1"
+    actions = ["application:read", "deployment:create"]
+  }
+
+  # The union of two existing roles, plus one action, minus another. Listing
+  # the two roles as separate grants instead would give the key two independent
+  # roles, and there would be nothing to subtract from.
+  grants {
+    nrn            = "organization=1:account=1"
+    inherits       = ["account:ops", "account:developer"]
+    add_actions    = ["application:delete"]
+    remove_actions = ["deployment:create"]
   }
 
   tags {
-    key   = "managedBy"
-    value = "IaC"
+    key   = "terraform"
+    value = "true"
   }
 }
 
-output "agent_api_key_value" {
-  value     = nullplatform_api_key.agent.api_key
+output "ci_api_key" {
+  value     = nullplatform_api_key.ci.api_key
   sensitive = true
+}
+
+# What each grant actually resolves to, as reported by the API. Useful to
+# confirm what an inherited grant ended up granting.
+output "ci_effective_actions" {
+  value = [for grant in nullplatform_api_key.ci.grants : grant.effective_actions]
 }
 ```
 
-~> **`internal` cannot be read back or changed in place** The API accepts the mark only when the key is created and never returns it. Changing `internal` therefore **replaces the API key**, which mints a new secret — anything already authenticating with the old one stops working. A key adopted with `terraform import` arrives with no mark at all, so declaring `internal = true` on it plans a replacement; leave the attribute out to keep the key as it was created.
+~> **Name roles one way** Use `role_id` in every grant of a key, or `role_slug`
+in every grant — never one in some and the other in others. The API resolves
+every grant of a key by whichever of the two the first one used. The provider
+rejects the mix at plan time.
+
+~> **Action aliases** An action that has an alias is reported under the alias.
+If you write the stored name of such an action, every plan will show a
+difference; write the name the API reports.
 
 <!-- schema generated by tfplugindocs -->
 ## Schema
 
 ### Required
 
-- `grants` (Block Set, Min: 1) List of grants associated with the API key. (see [below for nested schema](#nestedblock--grants))
+- `grants` (Block Set, Min: 1) Where the API key may act and what it may do there. Each grant carries an `nrn` plus exactly one shape: an existing role (`role_id` or `role_slug`), a literal list of `actions`, or a set of roles to `inherits` and adjust. Repeat the block to grant several roles on the same NRN. (see [below for nested schema](#nestedblock--grants))
 - `name` (String) The name of the API key.
 
 ### Optional
 
-- `internal` (Boolean) Marks the API key as internal to nullplatform, which hides it from API key listings (`GET /api_key`) while it stays readable by ID. Meant for the keys that are platform plumbing — agents, notification channels — rather than keys a person uses. The API accepts it only on creation and never returns it, so the value cannot be read back: changing it replaces the API key (and its secret), and a key adopted with `terraform import` comes in as unmarked regardless of its real value. Left to the API default (false) when not set
 - `tags` (Block Set) List of tags of the API key. (see [below for nested schema](#nestedblock--tags))
 
 ### Read-Only
@@ -199,8 +233,16 @@ Required:
 
 Optional:
 
-- `role_id` (Number) The ID of the role. (Either role_id or role_slug must be set)
-- `role_slug` (String) The slug of the role. (Either role_id or role_slug must be set)
+- `actions` (Set of String) The actions the key may call at this NRN, without naming an existing role. Conflicts with `role_id`, `role_slug` and `inherits`. You can only grant actions you hold at that NRN yourself.
+- `add_actions` (Set of String) Actions to add on top of what `inherits` provides. Requires `inherits`.
+- `inherits` (Set of String) Slugs of existing roles, merged into a single role private to this key and then refined by `add_actions` and `remove_actions`. Conflicts with `role_id`, `role_slug` and `actions`. A role private to another API key cannot be inherited.
+- `remove_actions` (Set of String) Inherited actions to exclude. Requires `inherits`.
+- `role_id` (Number) The ID of an existing role to grant at this NRN. Conflicts with `role_slug`, `actions` and `inherits`. Do not use `role_id` in one grant and `role_slug` in another: the API resolves every grant of a key the same way.
+- `role_slug` (String) The slug of an existing role to grant at this NRN. Conflicts with `role_id`, `actions` and `inherits`.
+
+Read-Only:
+
+- `effective_actions` (Set of String) The action names this grant resolves to, as reported by the API. Set only for the `actions` and `inherits` shapes. An action that has an alias is reported under the alias.
 
 
 <a id="nestedblock--tags"></a>
