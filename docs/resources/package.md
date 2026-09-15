@@ -68,7 +68,7 @@ resource "nullplatform_package" "pinned" {
 
 ### Required
 
-- `components` (Block List, Min: 1) Bill of materials: one entry per component, each pinning an exact resource revision. (see [below for nested schema](#nestedblock--components))
+- `components` (Block List, Min: 1) Bill of materials: one entry per component, each pinning an exact resource revision. This is the COMPLETE BOM of the published revision: a component removed from this list is not carried over from earlier revisions (the provider publishes with `merge_components = false`). (see [below for nested schema](#nestedblock--components))
 - `name` (String) Human-readable display name.
 - `nrn` (String) The owner NRN of the package. Writes (publishes, patches, delete) are gated on it.
 - `slug` (String) URL-safe identifier, unique per NRN. Together with nrn it is the publish key. Replaces the package only on a real rename (see CustomizeDiff), not when it merely resolves to the same value after apply.
