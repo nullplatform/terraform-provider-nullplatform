@@ -25,14 +25,21 @@ type PackageComponent struct {
 // Missing (nrn, slug) creates the package + first revision; existing ones
 // publish a new revision. `default` promotes the published revision to the
 // package default in the same call.
+//
+// MergeComponents is on the wire on every publish, never omitted: the API
+// defaults merge_components to true, which overlays `components` by name on
+// the package's current default revision and carries every unlisted component
+// over into the new revision. The resource's `components` is the whole BOM, so
+// a component removed from config must leave the published revision.
 type PackageUpsert struct {
-	Nrn        string             `json:"nrn"`
-	Slug       string             `json:"slug"`
-	Name       string             `json:"name,omitempty"`
-	Version    string             `json:"version,omitempty"`
-	Components []PackageComponent `json:"components,omitempty"`
-	VisibleTo  []string           `json:"visible_to,omitempty"`
-	Default    bool               `json:"default,omitempty"`
+	Nrn             string             `json:"nrn"`
+	Slug            string             `json:"slug"`
+	Name            string             `json:"name,omitempty"`
+	Version         string             `json:"version,omitempty"`
+	Components      []PackageComponent `json:"components,omitempty"`
+	MergeComponents bool               `json:"merge_components"`
+	VisibleTo       []string           `json:"visible_to,omitempty"`
+	Default         bool               `json:"default,omitempty"`
 }
 
 // PackagePatch carries the mutable envelope fields for PATCH /packages/:id.

@@ -67,9 +67,11 @@ func resourcePackage() *schema.Resource {
 					"same components is an idempotent no-op.",
 			},
 			"components": {
-				Type:        schema.TypeList,
-				Required:    true,
-				Description: "Bill of materials: one entry per component, each pinning an exact resource revision.",
+				Type:     schema.TypeList,
+				Required: true,
+				Description: "Bill of materials: one entry per component, each pinning an exact resource revision. " +
+					"This is the COMPLETE BOM of the published revision: a component removed from this list is not " +
+					"carried over from earlier revisions (the provider publishes with `merge_components = false`).",
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"name": {
@@ -165,6 +167,8 @@ func buildPackageUpsert(d *schema.ResourceData) *PackageUpsert {
 		Name:    d.Get("name").(string),
 		Version: d.Get("version").(string),
 		Default: d.Get("default").(bool),
+		// `components` is the complete BOM: replace, never overlay (see PackageUpsert).
+		MergeComponents: false,
 	}
 
 	for _, raw := range d.Get("components").([]interface{}) {
