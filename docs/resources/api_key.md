@@ -156,7 +156,7 @@ resource "nullplatform_api_key" "ci" {
   # An existing role, as before.
   grants {
     nrn       = "organization=1:account=1"
-    role_slug = "account:ops"
+    role_slug = "ops"
   }
 
   # Exactly these actions, and nothing else.
@@ -170,7 +170,7 @@ resource "nullplatform_api_key" "ci" {
   # roles, and there would be nothing to subtract from.
   grants {
     nrn            = "organization=1:account=1"
-    inherits       = ["account:ops", "account:developer"]
+    inherits       = ["ops", "developer"]
     add_actions    = ["application:delete"]
     remove_actions = ["deployment:create"]
   }

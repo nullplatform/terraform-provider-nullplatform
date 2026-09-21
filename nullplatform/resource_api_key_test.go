@@ -40,11 +40,11 @@ func TestConvertToGrantRoleForms(t *testing.T) {
 	t.Run("role_slug alone", func(t *testing.T) {
 		grant := convertToGrant(grantMap(map[string]any{
 			"nrn":       "organization=1:account=1",
-			"role_slug": "account:ops",
+			"role_slug": "ops",
 		}))
 
 		require.NotNil(t, grant.RoleSlug)
-		assert.Equal(t, "account:ops", *grant.RoleSlug)
+		assert.Equal(t, "ops", *grant.RoleSlug)
 		assert.Nil(t, grant.RoleID, "an unset role_id must not travel as 0")
 		assert.Nil(t, grant.Actions)
 		assert.Nil(t, grant.Inherits)
@@ -84,12 +84,12 @@ func TestConvertToGrantInheritedForm(t *testing.T) {
 	t.Run("with both deltas", func(t *testing.T) {
 		grant := convertToGrant(grantMap(map[string]any{
 			"nrn":            "organization=1:account=1",
-			"inherits":       []string{"account:ops", "account:developer"},
+			"inherits":       []string{"ops", "developer"},
 			"add_actions":    []string{"application:delete"},
 			"remove_actions": []string{"deployment:create"},
 		}))
 
-		assert.Equal(t, []string{"account:developer", "account:ops"}, grant.Inherits)
+		assert.Equal(t, []string{"developer", "ops"}, grant.Inherits)
 		assert.Equal(t, map[string][]string{
 			"add":    {"application:delete"},
 			"remove": {"deployment:create"},
@@ -101,17 +101,17 @@ func TestConvertToGrantInheritedForm(t *testing.T) {
 	t.Run("without deltas", func(t *testing.T) {
 		grant := convertToGrant(grantMap(map[string]any{
 			"nrn":      "organization=1:account=1",
-			"inherits": []string{"account:ops"},
+			"inherits": []string{"ops"},
 		}))
 
-		assert.Equal(t, []string{"account:ops"}, grant.Inherits)
+		assert.Equal(t, []string{"ops"}, grant.Inherits)
 		assert.Nil(t, grant.Actions, "no delta means no actions key at all")
 	})
 
 	t.Run("with only a removal", func(t *testing.T) {
 		grant := convertToGrant(grantMap(map[string]any{
 			"nrn":            "organization=1:account=1",
-			"inherits":       []string{"account:ops"},
+			"inherits":       []string{"ops"},
 			"remove_actions": []string{"deployment:create"},
 		}))
 
@@ -166,14 +166,14 @@ func TestConvertFromGrantKeepsConfigShape(t *testing.T) {
 			RoleSlug: &slug,
 			Actions:  []string{"application:read", "application:delete"},
 			Inherits: []ApiKeyInheritedRole{
-				{ID: 11, Slug: "account:ops"},
-				{ID: 12, Slug: "account:developer"},
+				{ID: 11, Slug: "ops"},
+				{ID: 12, Slug: "developer"},
 			},
 			Added:   []string{"application:delete"},
 			Removed: []string{"deployment:create"},
 		}, true)
 
-		assert.Equal(t, []string{"account:ops", "account:developer"}, raw["inherits"],
+		assert.Equal(t, []string{"ops", "developer"}, raw["inherits"],
 			"inherits must come back as the slugs the config was written with")
 		assert.Equal(t, []string{"application:delete"}, raw["add_actions"])
 		assert.Equal(t, []string{"deployment:create"}, raw["remove_actions"])
@@ -207,11 +207,11 @@ func TestApiKeyGrantHashIgnoresComputedFields(t *testing.T) {
 	t.Run("an existing role by slug", func(t *testing.T) {
 		config := grantMap(map[string]any{
 			"nrn":       "organization=1:account=1",
-			"role_slug": "account:ops",
+			"role_slug": "ops",
 		})
 		refreshed := grantMap(map[string]any{
 			"nrn":       "organization=1:account=1",
-			"role_slug": "account:ops",
+			"role_slug": "ops",
 			"role_id":   560594970,
 		})
 
@@ -260,29 +260,29 @@ func TestApiKeyGrantHashSeparatesDistinctGrants(t *testing.T) {
 func TestValidateGrantShapes(t *testing.T) {
 	valid := map[string][]map[string]any{
 		"a role by slug": {
-			grantMap(map[string]any{"nrn": "organization=1", "role_slug": "account:ops"}),
+			grantMap(map[string]any{"nrn": "organization=1", "role_slug": "ops"}),
 		},
 		"a role by id": {
 			grantMap(map[string]any{"nrn": "organization=1", "role_id": 42}),
 		},
 		"several roles on one nrn": {
-			grantMap(map[string]any{"nrn": "organization=1", "role_slug": "account:ops"}),
-			grantMap(map[string]any{"nrn": "organization=1", "role_slug": "account:admin"}),
+			grantMap(map[string]any{"nrn": "organization=1", "role_slug": "ops"}),
+			grantMap(map[string]any{"nrn": "organization=1", "role_slug": "admin"}),
 		},
 		"a slug next to a fine-grained grant": {
-			grantMap(map[string]any{"nrn": "organization=1", "role_slug": "account:ops"}),
+			grantMap(map[string]any{"nrn": "organization=1", "role_slug": "ops"}),
 			grantMap(map[string]any{"nrn": "organization=1", "actions": []string{"application:read"}}),
 		},
 		"inheritance with both deltas": {
 			grantMap(map[string]any{
-				"nrn": "organization=1", "inherits": []string{"account:ops"},
+				"nrn": "organization=1", "inherits": []string{"ops"},
 				"add_actions": []string{"a:b"}, "remove_actions": []string{"c:d"},
 			}),
 		},
 		// The API fills both on read; state only ever holds one, but a plan
 		// against an imported resource can see both.
 		"a role carrying both id and slug": {
-			grantMap(map[string]any{"nrn": "organization=1", "role_slug": "account:ops", "role_id": 42}),
+			grantMap(map[string]any{"nrn": "organization=1", "role_slug": "ops", "role_id": 42}),
 		},
 	}
 
@@ -302,7 +302,7 @@ func TestValidateGrantShapes(t *testing.T) {
 		},
 		"a role and actions together": {
 			grants: []map[string]any{grantMap(map[string]any{
-				"nrn": "organization=1", "role_slug": "account:ops",
+				"nrn": "organization=1", "role_slug": "ops",
 				"actions": []string{"application:read"},
 			})},
 			message: "exactly one",
@@ -310,7 +310,7 @@ func TestValidateGrantShapes(t *testing.T) {
 		"actions and inherits together": {
 			grants: []map[string]any{grantMap(map[string]any{
 				"nrn": "organization=1", "actions": []string{"application:read"},
-				"inherits": []string{"account:ops"},
+				"inherits": []string{"ops"},
 			})},
 			message: "exactly one",
 		},
@@ -325,7 +325,7 @@ func TestValidateGrantShapes(t *testing.T) {
 		// first one used, so the mixed key fails inside the API.
 		"role_id in one grant and role_slug in another": {
 			grants: []map[string]any{
-				grantMap(map[string]any{"nrn": "organization=1", "role_slug": "account:ops"}),
+				grantMap(map[string]any{"nrn": "organization=1", "role_slug": "ops"}),
 				grantMap(map[string]any{"nrn": "organization=2", "role_id": 42}),
 			},
 			message: "role_id",
@@ -346,19 +346,19 @@ func TestValidateGrantShapes(t *testing.T) {
 // follows reports a change.
 func TestGrantsRoundTripIsStable(t *testing.T) {
 	config := []map[string]any{
-		grantMap(map[string]any{"nrn": "organization=1:account=1", "role_slug": "account:ops"}),
+		grantMap(map[string]any{"nrn": "organization=1:account=1", "role_slug": "ops"}),
 		grantMap(map[string]any{
 			"nrn": "organization=1:account=1:namespace=1", "actions": []string{"application:read"},
 		}),
 		grantMap(map[string]any{
-			"nrn": "organization=1:account=1", "inherits": []string{"account:ops"},
+			"nrn": "organization=1:account=1", "inherits": []string{"ops"},
 			"remove_actions": []string{"deployment:create"},
 		}),
 	}
 	require.NoError(t, validateGrantShapes(config))
 
 	roleID := int64(9001)
-	slug := "account:ops"
+	slug := "ops"
 	privateSlug := "apikey:12333:0"
 
 	// What the API answers for exactly those three grants.
@@ -371,7 +371,7 @@ func TestGrantsRoundTripIsStable(t *testing.T) {
 		{
 			NRN: "organization=1:account=1", RoleID: &roleID, RoleSlug: &privateSlug,
 			Actions:  []string{"application:read"},
-			Inherits: []ApiKeyInheritedRole{{ID: 11, Slug: "account:ops"}},
+			Inherits: []ApiKeyInheritedRole{{ID: 11, Slug: "ops"}},
 			Removed:  []string{"deployment:create"},
 		},
 	}
