@@ -19,7 +19,7 @@ The API key resource allows you to configure an API key for the nullplatform API
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
@@ -30,17 +30,17 @@ resource "nullplatform_api_key" "my_api_key" {
   name = "Example API Key Name"
 
   grants {
-    nrn        = "organization=1:account=1"
-    role_slug  = "account:ops"
+    nrn       = "organization=1:account=1"
+    role_slug = "account:ops"
   }
 
   grants {
-    nrn        = "organization=1:account=1"
-    role_slug  = "account:admin"
+    nrn       = "organization=1:account=1"
+    role_slug = "account:admin"
   }
 
   tags {
-    key = "example"
+    key   = "example"
     value = "true"
   }
 }
@@ -51,7 +51,7 @@ output "my_api_key_value" {
 }
 
 output "my_api_key_id" {
-  value     = nullplatform_api_key.my_api_key.id
+  value = nullplatform_api_key.my_api_key.id
 }
 ```
 
@@ -61,7 +61,7 @@ output "my_api_key_id" {
 terraform {
   required_providers {
     nullplatform = {
-      source  = "nullplatform/nullplatform"
+      source = "nullplatform/nullplatform"
     }
   }
 }
@@ -71,15 +71,15 @@ provider "nullplatform" {}
 locals {
   grants = [
     {
-      nrn = "organization=1:account=1"
+      nrn       = "organization=1:account=1"
       role_slug = "account:admin"
     },
     {
-      nrn = "organization=1:account=1"
+      nrn       = "organization=1:account=1"
       role_slug = "account:ops"
     },
     {
-      nrn = "organization=1:account=1"
+      nrn       = "organization=1:account=1"
       role_slug = "account:developer"
     }
   ]
@@ -122,9 +122,50 @@ output "my_api_key_value" {
 }
 
 output "my_api_key_id" {
-  value     = nullplatform_api_key.my_api_key.id
+  value = nullplatform_api_key.my_api_key.id
 }
 ```
+
+### Internal API Key
+
+```terraform
+terraform {
+  required_providers {
+    nullplatform = {
+      source = "nullplatform/nullplatform"
+    }
+  }
+}
+
+provider "nullplatform" {}
+
+resource "nullplatform_api_key" "agent" {
+  name     = "AGENT"
+  internal = true
+
+  grants {
+    nrn       = "organization=1:account=1"
+    role_slug = "controlplane:agent"
+  }
+
+  grants {
+    nrn       = "organization=1:account=1"
+    role_slug = "ops"
+  }
+
+  tags {
+    key   = "managedBy"
+    value = "IaC"
+  }
+}
+
+output "agent_api_key_value" {
+  value     = nullplatform_api_key.agent.api_key
+  sensitive = true
+}
+```
+
+~> **`internal` cannot be read back or changed in place** The API accepts the mark only when the key is created and never returns it. Changing `internal` therefore **replaces the API key**, which mints a new secret — anything already authenticating with the old one stops working. A key adopted with `terraform import` arrives with no mark at all, so declaring `internal = true` on it plans a replacement; leave the attribute out to keep the key as it was created.
 
 ### Granting actions instead of a role
 
@@ -212,6 +253,7 @@ difference; write the name the API reports.
 
 ### Optional
 
+- `internal` (Boolean) Marks the API key as internal to nullplatform, which hides it from API key listings (`GET /api_key`) while it stays readable by ID. Meant for the keys that are platform plumbing — agents, notification channels — rather than keys a person uses. The API accepts it only on creation and never returns it, so the value cannot be read back: changing it replaces the API key (and its secret), and a key adopted with `terraform import` comes in as unmarked regardless of its real value. Left to the API default (false) when not set
 - `tags` (Block Set) List of tags of the API key. (see [below for nested schema](#nestedblock--tags))
 
 ### Read-Only
