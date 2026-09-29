@@ -446,9 +446,14 @@ func NotificationChannelRead(d *schema.ResourceData, m any) error {
 		}
 		config["http"] = []interface{}{httpConfig}
 	case "gitlab":
+		// The API accepts a numeric project_id (e.g. from a UI edit) despite its string contract.
+		projectID := ""
+		if v, ok := channel.Configuration["project_id"]; ok && v != nil {
+			projectID = valueToString(v)
+		}
 		config["gitlab"] = []interface{}{
 			map[string]interface{}{
-				"project_id": channel.Configuration["project_id"],
+				"project_id": projectID,
 				"reference":  channel.Configuration["reference"],
 			},
 		}

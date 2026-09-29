@@ -220,3 +220,37 @@ resource "nullplatform_notification_channel" "channel" {
 }
 `, applicationID)
 }
+
+// The API does not enforce the string type: a UI edit stores gitlab project_id as a number.
+func TestNotificationChannelRead_GitlabNumericProjectID(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{
+			"id": 123,
+			"nrn": "organization=1:account=2",
+			"type": "gitlab",
+			"source": ["service"],
+			"configuration": {"reference": "main", "project_id": 1234567890},
+			"status": "active"
+		}`)
+	}))
+	defer server.Close()
+
+	client := &nullplatform.NullClient{
+		Client: server.Client(),
+		ApiURL: strings.TrimPrefix(server.URL, "https://"),
+		Token:  nullplatform.Token{AccessToken: "test-token"},
+	}
+
+	channelSchema := nullplatform.Provider().ResourcesMap["nullplatform_notification_channel"].Schema
+	d := schema.TestResourceDataRaw(t, channelSchema, map[string]interface{}{})
+	d.SetId("123")
+
+	if err := nullplatform.NotificationChannelRead(d, client); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := d.Get("configuration.0.gitlab.0.project_id"); got != "1234567890" {
+		t.Errorf("got project_id %q, want %q", got, "1234567890")
+	}
+}
