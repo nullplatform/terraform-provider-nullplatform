@@ -61,60 +61,65 @@ func resourceScope() *schema.Resource {
 			},
 			"s3_assets_bucket": {
 				Type:        schema.TypeString,
-				Default:     "",
 				Optional:    true,
-				Description: "The AWS S3 bucket name where the assets are stored (NRN key).",
+				Computed:    true,
+				Description: "The AWS S3 bucket name where the assets are stored (NRN key). When omitted, the value already held by the scope's NRN is kept.",
 				Deprecated:  "Configure NRN using the 'nullplatform_provider_config' resource instead.",
 			},
 			"scope_workflow_role": {
 				Type:        schema.TypeString,
-				Default:     "",
 				Optional:    true,
-				Description: "The ARN of the IAM Role to deploy new versions of the Scope (NRN key).",
+				Computed:    true,
+				Description: "The ARN of the IAM Role to deploy new versions of the Scope (NRN key). When omitted, the value already held by the scope's NRN is kept.",
 				Deprecated:  "Configure NRN using the 'nullplatform_provider_config' resource instead.",
 			},
 			"log_group_name": {
 				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The CloudWatch log group your Lambda function sends logs to (NRN key).",
+				Optional:    true,
+				Computed:    true,
+				Description: "The CloudWatch log group your Lambda function sends logs to (NRN key). When omitted, the value already held by the scope's NRN is kept.",
 				Deprecated:  "Configure NRN using the 'nullplatform_provider_config' resource instead.",
 			},
 			"lambda_function_name": {
 				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The unique name of your Lambda function (NRN key).",
+				Optional:    true,
+				Computed:    true,
+				Description: "The unique name of your Lambda function (NRN key). When omitted, the value already held by the scope's NRN is kept.",
 				Deprecated:  "Configure NRN using the 'nullplatform_provider_config' resource instead.",
 			},
 			"lambda_current_function_version": {
 				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The version number of the Lambda function used as the baseline for Null Platform to create new function versions (NRN key).",
+				Optional:    true,
+				Computed:    true,
+				Description: "The version number of the Lambda function used as the baseline for Null Platform to create new function versions (NRN key). When omitted, the value already held by the scope's NRN is kept.",
 				Deprecated:  "Configure NRN using the 'nullplatform_provider_config' resource instead.",
 			},
 			"lambda_function_role": {
 				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The ARN of the function's execution role (NRN key).",
+				Optional:    true,
+				Computed:    true,
+				Description: "The ARN of the function's execution role (NRN key). When omitted, the value already held by the scope's NRN is kept.",
 				Deprecated:  "Configure NRN using the 'nullplatform_provider_config' resource instead.",
 			},
 			"lambda_function_main_alias": {
 				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The Lambda function main ALIAS name (NRN key).",
+				Optional:    true,
+				Computed:    true,
+				Description: "The Lambda function main ALIAS name (NRN key). When omitted, the value already held by the scope's NRN is kept.",
 				Deprecated:  "Configure NRN using the 'nullplatform_provider_config' resource instead.",
 			},
 			"log_reader_role": {
 				Type:        schema.TypeString,
-				Default:     "",
 				Optional:    true,
-				Description: "The ARN of the IAM Role to read CloudWatch logs (NRN key).",
+				Computed:    true,
+				Description: "The ARN of the IAM Role to read CloudWatch logs (NRN key). When omitted, the value already held by the scope's NRN is kept.",
 				Deprecated:  "Configure NRN using the 'nullplatform_provider_config' resource instead.",
 			},
 			"lambda_function_warm_alias": {
 				Type:        schema.TypeString,
-				Default:     "",
 				Optional:    true,
-				Description: "The Lambda function ALIAS name used to warmup the function (NRN key).",
+				Computed:    true,
+				Description: "The Lambda function ALIAS name used to warmup the function (NRN key). When omitted, the value already held by the scope's NRN is kept.",
 				Deprecated:  "Configure NRN using the 'nullplatform_provider_config' resource instead.",
 			},
 			"capabilities_serverless_handler_name": {
@@ -250,15 +255,15 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 func patchNrnForScope(scopeNrn string, d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 
-	s3AssetsBucket := d.Get("s3_assets_bucket").(string)
-	scopeWorkflowRole := d.Get("scope_workflow_role").(string)
-	logGroupName := d.Get("log_group_name").(string)
-	lambdaFunctinoName := d.Get("lambda_function_name").(string)
-	lambdaCurrentFunctionVersion := d.Get("lambda_current_function_version").(string)
-	lambdaFunctionRole := d.Get("lambda_function_role").(string)
-	lambdaFunctionMainAlias := d.Get("lambda_function_main_alias").(string)
-	logReaderRole := d.Get("log_reader_role").(string)
-	lambdaFunctionWarmAlias := d.Get("lambda_function_warm_alias").(string)
+	s3AssetsBucket := configuredString(d, "s3_assets_bucket")
+	scopeWorkflowRole := configuredString(d, "scope_workflow_role")
+	logGroupName := configuredString(d, "log_group_name")
+	lambdaFunctinoName := configuredString(d, "lambda_function_name")
+	lambdaCurrentFunctionVersion := configuredString(d, "lambda_current_function_version")
+	lambdaFunctionRole := configuredString(d, "lambda_function_role")
+	lambdaFunctionMainAlias := configuredString(d, "lambda_function_main_alias")
+	logReaderRole := configuredString(d, "log_reader_role")
+	lambdaFunctionWarmAlias := configuredString(d, "lambda_function_warm_alias")
 
 	nrnReq := &PatchNRN{
 		AWSS3AssestBucket:               s3AssetsBucket,
@@ -272,7 +277,7 @@ func patchNrnForScope(scopeNrn string, d *schema.ResourceData, m any) error {
 		AWSLambdaFunctionWarmAlias:      lambdaFunctionWarmAlias,
 	}
 
-	if !reflect.DeepEqual(nrnReq, PatchNRN{}) {
+	if !reflect.DeepEqual(*nrnReq, PatchNRN{}) {
 		return nullOps.PatchNRN(scopeNrn, nrnReq)
 	}
 
@@ -296,6 +301,12 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 	n, err := nullOps.GetNRN(s.Nrn)
 	if err != nil {
 		return err
+	}
+
+	// A scope whose NRN keys were never written has no aws namespace.
+	aws := &NrnAwsNamespace{}
+	if n.Namespaces != nil && n.Namespaces.AWS != nil {
+		aws = n.Namespaces.AWS
 	}
 
 	if err := d.Set("nrn", s.Nrn); err != nil {
@@ -322,39 +333,39 @@ func ScopeRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
-	if err := d.Set("s3_assets_bucket", n.Namespaces.AWS.AWSS3AssestBucket); err != nil {
+	if err := d.Set("s3_assets_bucket", aws.AWSS3AssestBucket); err != nil {
 		return err
 	}
 
-	if err := d.Set("scope_workflow_role", n.Namespaces.AWS.AWSScopeWorkflowRole); err != nil {
+	if err := d.Set("scope_workflow_role", aws.AWSScopeWorkflowRole); err != nil {
 		return err
 	}
 
-	if err := d.Set("log_group_name", n.Namespaces.AWS.AWSLogGroupName); err != nil {
+	if err := d.Set("log_group_name", aws.AWSLogGroupName); err != nil {
 		return err
 	}
 
-	if err := d.Set("lambda_function_name", n.Namespaces.AWS.AWSLambdaFunctionName); err != nil {
+	if err := d.Set("lambda_function_name", aws.AWSLambdaFunctionName); err != nil {
 		return err
 	}
 
-	if err := d.Set("lambda_current_function_version", n.Namespaces.AWS.AWSLambdaCurrentFunctionVersion); err != nil {
+	if err := d.Set("lambda_current_function_version", aws.AWSLambdaCurrentFunctionVersion); err != nil {
 		return err
 	}
 
-	if err := d.Set("lambda_function_role", n.Namespaces.AWS.AWSLambdaFunctionRole); err != nil {
+	if err := d.Set("lambda_function_role", aws.AWSLambdaFunctionRole); err != nil {
 		return err
 	}
 
-	if err := d.Set("lambda_function_main_alias", n.Namespaces.AWS.AWSLambdaFunctionMainAlias); err != nil {
+	if err := d.Set("lambda_function_main_alias", aws.AWSLambdaFunctionMainAlias); err != nil {
 		return err
 	}
 
-	if err := d.Set("log_reader_role", n.Namespaces.AWS.AWSLogReaderLog); err != nil {
+	if err := d.Set("log_reader_role", aws.AWSLogReaderLog); err != nil {
 		return err
 	}
 
-	if err := d.Set("lambda_function_warm_alias", n.Namespaces.AWS.AWSLambdaFunctionWarmAlias); err != nil {
+	if err := d.Set("lambda_function_warm_alias", aws.AWSLambdaFunctionWarmAlias); err != nil {
 		return err
 	}
 
@@ -464,11 +475,10 @@ func ScopeUpdate(d *schema.ResourceData, m any) error {
 		}
 	}
 
-	if !reflect.DeepEqual(caps, Capability{}) {
+	if !reflect.DeepEqual(*caps, Capability{}) {
 		ps.Capabilities = caps
 	}
 
-	// Optional values can be updated as empty values
 	if d.HasChange("s3_assets_bucket") || d.HasChange("scope_workflow_role") || d.HasChange("log_group_name") ||
 		d.HasChange("lambda_function_name") || d.HasChange("lambda_current_function_version") || d.HasChange("lambda_function_role") ||
 		d.HasChange("lambda_function_main_alias") || d.HasChange("log_reader_role") || d.HasChange("lambda_function_warm_alias") {

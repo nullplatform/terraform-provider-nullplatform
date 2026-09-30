@@ -48,16 +48,10 @@ resource "nullplatform_scope" "example" {
   scope_name          = "${var.environment}-terraform-example-01"
   null_application_id = var.null_application_id
 
-  lambda_function_name            = "ScopeExample"
-  lambda_current_function_version = "2"
-  lambda_function_role            = "arn:aws:iam::300001300842:role/LambdaRole"
-  lambda_function_main_alias      = upper(var.environment)
-  lambda_function_warm_alias      = "WARM"
-
+  # Lambda and log group NRN keys are configured with nullplatform_provider_config.
   capabilities_serverless_memory       = 512
   capabilities_serverless_handler_name = "thehandler"
   capabilities_serverless_runtime_id   = "java11"
-  log_group_name                       = "/aws/lambda/ScopeExample"
 
   dimensions = local.dimensions
 }
@@ -74,11 +68,6 @@ output "scope" {
 
 - `capabilities_serverless_handler_name` (String) The function entrypoint in your code.
 - `capabilities_serverless_runtime_id` (String) Identifier of the function's runtime. See [Runtimes](https://docs.aws.amazon.com/lambda/latest/api/API_CreateFunction.html#lambda-CreateFunction-request-Runtime) for valid values.
-- `lambda_current_function_version` (String, Deprecated) The version number of the Lambda function used as the baseline for Null Platform to create new function versions (NRN key).
-- `lambda_function_main_alias` (String, Deprecated) The Lambda function main ALIAS name (NRN key).
-- `lambda_function_name` (String, Deprecated) The unique name of your Lambda function (NRN key).
-- `lambda_function_role` (String, Deprecated) The ARN of the function's execution role (NRN key).
-- `log_group_name` (String, Deprecated) The CloudWatch log group your Lambda function sends logs to (NRN key).
 - `null_application_id` (Number) The ID of the application that owns this scope.
 - `scope_name` (String) The scope name.
 
@@ -90,12 +79,17 @@ output "scope" {
 - `capabilities_serverless_timeout` (Number) Amount of time your Lambda Function has to run in seconds. Defaults to `10`.
 - `description` (String) Short description of the scope.
 - `dimensions` (Map of String) A key-value map with the runtime configuration dimensions that apply to this scope.
-- `lambda_function_warm_alias` (String, Deprecated) The Lambda function ALIAS name used to warmup the function (NRN key).
-- `log_reader_role` (String, Deprecated) The ARN of the IAM Role to read CloudWatch logs (NRN key).
-- `s3_assets_bucket` (String, Deprecated) The AWS S3 bucket name where the assets are stored (NRN key).
+- `lambda_current_function_version` (String, Deprecated) The version number of the Lambda function used as the baseline for Null Platform to create new function versions (NRN key). When omitted, the value already held by the scope's NRN is kept.
+- `lambda_function_main_alias` (String, Deprecated) The Lambda function main ALIAS name (NRN key). When omitted, the value already held by the scope's NRN is kept.
+- `lambda_function_name` (String, Deprecated) The unique name of your Lambda function (NRN key). When omitted, the value already held by the scope's NRN is kept.
+- `lambda_function_role` (String, Deprecated) The ARN of the function's execution role (NRN key). When omitted, the value already held by the scope's NRN is kept.
+- `lambda_function_warm_alias` (String, Deprecated) The Lambda function ALIAS name used to warmup the function (NRN key). When omitted, the value already held by the scope's NRN is kept.
+- `log_group_name` (String, Deprecated) The CloudWatch log group your Lambda function sends logs to (NRN key). When omitted, the value already held by the scope's NRN is kept.
+- `log_reader_role` (String, Deprecated) The ARN of the IAM Role to read CloudWatch logs (NRN key). When omitted, the value already held by the scope's NRN is kept.
+- `s3_assets_bucket` (String, Deprecated) The AWS S3 bucket name where the assets are stored (NRN key). When omitted, the value already held by the scope's NRN is kept.
 - `scope_asset_name` (String) The asset name for the scope.
 - `scope_type` (String) Possible values: [`web_pool`, `scheduled_tasks`, `serverless`]. Defaults to `serverless`.
-- `scope_workflow_role` (String, Deprecated) The ARN of the IAM Role to deploy new versions of the Scope (NRN key).
+- `scope_workflow_role` (String, Deprecated) The ARN of the IAM Role to deploy new versions of the Scope (NRN key). When omitted, the value already held by the scope's NRN is kept.
 
 ### Read-Only
 
