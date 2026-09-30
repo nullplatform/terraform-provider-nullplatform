@@ -13,6 +13,8 @@ A module that already receives the `nullplatform` provider can call the CLI with
 
 ~> Ephemeral resources require Terraform 1.10 or later.
 
+-> Terraform suppresses the output of a provisioner that references an ephemeral value. Redirect the command's output to a file when the result is needed. A failing `np` command exits non-zero and fails the apply.
+
 ## Example Usage
 
 ```terraform
