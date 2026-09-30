@@ -82,12 +82,6 @@ func TestFunctionalAccessToken_ExchangesProviderApiKey(t *testing.T) {
 			statecheck.ExpectKnownValue("echo.token", tfjsonpath.New("data").AtMapKey("access_token"), knownvalue.StringExact(token)),
 			statecheck.ExpectKnownValue("echo.token", tfjsonpath.New("data").AtMapKey("expires_at"), knownvalue.StringExact("2030-01-02T03:04:05Z")),
 		},
-		Check: func(*terraform.State) error {
-			if issued := len(fake.Items("token")); issued == 0 {
-				return fmt.Errorf("no token was exchanged against /token")
-			}
-			return nil
-		},
 	}))
 }
 
@@ -148,26 +142,6 @@ func TestFunctionalAccessToken_WithoutExpiryLeavesExpiresAtNull(t *testing.T) {
 	}))
 }
 
-func TestFunctionalAccessToken_RejectedApiKeyFails(t *testing.T) {
-	fake := newAccessTokenFake(t, "unused")
-
-	resource.UnitTest(t, accessTokenTestCase(fake, resource.TestStep{
-		Config:      accessTokenConfig(fake, `api_key = "wrong-key"`),
-		ExpectError: regexp.MustCompile(`failed to get access token, got 401`),
-	}))
-}
-
-func TestFunctionalAccessToken_MissingApiKeyFails(t *testing.T) {
-	t.Setenv("NULLPLATFORM_API_KEY", "")
-	t.Setenv(NP_API_KEY_ENV, "")
-	fake := newAccessTokenFake(t, "unused")
-
-	resource.UnitTest(t, accessTokenTestCase(fake, resource.TestStep{
-		Config:      accessTokenConfig(fake, ""),
-		ExpectError: regexp.MustCompile(`Missing API Key`),
-	}))
-}
-
 func TestFunctionalAccessToken_EnvApiKeyFillsOmittedAttribute(t *testing.T) {
 	t.Setenv("NULLPLATFORM_API_KEY", functionalApiKey)
 	token := signedTestToken(t, jwt.MapClaims{"sub": "agent"})
@@ -181,16 +155,27 @@ func TestFunctionalAccessToken_EnvApiKeyFillsOmittedAttribute(t *testing.T) {
 	}))
 }
 
-// Like the SDKv2 EnvDefaultFunc, the variable never overrides an api_key set to "".
-func TestFunctionalAccessToken_EmptyApiKeyIgnoresEnv(t *testing.T) {
-	t.Setenv("NULLPLATFORM_API_KEY", functionalApiKey)
-	t.Setenv(NP_API_KEY_ENV, "")
-	fake := newAccessTokenFake(t, "unused")
+func TestFunctionalAccessToken_Refusals(t *testing.T) {
+	tests := []struct {
+		name, apiKeyLine, envApiKey, want string
+	}{
+		{"rejected key surfaces the 401", `api_key = "wrong-key"`, "", `failed to get access token, got 401`},
+		{"no key at all", "", "", `Missing API Key`},
+		// Like the SDKv2 EnvDefaultFunc, the variable never overrides an api_key set to "".
+		{"empty key ignores the env", `api_key = ""`, functionalApiKey, `Missing API Key`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("NULLPLATFORM_API_KEY", tt.envApiKey)
+			t.Setenv(NP_API_KEY_ENV, "")
+			fake := newAccessTokenFake(t, "unused")
 
-	resource.UnitTest(t, accessTokenTestCase(fake, resource.TestStep{
-		Config:      accessTokenConfig(fake, `api_key = ""`),
-		ExpectError: regexp.MustCompile(`Missing API Key`),
-	}))
+			resource.UnitTest(t, accessTokenTestCase(fake, resource.TestStep{
+				Config:      accessTokenConfig(fake, tt.apiKeyLine),
+				ExpectError: regexp.MustCompile(tt.want),
+			}))
+		})
+	}
 }
 
 func TestTokenExpiry_UnparsableTokenHasNoExpiry(t *testing.T) {

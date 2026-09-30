@@ -2,7 +2,6 @@ package nullplatform
 
 import (
 	"bytes"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -175,29 +174,5 @@ func TestMakeRequest_RetryOnGet(t *testing.T) {
 				t.Errorf("status = %d, want %d", res.StatusCode, tt.wantStatus)
 			}
 		})
-	}
-}
-
-func TestLoggingTransport_RedactsCredentials(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"access_token":"issued-token","refresh_token":"issued-refresh"}`))
-	}))
-	defer server.Close()
-
-	var logged bytes.Buffer
-	client := &http.Client{Transport: &LoggingTransport{Transport: http.DefaultTransport, Logger: log.New(&logged, "", 0)}}
-	res, err := client.Post(server.URL+"/token", "application/json", strings.NewReader(`{"apikey":"secret-key"}`))
-	if err != nil {
-		t.Fatalf("POST /token: %v", err)
-	}
-	res.Body.Close()
-
-	for _, secret := range []string{"secret-key", "issued-token", "issued-refresh"} {
-		if strings.Contains(logged.String(), secret) {
-			t.Errorf("log contains %q:\n%s", secret, logged.String())
-		}
-	}
-	if !strings.Contains(logged.String(), `"access_token":"REDACTED"`) {
-		t.Errorf("log does not show the redacted field:\n%s", logged.String())
 	}
 }

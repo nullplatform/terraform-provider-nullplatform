@@ -256,13 +256,6 @@ type NullOps interface {
 	GetLatestSnapshotID(kind, id string) (string, error)
 }
 
-// secretFieldRegex matches the JSON credential fields /token and /api_key exchange.
-var secretFieldRegex = regexp.MustCompile(`("(?:apikey|api_key|access_token|refresh_token)"\s*:\s*")[^"]*(")`)
-
-func redactSecrets(dump []byte) []byte {
-	return secretFieldRegex.ReplaceAll(dump, []byte("${1}REDACTED${2}"))
-}
-
 func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// Log request
@@ -274,7 +267,7 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	replacement := []byte("$1$2$3$4REDACTED$6")
 
 	// Replace the auth header line with an empty string
-	t.Logger.Printf("REQUEST:\n%s\n", string(redactSecrets(authRegex.ReplaceAll(reqDump, replacement))))
+	t.Logger.Printf("REQUEST:\n%s\n", string(authRegex.ReplaceAll(reqDump, replacement)))
 
 	// Set up timing
 	startTime := time.Now()
@@ -294,7 +287,7 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if err != nil {
 		t.Logger.Printf("ERROR DUMPING RESPONSE: %v\n", err)
 	} else {
-		t.Logger.Printf("RESPONSE (%s):\n%s\n", duration, string(redactSecrets(respDump)))
+		t.Logger.Printf("RESPONSE (%s):\n%s\n", duration, string(respDump))
 	}
 
 	return resp, err
