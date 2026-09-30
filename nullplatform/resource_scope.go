@@ -241,13 +241,14 @@ func ScopeCreate(d *schema.ResourceData, m any) error {
 		return err
 	}
 
+	// Tracked before the NRN patch, so a failed patch taints the scope instead of orphaning it.
+	d.SetId(strconv.Itoa(s.Id))
+
 	nrnErr := patchNrnForScope(s.Nrn, d, m)
 
 	if nrnErr != nil {
 		return nrnErr
 	}
-
-	d.SetId(strconv.Itoa(s.Id))
 
 	return ScopeRead(d, m)
 }

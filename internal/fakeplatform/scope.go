@@ -5,9 +5,11 @@ import (
 	"strings"
 )
 
-// NrnLog records every PATCH body sent to /nrn, as the client sent it.
+// NrnLog records every PATCH body sent to /nrn, as the client sent it; a
+// non-nil Refuse rejects the next patches.
 type NrnLog struct {
 	Patches []Item
+	Refuse  *Refusal
 }
 
 // RegisterScope mounts /scope and /nrn. The API mints a scope's NRN on create;
@@ -30,6 +32,9 @@ func RegisterScope(s *Server) *NrnLog {
 	s.Register("nrn", "nrn", Hooks{
 		OnPatch: func(_ *Server, existing, patch Item) *Refusal {
 			log.Patches = append(log.Patches, patch)
+			if log.Refuse != nil {
+				return log.Refuse
+			}
 			namespaces := existing["namespaces"].(Item)
 			for key, value := range patch {
 				ns, field, _ := strings.Cut(key, ".")

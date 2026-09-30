@@ -2,6 +2,8 @@ package nullplatform
 
 import (
 	"fmt"
+	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -148,6 +150,38 @@ func TestFunctionalScope_LegacyNrnFieldsPatchUnchanged(t *testing.T) {
 						return nil
 					},
 				),
+			},
+		},
+	})
+}
+
+func TestFunctionalScope_FailedNrnPatchKeepsScopeTracked(t *testing.T) {
+	fake, log := newScopeFake(t)
+	log.Refuse = &fakeplatform.Refusal{Status: http.StatusInternalServerError, Message: "nrn unavailable"}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{
+			{
+				Config:      scopeConfig(fmt.Sprintf(legacyScopeNrnFields, "DEV")),
+				ExpectError: regexp.MustCompile(`error patching nrn resource, got 500`),
+			},
+			{
+				// The tainted scope is replaced, never duplicated next to an orphan.
+				PreConfig: func() { log.Refuse = nil },
+				Config:    scopeConfig(fmt.Sprintf(legacyScopeNrnFields, "DEV")),
+				Check: func(*terraform.State) error {
+					live := 0
+					for _, scope := range fake.Items("scope") {
+						if fakeplatform.Str(scope, "status") != "deleted" {
+							live++
+						}
+					}
+					if live != 1 {
+						return fmt.Errorf("%d live scopes, want 1: a failed NRN patch orphaned the first one", live)
+					}
+					return nil
+				},
 			},
 		},
 	})
