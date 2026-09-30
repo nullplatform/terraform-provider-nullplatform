@@ -15,7 +15,8 @@ type NrnLog struct {
 // RegisterScope mounts /scope and /nrn. The API mints a scope's NRN on create;
 // NRN keys are PATCHed flat ("aws.log_group_name") and read back nested under
 // namespaces.<ns>, which is how GET /nrn/<nrn>?ids=... answers. A fresh NRN
-// holds no namespaces.
+// answers its requested namespaces empty, as the real API does:
+// {"namespaces":{"global":{},"aws":{}}}.
 func RegisterScope(s *Server) *NrnLog {
 	log := &NrnLog{}
 
@@ -24,7 +25,7 @@ func RegisterScope(s *Server) *NrnLog {
 			nrn := fmt.Sprintf("organization=1:account=2:namespace=3:application=%v:scope=%d",
 				item["application_id"], s.collections["scope"].seq+1)
 			item["nrn"] = nrn
-			s.collections["nrn"].items[nrn] = Item{"nrn": nrn, "namespaces": Item{}}
+			s.collections["nrn"].items[nrn] = Item{"nrn": nrn, "namespaces": Item{"global": Item{}, "aws": Item{}}}
 			return nil
 		},
 	})
