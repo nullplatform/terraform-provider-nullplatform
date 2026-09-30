@@ -90,12 +90,13 @@ func (p *frameworkProvider) Configure(ctx context.Context, req provider.Configur
 	resp.EphemeralResourceData = &NullClient{Client: p.httpClient, ApiURL: host, ApiKey: apiKey}
 }
 
-// stringOrEnv mirrors the SDKv2 EnvDefaultFunc on api_key and host.
+// stringOrEnv mirrors the SDKv2 EnvDefaultFunc on api_key and host: the
+// variable only fills an attribute left null, never one set to "".
 func stringOrEnv(v types.String, env string) string {
-	if v.ValueString() != "" {
-		return v.ValueString()
+	if v.IsNull() {
+		return os.Getenv(env)
 	}
-	return os.Getenv(env)
+	return v.ValueString()
 }
 
 func (p *frameworkProvider) Resources(_ context.Context) []func() resource.Resource {

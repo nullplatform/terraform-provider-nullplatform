@@ -44,11 +44,11 @@ func newAccessTokenFake(t *testing.T, accessToken string) *fakeplatform.Server {
 }
 
 // accessTokenConfig echoes the ephemeral result into state, the only way to observe it.
-func accessTokenConfig(fake *fakeplatform.Server, apiKey string) string {
+func accessTokenConfig(fake *fakeplatform.Server, apiKeyLine string) string {
 	return fmt.Sprintf(`
 provider "nullplatform" {
-  host    = %q
-  api_key = %q
+  host = %q
+  %s
 }
 
 ephemeral "nullplatform_access_token" "cli" {}
@@ -58,7 +58,7 @@ provider "echo" {
 }
 
 resource "echo" "token" {}
-`, strings.TrimPrefix(fake.URL(), "https://"), apiKey)
+`, strings.TrimPrefix(fake.URL(), "https://"), apiKeyLine)
 }
 
 func accessTokenTestCase(fake *fakeplatform.Server, steps ...resource.TestStep) resource.TestCase {
@@ -77,7 +77,7 @@ func TestFunctionalAccessToken_ExchangesProviderApiKey(t *testing.T) {
 	fake := newAccessTokenFake(t, token)
 
 	resource.UnitTest(t, accessTokenTestCase(fake, resource.TestStep{
-		Config: accessTokenConfig(fake, functionalApiKey),
+		Config: accessTokenConfig(fake, fmt.Sprintf("api_key = %q", functionalApiKey)),
 		ConfigStateChecks: []statecheck.StateCheck{
 			statecheck.ExpectKnownValue("echo.token", tfjsonpath.New("data").AtMapKey("access_token"), knownvalue.StringExact(token)),
 			statecheck.ExpectKnownValue("echo.token", tfjsonpath.New("data").AtMapKey("expires_at"), knownvalue.StringExact("2030-01-02T03:04:05Z")),
@@ -141,7 +141,7 @@ func TestFunctionalAccessToken_WithoutExpiryLeavesExpiresAtNull(t *testing.T) {
 	fake := newAccessTokenFake(t, signedTestToken(t, jwt.MapClaims{"sub": "agent"}))
 
 	resource.UnitTest(t, accessTokenTestCase(fake, resource.TestStep{
-		Config: accessTokenConfig(fake, functionalApiKey),
+		Config: accessTokenConfig(fake, fmt.Sprintf("api_key = %q", functionalApiKey)),
 		ConfigStateChecks: []statecheck.StateCheck{
 			statecheck.ExpectKnownValue("echo.token", tfjsonpath.New("data").AtMapKey("expires_at"), knownvalue.Null()),
 		},
@@ -152,7 +152,7 @@ func TestFunctionalAccessToken_RejectedApiKeyFails(t *testing.T) {
 	fake := newAccessTokenFake(t, "unused")
 
 	resource.UnitTest(t, accessTokenTestCase(fake, resource.TestStep{
-		Config:      accessTokenConfig(fake, "wrong-key"),
+		Config:      accessTokenConfig(fake, `api_key = "wrong-key"`),
 		ExpectError: regexp.MustCompile(`failed to get access token, got 401`),
 	}))
 }
@@ -164,6 +164,31 @@ func TestFunctionalAccessToken_MissingApiKeyFails(t *testing.T) {
 
 	resource.UnitTest(t, accessTokenTestCase(fake, resource.TestStep{
 		Config:      accessTokenConfig(fake, ""),
+		ExpectError: regexp.MustCompile(`Missing API Key`),
+	}))
+}
+
+func TestFunctionalAccessToken_EnvApiKeyFillsOmittedAttribute(t *testing.T) {
+	t.Setenv("NULLPLATFORM_API_KEY", functionalApiKey)
+	token := signedTestToken(t, jwt.MapClaims{"sub": "agent"})
+	fake := newAccessTokenFake(t, token)
+
+	resource.UnitTest(t, accessTokenTestCase(fake, resource.TestStep{
+		Config: accessTokenConfig(fake, ""),
+		ConfigStateChecks: []statecheck.StateCheck{
+			statecheck.ExpectKnownValue("echo.token", tfjsonpath.New("data").AtMapKey("access_token"), knownvalue.StringExact(token)),
+		},
+	}))
+}
+
+// Like the SDKv2 EnvDefaultFunc, the variable never overrides an api_key set to "".
+func TestFunctionalAccessToken_EmptyApiKeyIgnoresEnv(t *testing.T) {
+	t.Setenv("NULLPLATFORM_API_KEY", functionalApiKey)
+	t.Setenv(NP_API_KEY_ENV, "")
+	fake := newAccessTokenFake(t, "unused")
+
+	resource.UnitTest(t, accessTokenTestCase(fake, resource.TestStep{
+		Config:      accessTokenConfig(fake, `api_key = ""`),
 		ExpectError: regexp.MustCompile(`Missing API Key`),
 	}))
 }
