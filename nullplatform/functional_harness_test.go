@@ -18,6 +18,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
+	"github.com/hashicorp/terraform-plugin-mux/tf5muxserver"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
@@ -42,6 +45,25 @@ func functionalFactories(fake *fakeplatform.Server) map[string]func() (*schema.P
 				return newTestClient(fake.HTTP()), nil
 			}
 			return provider, nil
+		},
+	}
+}
+
+// functionalMuxFactories serves the mux main.go serves, for tests that reach the
+// framework provider (ephemeral resources). The framework side configures from
+// the real provider block; only its transport trusts the fake.
+func functionalMuxFactories(fake *fakeplatform.Server) map[string]func() (tfprotov5.ProviderServer, error) {
+	return map[string]func() (tfprotov5.ProviderServer, error){
+		"nullplatform": func() (tfprotov5.ProviderServer, error) {
+			sdk, _ := functionalFactories(fake)["nullplatform"]()
+			mux, err := tf5muxserver.NewMuxServer(context.Background(),
+				sdk.GRPCProvider,
+				providerserver.NewProtocol5(&frameworkProvider{httpClient: fake.HTTP().Client()}),
+			)
+			if err != nil {
+				return nil, err
+			}
+			return mux.ProviderServer(), nil
 		},
 	}
 }
