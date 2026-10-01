@@ -29,6 +29,15 @@ func configuredBool(d *schema.ResourceData, key string) *bool {
 	return &v
 }
 
+// configuredString reads a string only when it is set in configuration, "" otherwise;
+// an omitted Optional+Computed attribute would otherwise yield its state value.
+func configuredString(d *schema.ResourceData, key string) string {
+	if raw := d.GetRawConfig(); raw.IsNull() || raw.GetAttr(key).IsNull() {
+		return ""
+	}
+	return d.Get(key).(string)
+}
+
 func serializeHelper(value any) (any, error) {
 	rv := reflect.ValueOf(value)
 

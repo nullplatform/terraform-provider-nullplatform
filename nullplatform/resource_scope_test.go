@@ -74,6 +74,34 @@ func TestResourceScope(t *testing.T) {
 	})
 }
 
+// TestResourceScope_WithoutDeprecatedNrnFields creates a scope with none of the deprecated NRN attributes (#79).
+func TestResourceScope_WithoutDeprecatedNrnFields(t *testing.T) {
+	var scopeID int
+	applicationID := os.Getenv("NULLPLATFORM_APPLICATION_ID")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckResourceScopeDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "nullplatform_scope" "test" {
+  null_application_id                  = %s
+  scope_name                           = "acc-test-scope-no-nrn"
+  capabilities_serverless_runtime_id   = "provided.al2"
+  capabilities_serverless_handler_name = "handler"
+}
+`, applicationID),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckResourceScopeExists("nullplatform_scope.test", &scopeID),
+					resource.TestCheckResourceAttrSet("nullplatform_scope.test", "nrn"),
+				),
+			},
+		},
+	})
+}
+
 func testAccCheckResourceScopeExists(n string, scopeID *int) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[n]
