@@ -11,21 +11,52 @@ import (
 const API_KEY_PATH = "/api_key"
 
 type ApiKey struct {
-	ID           int64         `json:"id"`
-	Name         string        `json:"name"`
-	MaskedApiKey string        `json:"masked_api_key"`
-	Tags         []Tag         `json:"tags"`
-	Grants       []ApiKeyGrant `json:"grants"`
-	OwnerID      *int64        `json:"owner_id"`
-	LastUsedAt   *string       `json:"last_used_at"`
-	CreatedAt    string        `json:"created_at"`
-	UpdatedAt    string        `json:"updated_at"`
+	ID           int64             `json:"id"`
+	Name         string            `json:"name"`
+	MaskedApiKey string            `json:"masked_api_key"`
+	Tags         []Tag             `json:"tags"`
+	Grants       []ApiKeyGrantRead `json:"grants"`
+	OwnerID      *int64            `json:"owner_id"`
+	LastUsedAt   *string           `json:"last_used_at"`
+	CreatedAt    string            `json:"created_at"`
+	UpdatedAt    string            `json:"updated_at"`
 }
 
+// ApiKeyGrant is one grant as the API accepts it. Every item carries an NRN
+// plus exactly one shape: an existing role by ID or slug, a literal list of
+// actions, or a set of roles to inherit. The API's oneOf rejects a mix.
+//
+// Actions is deliberately untyped: on its own it is []string, and alongside
+// Inherits it is instead a {add, remove} object applied to the union of the
+// inherited roles. HCL has no union types, so the provider's schema splits
+// that into actions / add_actions / remove_actions and reassembles it here.
 type ApiKeyGrant struct {
-	NRN      string  `json:"nrn"`
-	RoleID   *int64  `json:"role_id,omitempty"`
-	RoleSlug *string `json:"role_slug,omitempty"`
+	NRN      string   `json:"nrn"`
+	RoleID   *int64   `json:"role_id,omitempty"`
+	RoleSlug *string  `json:"role_slug,omitempty"`
+	Actions  any      `json:"actions,omitempty"`
+	Inherits []string `json:"inherits,omitempty"`
+}
+
+// ApiKeyGrantRead is the same grant as the API returns it, which is not the
+// shape it was written in. A grant created from actions or inherits resolves
+// to a role private to the key, and reads back as the action names it stands
+// for: Actions holds the effective set, and the inherited form additionally
+// reports the roles it merged plus the delta applied to them.
+type ApiKeyGrantRead struct {
+	NRN      string                `json:"nrn"`
+	RoleID   *int64                `json:"role_id"`
+	RoleSlug *string               `json:"role_slug"`
+	Actions  []string              `json:"actions"`
+	Inherits []ApiKeyInheritedRole `json:"inherits"`
+	Added    []string              `json:"added"`
+	Removed  []string              `json:"removed"`
+}
+
+type ApiKeyInheritedRole struct {
+	ID             int64  `json:"id"`
+	Slug           string `json:"slug"`
+	OrganizationID int64  `json:"organization_id"`
 }
 
 type CreateApiKeyResponseBody struct {
