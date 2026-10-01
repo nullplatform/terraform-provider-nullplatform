@@ -118,12 +118,7 @@ func Provider() *schema.Provider {
 		}
 
 		c := &NullClient{
-			Client: &http.Client{
-				Transport: &LoggingTransport{
-					Transport: http.DefaultTransport,
-					Logger:    log.New(os.Stdout, "HTTP: \n\n", log.Ldate|log.Ltime),
-				},
-			},
+			Client: newAPIHTTPClient(),
 			ApiKey: apiKey,
 			ApiURL: apiUrl,
 		}
@@ -134,57 +129,85 @@ func Provider() *schema.Provider {
 	return provider
 }
 
-func getAPIKey(d *schema.ResourceData) (string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	if v, ok := d.GetOk(API_KEY); ok {
-		return v.(string), diags
+// newAPIHTTPClient is the API transport both muxed providers use.
+func newAPIHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &LoggingTransport{
+			Transport: http.DefaultTransport,
+			Logger:    log.New(os.Stdout, "HTTP: \n\n", log.Ldate|log.Ltime),
+		},
 	}
-	if v, ok := d.GetOk(NP_API_KEY); ok {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Warning,
-			Summary:  "Deprecated API Key Usage",
-			Detail:   "You are using the deprecated 'np_apikey'. Please update your configuration to use 'api_key' instead.",
-		})
-		return v.(string), diags
+}
+
+// credentialNotice is a configuration warning or error raised while resolving
+// credentials; each muxed provider reports it in its own diagnostics type.
+type credentialNotice struct {
+	Error   bool
+	Summary string
+	Detail  string
+}
+
+func resolveAPIKey(apiKey, npApiKey string) (string, *credentialNotice) {
+	if apiKey != "" {
+		return apiKey, nil
+	}
+	if npApiKey != "" {
+		return npApiKey, &credentialNotice{
+			Summary: "Deprecated API Key Usage",
+			Detail:  "You are using the deprecated 'np_apikey'. Please update your configuration to use 'api_key' instead.",
+		}
 	}
 	if v := os.Getenv(NP_API_KEY_ENV); v != "" {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Warning,
-			Summary:  "Deprecated API Key Environment Variable",
-			Detail:   "You are using the deprecated 'NP_API_KEY' environment variable. Please use 'NULLPLATFORM_API_KEY' instead.",
-		})
-		return v, diags
+		return v, &credentialNotice{
+			Summary: "Deprecated API Key Environment Variable",
+			Detail:  "You are using the deprecated 'NP_API_KEY' environment variable. Please use 'NULLPLATFORM_API_KEY' instead.",
+		}
 	}
-	diags = append(diags, diag.Diagnostic{
-		Severity: diag.Error,
-		Summary:  "Missing API Key",
-		Detail:   "Either 'api_key' or 'np_apikey' must be set. Please provide an API key for authentication.",
-	})
-	return "", diags
+	return "", &credentialNotice{
+		Error:   true,
+		Summary: "Missing API Key",
+		Detail:  "Either 'api_key' or 'np_apikey' must be set. Please provide an API key for authentication.",
+	}
+}
+
+func resolveAPIHost(host, npApiHost string) (string, *credentialNotice) {
+	if host != "" {
+		return host, nil
+	}
+	if npApiHost != "" {
+		return npApiHost, &credentialNotice{
+			Summary: "Deprecated Host Usage",
+			Detail:  "You are using the deprecated 'np_api_host'. Please update your configuration to use 'host' instead.",
+		}
+	}
+	if v := os.Getenv(NP_API_HOST_ENV); v != "" {
+		return v, &credentialNotice{
+			Summary: "Deprecated Host Environment Variable",
+			Detail:  "You are using the deprecated 'NP_API_HOST' environment variable. Please use 'NULLPLATFORM_HOST' instead.",
+		}
+	}
+	return DEFAULT_HOST, nil
+}
+
+func (n *credentialNotice) diagnostics() diag.Diagnostics {
+	if n == nil {
+		return nil
+	}
+	severity := diag.Warning
+	if n.Error {
+		severity = diag.Error
+	}
+	return diag.Diagnostics{{Severity: severity, Summary: n.Summary, Detail: n.Detail}}
+}
+
+func getAPIKey(d *schema.ResourceData) (string, diag.Diagnostics) {
+	v, notice := resolveAPIKey(d.Get(API_KEY).(string), d.Get(NP_API_KEY).(string))
+	return v, notice.diagnostics()
 }
 
 func getAPIHost(d *schema.ResourceData) (string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	if v, ok := d.GetOk(HOST); ok {
-		return v.(string), diags
-	}
-	if v, ok := d.GetOk(NP_API_HOST); ok {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Warning,
-			Summary:  "Deprecated Host Usage",
-			Detail:   "You are using the deprecated 'np_api_host'. Please update your configuration to use 'host' instead.",
-		})
-		return v.(string), diags
-	}
-	if v := os.Getenv(NP_API_HOST_ENV); v != "" {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Warning,
-			Summary:  "Deprecated Host Environment Variable",
-			Detail:   "You are using the deprecated 'NP_API_HOST' environment variable. Please use 'NULLPLATFORM_HOST' instead.",
-		})
-		return v, diags
-	}
-	return DEFAULT_HOST, diags
+	v, notice := resolveAPIHost(d.Get(HOST).(string), d.Get(NP_API_HOST).(string))
+	return v, notice.diagnostics()
 }
 
 func hasErrors(diags diag.Diagnostics) bool {

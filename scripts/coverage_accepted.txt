@@ -34,3 +34,8 @@ nullplatform/resource_service_specification.go:326-327  # d.Set(selectors, list)
 nullplatform/resource_service.go:632  # raw.(*Service) fallthrough
 nullplatform/resource_link.go:389     # raw.(*Link) fallthrough
 nullplatform/data_source_platform_artifact.go:212-213  # d.Set(digest, string) arm
+#
+# Framework Config.Get error arm: frameworkProviderModel declares exactly the
+# provider schema's attributes and types (mux-enforced identical to SDKv2), so
+# decoding the provider config into it cannot fail.
+nullplatform/framework_provider.go:84-85  # req.Config.Get(frameworkProviderModel) arm
