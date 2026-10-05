@@ -53,6 +53,7 @@ func RegisterArchive(s *Server, chains map[string]Chain) {
 						"dimensions already exists - unarchive it, or request its deletion", Str(existing, "id"))
 				}
 			}
+			addOwnerToLinkableTo(item)
 			return nil
 		},
 		OnGet:   func(s *Server, item Item) { progressService(s, item) },
@@ -152,6 +153,9 @@ func patchService(s *Server, item, patch Item, chain Chain) *Refusal {
 	}
 	if patch["attributes"] != nil {
 		item["attributes"] = patch["attributes"]
+	}
+	if patch["linkable_to"] != nil {
+		item["linkable_to"] = patch["linkable_to"]
 	}
 	return nil
 }

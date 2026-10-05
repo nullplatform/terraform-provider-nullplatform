@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -20,6 +21,8 @@ func resourceService() *schema.Resource {
 		ReadContext:   ServiceReadContext,
 		UpdateContext: ServiceUpdateContext,
 		DeleteContext: ServiceDeleteContext,
+
+		CustomizeDiff: linkableToKeepsOwner,
 
 		Importer: &schema.ResourceImporter{
 			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
@@ -56,10 +59,18 @@ func resourceService() *schema.Resource {
 			"linkable_to": {
 				Type:     schema.TypeList,
 				Optional: true,
+				// Computed: the API appends the owning entity_nrn on create, so
+				// the list it holds is never just the configured one (see
+				// linkableToKeepsOwner).
+				Computed: true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
-				Description: "A list of NRN representing the visibility settings for the entity. Specifies what/who can see this entity. Value must match regular expression `^organization=[0-9]+(:account=[0-9]+)?(:namespace=[0-9]+)?(:application=[0-9]+)?(:scope=[0-9]+)?$`.",
+				Description: "A list of NRN representing the visibility settings for the entity. Specifies what/who can see this entity. " +
+					"The owning `entity_nrn` is always included: when it is missing from the list, it is appended last, " +
+					"as the API does on create, so that changing this list never hides the service from its own entity. " +
+					"When omitted, the list the platform holds is kept. " +
+					"Value must match regular expression `^organization=[0-9]+(:account=[0-9]+)?(:namespace=[0-9]+)?(:application=[0-9]+)?(:scope=[0-9]+)?$`.",
 			},
 			"desired_specification_id": {
 				Type:        schema.TypeString,
@@ -196,6 +207,28 @@ func resourceService() *schema.Resource {
 			},
 		},
 	}
+}
+
+// linkableToKeepsOwner plans linkable_to as the configured list with the
+// owning entity_nrn appended last when missing — exactly what the API stores
+// on create. A PATCH replaces linkable_to as sent, so planning the owner in is
+// also what makes Update send it: without it, editing the list stripped the
+// owner and the service vanished from GET /service?nrn=<owner>. An omitted
+// list keeps what the platform holds (Computed).
+func linkableToKeepsOwner(_ context.Context, d *schema.ResourceDiff, _ any) error {
+	raw := d.GetRawConfig()
+	if raw.IsNull() || !raw.IsKnown() || !raw.Type().IsObjectType() || raw.GetAttr("linkable_to").IsNull() {
+		return nil
+	}
+	if !raw.GetAttr("linkable_to").IsWhollyKnown() || !raw.GetAttr("entity_nrn").IsWhollyKnown() {
+		return d.SetNewComputed("linkable_to")
+	}
+	owner := d.Get("entity_nrn").(string)
+	linkable := d.Get("linkable_to").([]any)
+	if slices.Contains(linkable, any(owner)) {
+		return nil
+	}
+	return d.SetNew("linkable_to", append(slices.Clone(linkable), owner))
 }
 
 func ServiceCreateContext(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
