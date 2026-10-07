@@ -48,8 +48,15 @@ jobs:
       - name: vet
         run: go vet ./...
 
+      # The functional tests wait on real terraform processes (1-2 s a step):
+      # the suite takes ~4 minutes with -race on a laptop.
       - name: unit tests with coverage
-        run: go test ./nullplatform/ -count=1 -race -coverprofile=coverage.out -timeout=300s
+        run: go test ./nullplatform/ -count=1 -race -coverprofile=coverage.out -timeout=600s
+
+      # The fake platform's own tests, apart so the profile and the coverage
+      # gate keep measuring nullplatform/ only.
+      - name: fake platform tests
+        run: go test ./internal/... -count=1 -race
 
       - name: coverage summary
         run: go tool cover -func=coverage.out | tail -5

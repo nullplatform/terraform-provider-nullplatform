@@ -1,0 +1,265 @@
+{
+  "version": 4,
+  "terraform_version": "1.15.2",
+  "serial": 9,
+  "lineage": "00000000-0000-0000-0000-000000000001",
+  "outputs": {},
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "nullplatform_approval_action",
+      "name": "deployment_create",
+      "provider": "provider[\"registry.terraform.io/nullplatform/nullplatform\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "account": null,
+            "action": "deployment:create",
+            "application": null,
+            "dimensions": {
+              "environment": "production"
+            },
+            "entity": "deployment",
+            "id": "1001",
+            "namespace": null,
+            "nrn": "organization=1:account=2:namespace=3:application=4",
+            "on_policy_fail": "manual",
+            "on_policy_success": "approve",
+            "policies": null,
+            "scope": null
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "nullplatform_approval_action",
+      "name": "scope_create",
+      "provider": "provider[\"registry.terraform.io/nullplatform/nullplatform\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "account": null,
+            "action": "scope:create",
+            "application": null,
+            "dimensions": {
+              "environment": "production"
+            },
+            "entity": "scope",
+            "id": "1002",
+            "namespace": null,
+            "nrn": "organization=1:account=2:namespace=3:application=4",
+            "on_policy_fail": "manual",
+            "on_policy_success": "approve",
+            "policies": null,
+            "scope": null
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "nullplatform_approval_policy.respect_budget"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "nullplatform_approval_action_policy_association",
+      "name": "PCI",
+      "provider": "provider[\"registry.terraform.io/nullplatform/nullplatform\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "approval_action_id": "1001",
+            "approval_policy_id": "2001",
+            "id": "1001-2001"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "nullplatform_approval_action.deployment_create",
+            "nullplatform_approval_policy.PCI"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "nullplatform_approval_action_policy_association",
+      "name": "coverage",
+      "provider": "provider[\"registry.terraform.io/nullplatform/nullplatform\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "approval_action_id": "1001",
+            "approval_policy_id": "2002",
+            "id": "1001-2002"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "nullplatform_approval_action.deployment_create",
+            "nullplatform_approval_policy.coverage"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "nullplatform_approval_action_policy_association",
+      "name": "respect_budget",
+      "provider": "provider[\"registry.terraform.io/nullplatform/nullplatform\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "approval_action_id": "1002",
+            "approval_policy_id": "2004",
+            "id": "1002-2004"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "nullplatform_approval_action.scope_create",
+            "nullplatform_approval_policy.respect_budget"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "nullplatform_approval_action_policy_association",
+      "name": "security",
+      "provider": "provider[\"registry.terraform.io/nullplatform/nullplatform\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "approval_action_id": "1001",
+            "approval_policy_id": "2003",
+            "id": "1001-2003"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "nullplatform_approval_action.deployment_create",
+            "nullplatform_approval_policy.security"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "nullplatform_approval_policy",
+      "name": "PCI",
+      "provider": "provider[\"registry.terraform.io/nullplatform/nullplatform\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "account": null,
+            "application": null,
+            "conditions": "{\"application.metadata.metadata_application.PCI\":\"No\"}",
+            "id": "2001",
+            "name": "PCI",
+            "namespace": null,
+            "nrn": "organization=1:account=2:namespace=3:application=4",
+            "scope": null,
+            "selector": "{}"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "nullplatform_approval_policy",
+      "name": "coverage",
+      "provider": "provider[\"registry.terraform.io/nullplatform/nullplatform\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "account": null,
+            "application": null,
+            "conditions": "{\"build.metadata.coverage.code.coverage\":{\"$gte\":80}}",
+            "id": "2002",
+            "name": "Code Coverage",
+            "namespace": null,
+            "nrn": "organization=1:account=2:namespace=3:application=4",
+            "scope": null,
+            "selector": "{}"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "nullplatform_approval_policy",
+      "name": "respect_budget",
+      "provider": "provider[\"registry.terraform.io/nullplatform/nullplatform\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "account": null,
+            "application": null,
+            "conditions": "{\"application\":{\"$expr\":{\"$lte\":[\"$application.metadata.finops.current_total_cost\",\"$application.metadata.finops.budget_assigned\"]}}}",
+            "id": "2004",
+            "name": "Respect Budget",
+            "namespace": null,
+            "nrn": "organization=1:account=2:namespace=3:application=4",
+            "scope": null,
+            "selector": "{}"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "nullplatform_approval_policy",
+      "name": "security",
+      "provider": "provider[\"registry.terraform.io/nullplatform/nullplatform\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "account": null,
+            "application": null,
+            "conditions": "{\"build.metadata.security.security.vulnerabilities.critical\":{\"$eq\":0}}",
+            "id": "2003",
+            "name": "Security",
+            "namespace": null,
+            "nrn": "organization=1:account=2:namespace=3:application=4",
+            "scope": null,
+            "selector": "{}"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}

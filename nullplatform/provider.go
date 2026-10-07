@@ -62,6 +62,7 @@ func Provider() *schema.Provider {
 			"nullplatform_approval_policy":                    resourceApprovalPolicy(),
 			"nullplatform_approval_action_policy_association": resourceApprovalActionPolicyAssociation(),
 			"nullplatform_capability":                         resourceCapability(),
+			"nullplatform_checklist_specification":            resourceChecklistSpecification(),
 			"nullplatform_deployment_strategy":                resourceDeploymentStrategy(),
 			"nullplatform_scope_domain":                       resourceScopeDomain(),
 			"nullplatform_entity_hook_action":                 resourceEntityHookAction(),
@@ -89,6 +90,8 @@ func Provider() *schema.Provider {
 			"nullplatform_provider_specification":             resourceProviderSpecification(),
 			"nullplatform_artifact":                           resourcePlatformArtifact(),
 			"nullplatform_package":                            resourcePackage(),
+
+			"nullplatform_approval_action_checklist_specification_association": resourceApprovalActionChecklistSpecificationAssociation(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"nullplatform_account":               dataSourceAccount(),

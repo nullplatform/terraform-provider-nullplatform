@@ -1,0 +1,70 @@
+{
+  "version": 4,
+  "terraform_version": "1.15.2",
+  "serial": 3,
+  "lineage": "00000000-0000-0000-0000-000000000002",
+  "outputs": {},
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "nullplatform_approval_action",
+      "name": "deployment_create",
+      "provider": "provider[\"registry.terraform.io/nullplatform/nullplatform\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "account": null,
+            "action": "deployment:create",
+            "application": null,
+            "dimensions": {
+              "environment": "production"
+            },
+            "entity": "deployment",
+            "id": "1001",
+            "namespace": null,
+            "nrn": "organization=1:account=2:namespace=3:application=4",
+            "on_policy_fail": "manual",
+            "on_policy_success": "approve",
+            "policies": [
+              "2001"
+            ],
+            "scope": null
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "nullplatform_approval_policy.coverage"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "nullplatform_approval_policy",
+      "name": "coverage",
+      "provider": "provider[\"registry.terraform.io/nullplatform/nullplatform\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "account": null,
+            "application": null,
+            "conditions": "{\"build.metadata.coverage.code.coverage\":{\"$gte\":80}}",
+            "id": "2001",
+            "name": "coverage",
+            "namespace": null,
+            "nrn": "organization=1:account=2:namespace=3:application=4",
+            "scope": null,
+            "selector": "{}"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}

@@ -3,12 +3,15 @@
 page_title: "nullplatform_approval_action_policy_association Resource - nullplatform"
 subcategory: ""
 description: |-
-  The approvalactionpolicy_association resource allows you to manage a 1:1 association between an approval action and a policy
+  The approvalactionpolicy_association resource allows you to manage a 1:1 association between an approval action and a policy.
+  ~> Note: An approval action linked to a checklist specification takes no policies. Creating an association waits up to a minute for the action's link to be removed, as when going back to policies in one apply. While the action is linked, refreshing the association warns that it has no effect.
 ---
 
 # nullplatform_approval_action_policy_association (Resource)
 
-The approval_action_policy_association resource allows you to manage a 1:1 association between an approval action and a policy
+The approval_action_policy_association resource allows you to manage a 1:1 association between an approval action and a policy.
+
+~> **Note:** An approval action linked to a checklist specification takes no policies. Creating an association waits up to a minute for the action's link to be removed, as when going back to policies in one apply. While the action is linked, refreshing the association warns that it has no effect.
 
 ## Example Usage
 

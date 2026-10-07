@@ -9,7 +9,7 @@ terraform {
 provider "nullplatform" {}
 
 resource "nullplatform_approval_policy" "example_policy" {
-  nrn  = "organization=12551165411:account=2:namespace=3:application=123"
+  nrn  = "organization=1:account=2:namespace=3:application=4"
   name = "Require approval in production"
   conditions = jsonencode({
     "context.dimensions.environment" = { "$eq" = "production" }
@@ -17,7 +17,7 @@ resource "nullplatform_approval_policy" "example_policy" {
 }
 
 resource "nullplatform_approval_action" "deployment_create" {
-  nrn    = "organization=12551165411:account=2:namespace=3:application=123"
+  nrn    = "organization=1:account=2:namespace=3:application=4"
   entity = "deployment"
   action = "deployment:create"
 
@@ -34,7 +34,7 @@ resource "nullplatform_approval_action" "deployment_create" {
 }
 
 resource "nullplatform_approval_action" "scope_delete" {
-  nrn    = "organization=12551165411:account=2:namespace=3:application=123"
+  nrn    = "organization=1:account=2:namespace=3:application=4"
   entity = "scope"
   action = "scope:delete"
 
@@ -65,4 +65,18 @@ resource "nullplatform_approval_action" "scope_create" {
   policies = [
     nullplatform_approval_policy.example_policy.id
   ]
+}
+
+# Decided by a checklist specification instead of policies: linked by
+# nullplatform_approval_action_checklist_specification_association.
+resource "nullplatform_approval_action" "deployment_create_checklist" {
+  nrn    = "organization=1:account=2:namespace=3:application=4"
+  entity = "deployment"
+  action = "deployment:create"
+
+  dimensions = {
+    environment = "staging"
+  }
+
+  on_checklist_fail = "manual"
 }

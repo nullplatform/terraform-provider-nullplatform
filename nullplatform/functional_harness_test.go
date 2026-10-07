@@ -49,6 +49,21 @@ func functionalFactories(fake *fakeplatform.Server) map[string]func() (*schema.P
 	}
 }
 
+// functionalFactoriesWith serves the REAL provider with ops as its client: the
+// fake's client wrapped, for a test that cuts an operation where the fake
+// cannot.
+func functionalFactoriesWith(ops NullOps) map[string]func() (*schema.Provider, error) {
+	return map[string]func() (*schema.Provider, error){
+		"nullplatform": func() (*schema.Provider, error) {
+			provider := Provider()
+			provider.ConfigureContextFunc = func(_ context.Context, _ *schema.ResourceData) (any, diag.Diagnostics) {
+				return ops, nil
+			}
+			return provider, nil
+		},
+	}
+}
+
 // functionalMuxFactories serves the mux main.go serves, for tests that reach the
 // framework provider (ephemeral resources). The framework side configures from
 // the real provider block; only its transport trusts the fake.

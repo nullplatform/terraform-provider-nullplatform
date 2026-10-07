@@ -2,11 +2,13 @@ package nullplatform
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
 func resourceApprovalAction() *schema.Resource {
@@ -29,12 +31,14 @@ func resourceApprovalAction() *schema.Resource {
 			"entity": {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "The entity to which this action applies. Example: `deployment`.",
+				ForceNew:    true,
+				Description: "The entity to which this action applies. Example: `deployment`. Changing it replaces the action.",
 			},
 			"action": {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "The action to which this action applies. Example: `deployment:create`",
+				ForceNew:    true,
+				Description: "The action to which this action applies. Example: `deployment:create`. Changing it replaces the action.",
 			},
 			"dimensions": {
 				Type:     schema.TypeMap,
@@ -46,14 +50,34 @@ func resourceApprovalAction() *schema.Resource {
 				Description: "A key-value map with the runtime configuration dimensions that apply to this scope.",
 			},
 			"on_policy_success": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The action to be taken on policy success. Possible values: [`approve`, `manual`]",
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+				Description: "The action to be taken on policy success. Possible values: [`approve`, `manual`]. When omitted, the API sets `manual`; " +
+					"removing it later keeps the current value: set `manual` to go back to the default.",
 			},
 			"on_policy_fail": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The action to be taken on policy failure. Possible values: [`manual`, `deny`]",
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+				Description: "The action to be taken on policy failure. Possible values: [`manual`, `deny`]. When omitted, the API sets `manual`; " +
+					"removing it later keeps the current value: set `manual` to go back to the default.",
+			},
+			"on_checklist_fail": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.StringInSlice([]string{"deny", "pending", "manual"}, false),
+				Description: "What happens to a request when the checklist of the linked specification fails. Possible values: " +
+					"[`deny`, `pending`, `manual`]. When omitted, linking a specification sets it: `deny` if `on_policy_fail` is " +
+					"`deny`, `pending` otherwise. Unlinking leaves it as it is, and so does removing it later: set the value wanted instead.",
+			},
+			"checklist_specification_id": {
+				Type:     schema.TypeString,
+				Computed: true,
+				Description: "The checklist specification version (`spec_…`) the action is linked to, if any, managed by " +
+					"`nullplatform_approval_action_checklist_specification_association`. While the action is linked, `policies` " +
+					"is not read back.",
 			},
 			"policies": {
 				Type:        schema.TypeSet,
@@ -80,8 +104,10 @@ func ApprovalActionCreate(d *schema.ResourceData, m any) error {
 	}
 	entity := d.Get("entity").(string)
 	action := d.Get("action").(string)
-	onPolicySuccess := d.Get("on_policy_success").(string)
-	onPolicyFail := d.Get("on_policy_fail").(string)
+	// What the configuration omits goes out omitted: the API sets its defaults.
+	// On a create there is no state, so d.Get would give "" too.
+	onPolicySuccess := configuredString(d, "on_policy_success")
+	onPolicyFail := configuredString(d, "on_policy_fail")
 	policies := d.Get("policies").(*schema.Set)
 
 	dimensionsMap := d.Get("dimensions").(map[string]any)
@@ -98,6 +124,7 @@ func ApprovalActionCreate(d *schema.ResourceData, m any) error {
 		Dimensions:      dimensions,
 		OnPolicySuccess: onPolicySuccess,
 		OnPolicyFail:    onPolicyFail,
+		OnChecklistFail: configuredString(d, "on_checklist_fail"),
 	}
 
 	approvalAction, err := nullOps.CreateApprovalAction(newApprovalAction)
@@ -124,7 +151,11 @@ func ApprovalActionRead(d *schema.ResourceData, m any) error {
 
 	approvalAction, err := nullOps.GetApprovalAction(approvalActionId)
 	if err != nil {
-		if approvalAction.Status == "deleted" {
+		// Gone: deleted (the API keeps it, with status "deleted") or answered 404.
+		// Any other error, a 401 included, keeps the action in the state.
+		// GetApprovalAction returns a non-nil action with an error only when its
+		// status is "deleted", so the status check restates the nil check.
+		if errors.Is(err, errApprovalActionNotFound) || (approvalAction != nil && approvalAction.Status == "deleted") {
 			d.SetId("")
 			return nil
 		}
@@ -155,6 +186,13 @@ func ApprovalActionRead(d *schema.ResourceData, m any) error {
 		return err
 	}
 
+	// With a specification linked, the API keeps listing the policies the
+	// action no longer uses: policies is not read.
+	if err := errors.Join(d.Set("on_checklist_fail", approvalAction.OnChecklistFail),
+		d.Set("checklist_specification_id", approvalAction.ChecklistSpecificationId)); err != nil || approvalAction.ChecklistSpecificationId != "" {
+		return err
+	}
+
 	policyIds := make([]string, len(approvalAction.Policies))
 	for i, policy := range approvalAction.Policies {
 		if policy != nil {
@@ -173,30 +211,9 @@ func ApprovalActionUpdate(d *schema.ResourceData, m any) error {
 	nullOps := m.(NullOps)
 	approvalActionId := d.Id()
 
+	// nrn, entity, action and dimensions force a replacement: the PATCH maps
+	// only the on_* callbacks, and carries only the ones that changed.
 	approvalAction := &ApprovalAction{}
-
-	if d.HasChange("nrn") {
-		approvalAction.Nrn = d.Get("nrn").(string)
-	}
-
-	if d.HasChange("entity") {
-		approvalAction.Entity = d.Get("entity").(string)
-	}
-
-	if d.HasChange("action") {
-		approvalAction.Entity = d.Get("action").(string)
-	}
-
-	if d.HasChange("dimensions") {
-		dimensionsMap := d.Get("dimensions").(map[string]interface{})
-
-		dimensions := make(map[string]string)
-		for key, value := range dimensionsMap {
-			dimensions[key] = value.(string)
-		}
-
-		approvalAction.Dimensions = dimensions
-	}
 
 	if d.HasChange("on_policy_success") {
 		approvalAction.OnPolicySuccess = d.Get("on_policy_success").(string)
@@ -206,7 +223,11 @@ func ApprovalActionUpdate(d *schema.ResourceData, m any) error {
 		approvalAction.OnPolicyFail = d.Get("on_policy_fail").(string)
 	}
 
-	if !reflect.DeepEqual(*approvalAction, Scope{}) {
+	if d.HasChange("on_checklist_fail") {
+		approvalAction.OnChecklistFail = d.Get("on_checklist_fail").(string)
+	}
+
+	if !reflect.DeepEqual(*approvalAction, ApprovalAction{}) {
 		err := nullOps.PatchApprovalAction(approvalActionId, approvalAction)
 		if err != nil {
 			return err
