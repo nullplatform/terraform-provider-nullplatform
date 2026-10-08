@@ -80,8 +80,13 @@ func resourceNotificationChannel() *schema.Resource {
 								Schema: map[string]*schema.Schema{
 									"api_key": {
 										Type:      schema.TypeString,
-										Required:  true,
+										Optional:  true,
 										Sensitive: true,
+										Description: "API key the platform exchanges for a token to send commands to the agent. " +
+											"When omitted, the platform creates and manages a credential for the channel holding only the " +
+											"`controlplane:agent-dispatcher` role on the channel NRN; the caller must be able to assign that role. " +
+											"Removing it from an existing channel converts the channel to the managed credential; " +
+											"setting it on a managed channel switches back to this key and revokes the managed one.",
 									},
 									"command": {
 										Type:     schema.TypeList,
@@ -268,7 +273,9 @@ func NotificationChannelCreate(d *schema.ResourceData, m any) error {
 						}
 					}
 
-					flatConfig["api_key"] = agentMap["api_key"]
+					if apiKey, ok := agentMap["api_key"].(string); ok && apiKey != "" {
+						flatConfig["api_key"] = apiKey
+					}
 					flatConfig["command"] = map[string]any{
 						"data": dataConfig,
 						"type": commands[0].(map[string]any)["type"],
@@ -527,7 +534,9 @@ func NotificationChannelUpdate(d *schema.ResourceData, m any) error {
 							}
 						}
 
-						flatConfig["api_key"] = agentMap["api_key"]
+						if apiKey, ok := agentMap["api_key"].(string); ok && apiKey != "" {
+							flatConfig["api_key"] = apiKey
+						}
 						flatConfig["command"] = map[string]any{
 							"data": dataConfig,
 							"type": command[0].(map[string]any)["type"],

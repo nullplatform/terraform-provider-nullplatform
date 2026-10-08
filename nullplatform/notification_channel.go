@@ -27,8 +27,6 @@ func (c *NullClient) CreateNotificationChannel(notification *NotificationChannel
 		return nil, err
 	}
 
-	fmt.Printf("Request body: %s\n", buf.String())
-
 	res, err := c.MakeRequest("POST", NOTIFICATION_CHANNEL_PATH, &buf)
 	if err != nil {
 		return nil, err
@@ -78,8 +76,6 @@ func (c *NullClient) UpdateNotificationChannel(notificationId string, notificati
 	if err != nil {
 		return err
 	}
-
-	fmt.Printf("Request body: %s\n", buf.String())
 
 	path := fmt.Sprintf("%s/%s", NOTIFICATION_CHANNEL_PATH, notificationId)
 	res, err := c.MakeRequest("PATCH", path, &buf)

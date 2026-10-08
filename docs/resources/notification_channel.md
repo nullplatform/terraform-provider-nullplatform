@@ -168,11 +168,11 @@ Optional:
 
 Required:
 
-- `api_key` (String, Sensitive)
 - `command` (Block List, Min: 1, Max: 1) (see [below for nested schema](#nestedblock--configuration--agent--command))
 
 Optional:
 
+- `api_key` (String, Sensitive) API key the platform exchanges for a token to send commands to the agent. When omitted, the platform creates and manages a credential for the channel holding only the `controlplane:agent-dispatcher` role on the channel NRN; the caller must be able to assign that role. Removing it from an existing channel converts the channel to the managed credential; setting it on a managed channel switches back to this key and revokes the managed one.
 - `selector` (Map of String) Selector for agent
 
 <a id="nestedblock--configuration--agent--command"></a>
