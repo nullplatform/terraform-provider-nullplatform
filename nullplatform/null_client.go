@@ -134,6 +134,14 @@ type NullOps interface {
 
 	AssociatePolicyWithAction(approvalActionId, approvalPolicyID string) error
 	DisassociatePolicyFromAction(approvalActionId, approvalPolicyID string) error
+	LinkChecklistSpecification(approvalActionId, specificationId string) error
+	UnlinkChecklistSpecification(approvalActionId string) error
+
+	CreateChecklistSpecification(spec *ChecklistSpecification) (*ChecklistSpecification, error)
+	GetChecklistSpecification(id string) (*ChecklistSpecification, error)
+	PatchChecklistSpecification(id string, spec *ChecklistSpecification) (*ChecklistSpecification, error)
+	DeleteChecklistSpecification(id string) error
+	ListChecklistSpecifications(nrn string) ([]ChecklistSpecification, error)
 
 	CreateEntityHookAction(action *EntityHookAction) (*EntityHookAction, error)
 	PatchEntityHookAction(entityHookActionId string, action *EntityHookAction) error
@@ -263,6 +271,40 @@ func redactSecrets(dump []byte) []byte {
 	return secretFieldRegex.ReplaceAll(dump, []byte("${1}REDACTED${2}"))
 }
 
+// authHeaderRegex matches the Authorization line of a request dump.
+// The value stops at the line's end: a greedy (.*) took the \r of a \r\n.
+var authHeaderRegex = regexp.MustCompile(`(?i)(Authorization:)(\s*)(Bearer|Basic|Digest|\S+)?(\s*)([^\r\n]*)(\r?\n)`)
+
+// authHeaderReplacement keeps the header's name and scheme and labels the
+// value.
+var authHeaderReplacement = []byte("$1$2$3${4}REDACTED$6")
+
+// credentialRegex matches a credential in text that echoes a request without
+// its line breaks (a gateway's error page, an error message): an
+// Authorization header's value, or a scheme followed by a token too long to be
+// a word, so "Digest auth required" stays as it is. The 16-character floor
+// assumes the API's tokens, which are JWTs: a shorter token after a scheme,
+// outside an Authorization header, is not caught.
+var credentialRegex = regexp.MustCompile(`(?i)(\bauthorization\s*:\s*(?:(?:bearer|basic|digest)\s+)?)[^\s"'<>),;]+|\b((?:bearer|basic|digest)\s+)[A-Za-z0-9\-._~+/=]{16,}`)
+
+// bareJWTRegex matches a JWT with no scheme before it ("jwt expired: <token>"):
+// three base64url segments, the first a JSON header, which encodes to "eyJ".
+var bareJWTRegex = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`)
+
+// redactCredentials is the logs' redaction for text that may echo the
+// request: the Authorization line, a credential anywhere, a bare JWT and the
+// token fields.
+func redactCredentials(body []byte) []byte {
+	body = authHeaderRegex.ReplaceAll(body, authHeaderReplacement)
+	body = credentialRegex.ReplaceAll(body, []byte("${1}${2}REDACTED"))
+	return redactSecrets(bareJWTRegex.ReplaceAll(body, []byte("REDACTED")))
+}
+
+// redactMessage is redactCredentials for an error message.
+func redactMessage(message string) string {
+	return string(redactCredentials([]byte(message)))
+}
+
 func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// Log request
@@ -270,11 +312,8 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if err != nil {
 		return nil, err
 	}
-	authRegex := regexp.MustCompile(`(?i)(Authorization:)(\s*)(Bearer|Basic|Digest|\S+)?(\s*)(.*)(\r?\n)`)
-	replacement := []byte("$1$2$3$4REDACTED$6")
-
 	// Replace the auth header line with an empty string
-	t.Logger.Printf("REQUEST:\n%s\n", string(redactSecrets(authRegex.ReplaceAll(reqDump, replacement))))
+	t.Logger.Printf("REQUEST:\n%s\n", string(redactSecrets(authHeaderRegex.ReplaceAll(reqDump, authHeaderReplacement))))
 
 	// Set up timing
 	startTime := time.Now()
@@ -294,7 +333,7 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if err != nil {
 		t.Logger.Printf("ERROR DUMPING RESPONSE: %v\n", err)
 	} else {
-		t.Logger.Printf("RESPONSE (%s):\n%s\n", duration, string(redactSecrets(respDump)))
+		t.Logger.Printf("RESPONSE (%s):\n%s\n", duration, string(redactCredentials(respDump)))
 	}
 
 	return resp, err

@@ -201,3 +201,65 @@ func TestLoggingTransport_RedactsCredentials(t *testing.T) {
 		t.Errorf("log does not show the redacted field:\n%s", logged.String())
 	}
 }
+
+// echoedJWT is a synthetic JWT: {"alg":"HS256"}, {} and a signature.
+const echoedJWT = "eyJhbGciOiJIUzI1NiJ9.e30.c2ln"
+
+// echoedCredentials are texts that carry the credential, with or without a
+// scheme before it, and what each one reads redacted.
+var echoedCredentials = map[string]struct{ text, redacted string }{
+	"page echoing the header":   {"<html>upstream (Authorization: Bearer " + echoedJWT + ")</html>", "(Authorization: Bearer REDACTED)"},
+	"message echoing the token": {`{"message":"token Bearer ` + echoedJWT + ` rejected"}`, "token Bearer REDACTED rejected"},
+	"message with a bare token": {`{"message":"jwt expired: ` + echoedJWT + `"}`, `jwt expired: REDACTED"}`},
+	"page with a bare token":    {"<html>bad token " + echoedJWT + "</html>", "<html>bad token REDACTED</html>"},
+}
+
+// A response that echoes the request's credential — a gateway's error page,
+// an error message — is logged redacted, as its error is.
+func TestLoggingTransport_RedactsEchoedCredentials(t *testing.T) {
+	for name, echoed := range echoedCredentials {
+		body := echoed.text
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusBadGateway)
+				_, _ = w.Write([]byte(body))
+			}))
+			defer server.Close()
+
+			var logged bytes.Buffer
+			client := &http.Client{Transport: &LoggingTransport{Transport: http.DefaultTransport, Logger: log.New(&logged, "", 0)}}
+			res, err := client.Get(server.URL + "/approval/action/1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			res.Body.Close()
+
+			if strings.Contains(logged.String(), echoedJWT) || !strings.Contains(logged.String(), echoed.redacted) {
+				t.Errorf("log shows the token, or not %q:\n%s", echoed.redacted, logged.String())
+			}
+		})
+	}
+}
+
+// An error message is redacted as the log is, and a text with no credential
+// in it, even one shaped like a token, is left as it is.
+func TestRedactMessage_EchoedCredentials(t *testing.T) {
+	for name, echoed := range echoedCredentials {
+		if got := redactMessage(echoed.text); strings.Contains(got, echoedJWT) || !strings.Contains(got, echoed.redacted) {
+			t.Errorf("%s: redacted %q, want %q in it", name, got, echoed.redacted)
+		}
+	}
+	for _, text := range []string{"Digest auth required", "eyJ is how a JSON object starts in base64", "a.b.c is not a token"} {
+		if got := redactMessage(text); got != text {
+			t.Errorf("redacted %q to %q, want it unchanged", text, got)
+		}
+	}
+}
+
+// An echoed Authorization line keeps its name and scheme and labels the value.
+func TestRedactCredentials_AuthorizationLine(t *testing.T) {
+	got := string(redactCredentials([]byte("GET /approval/action/1 HTTP/1.1\r\nAuthorization: Bearer test-token\r\nHost: api\r\n")))
+	if want := "GET /approval/action/1 HTTP/1.1\r\nAuthorization: Bearer REDACTED\r\nHost: api\r\n"; got != want {
+		t.Errorf("redacted %q, want %q", got, want)
+	}
+}

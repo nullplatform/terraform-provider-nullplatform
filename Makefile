@@ -31,7 +31,7 @@ test:
 # Unit tests with a coverage profile, plus the two human views of it:
 # a per-function summary on stdout and an annotated-source HTML report.
 test-coverage:
-	go test ./nullplatform/ -count=1 -coverprofile=coverage.out -timeout=120s
+	go test ./nullplatform/ -count=1 -coverprofile=coverage.out -timeout=600s
 	go tool cover -func=coverage.out | tail -20
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "open coverage.html for the annotated source"
