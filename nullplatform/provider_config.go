@@ -69,7 +69,10 @@ func (c *NullClient) PatchProviderConfig(providerConfigId string, p *ProviderCon
 		return fmt.Errorf("failed to encode provider config: %v", err)
 	}
 
-	res, err := c.MakeRequest("PATCH", path, &buf)
+	// PUT, not PATCH: the request carries the full `attributes` document, and only a replace
+	// drops the attributes that were removed from the configuration. A PATCH merges, so a
+	// removed attribute would linger in the provider forever.
+	res, err := c.MakeRequest("PUT", path, &buf)
 	if err != nil {
 		return fmt.Errorf("failed to make API request: %v", err)
 	}
