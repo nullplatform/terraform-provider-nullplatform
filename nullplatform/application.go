@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 )
 
 const APPLICATION_PATH = "/application"
@@ -108,15 +109,22 @@ func (c *NullClient) GetApplication(appId string) (*Application, error) {
 	}
 	defer res.Body.Close()
 
-	app := &Application{}
-	derr := json.NewDecoder(res.Body).Decode(app)
-
-	if derr != nil {
-		return nil, derr
+	// Check the status before decoding: an error body carries a numeric
+	// "status" that does not fit Application.Status, which used to hide the
+	// real response (e.g. a 404 for an application deleted outside Terraform).
+	if res.StatusCode != http.StatusOK {
+		var nErr NullErrors
+		_ = json.NewDecoder(res.Body).Decode(&nErr)
+		if res.StatusCode == http.StatusNotFound {
+			id, _ := strconv.Atoi(appId)
+			return nil, &ResourceNotFoundError{ApiType: "application", ID: id, Message: nErr.Message}
+		}
+		return nil, fmt.Errorf("error getting application resource, got %d for %s: %s", res.StatusCode, appId, nErr.Message)
 	}
 
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error getting application resource, got %d for %s", res.StatusCode, appId)
+	app := &Application{}
+	if err := json.NewDecoder(res.Body).Decode(app); err != nil {
+		return nil, err
 	}
 
 	return app, nil
