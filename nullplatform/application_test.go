@@ -139,3 +139,33 @@ func TestApplicationRead_StatusDeletedIsRemovedFromState(t *testing.T) {
 		t.Errorf("expected the resource to be removed from state, id is %q", d.Id())
 	}
 }
+
+func TestGetApplication_ServerErrorIsReturned(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"message":"boom"}`))
+	}))
+	defer server.Close()
+
+	c := newTestClient(server)
+	_, err := c.GetApplication("7")
+	if err == nil {
+		t.Fatal("expected error on 500, got nil")
+	}
+	if _, ok := IsResourceNotFoundError(err); ok {
+		t.Fatalf("a 500 must not be reported as not found, got %v", err)
+	}
+}
+
+func TestGetApplication_InvalidBodyIsReturned(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`not json`))
+	}))
+	defer server.Close()
+
+	c := newTestClient(server)
+	if _, err := c.GetApplication("7"); err == nil {
+		t.Fatal("expected decode error, got nil")
+	}
+}
