@@ -151,7 +151,17 @@ func ApplicationRead(ctx context.Context, d *schema.ResourceData, m interface{})
 
 	app, err := nullOps.GetApplication(appId)
 	if err != nil {
+		// Deleted outside Terraform: drop it from state so the plan proposes
+		// recreating it instead of failing.
+		if _, ok := IsResourceNotFoundError(err); ok {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
+	}
+	if app.Status == "deleted" {
+		d.SetId("")
+		return nil
 	}
 
 	if err := d.Set("name", app.Name); err != nil {
