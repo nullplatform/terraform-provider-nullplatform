@@ -285,18 +285,26 @@ func (c *NullClient) FindPackage(nrn, slug string) (*Package, error) {
 	return response.Results[0], nil
 }
 
-func (c *NullClient) ListPackageRevisions(packageID string) ([]*PackageRevision, error) {
-	path := fmt.Sprintf("%s/%s/revisions", PACKAGE_PATH, packageID)
-
-	body, err := c.getJSON(path, "package revisions")
+// FindVisiblePackage resolves a package by slug among the packages visible at
+// an NRN (the listing's visible_to filter), not merely owned there: a package
+// published for every organization is owned by another organization, so an
+// owner lookup can never return it.
+func (c *NullClient) FindVisiblePackage(visibleAt, slug string) (*Package, error) {
+	packages, err := listAllPages[Package](c, PACKAGE_PATH, map[string]string{"visible_to": visibleAt, "slug": slug}, "packages")
 	if err != nil {
 		return nil, err
 	}
-
-	response := &packageRevisionListResponse{}
-	if err := json.Unmarshal(body, response); err != nil {
-		return nil, fmt.Errorf("error decoding package revision list: %v", err)
+	switch len(packages) {
+	case 0:
+		return nil, fmt.Errorf("no package with slug %s is visible at %s", slug, visibleAt)
+	case 1:
+		return packages[0], nil
+	default:
+		return nil, fmt.Errorf("%d packages with slug %s are visible at %s; look it up by its owner nrn instead", len(packages), slug, visibleAt)
 	}
+}
 
-	return response.Results, nil
+func (c *NullClient) ListPackageRevisions(packageID string) ([]*PackageRevision, error) {
+	path := fmt.Sprintf("%s/%s/revisions", PACKAGE_PATH, packageID)
+	return listAllPages[PackageRevision](c, path, map[string]string{}, "package revisions")
 }

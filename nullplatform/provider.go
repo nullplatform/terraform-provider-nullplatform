@@ -90,6 +90,7 @@ func Provider() *schema.Provider {
 			"nullplatform_provider_specification":             resourceProviderSpecification(),
 			"nullplatform_artifact":                           resourcePlatformArtifact(),
 			"nullplatform_package":                            resourcePackage(),
+			"nullplatform_package_installation":               resourcePackageInstallation(),
 
 			"nullplatform_approval_action_checklist_specification_association": resourceApprovalActionChecklistSpecificationAssociation(),
 		},

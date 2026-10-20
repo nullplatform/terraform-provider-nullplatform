@@ -69,6 +69,7 @@ func TestProvider_HasChildResources(t *testing.T) {
 		"nullplatform_provider_specification",
 		"nullplatform_artifact",
 		"nullplatform_package",
+		"nullplatform_package_installation",
 	}
 
 	resources := nullplatform.Provider().ResourcesMap

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 )
 
 const (
@@ -139,35 +140,12 @@ func (c *NullClient) ListPlatformArtifacts(nrn, artifactType string) ([]*Platfor
 		params["type"] = artifactType
 	}
 
-	path := fmt.Sprintf("%s%s", ARTIFACT_PATH, c.PrepareQueryString(params))
-
-	body, err := c.getJSON(path, "artifacts")
-	if err != nil {
-		return nil, err
-	}
-
-	response := &platformArtifactListResponse{}
-	if err := json.Unmarshal(body, response); err != nil {
-		return nil, fmt.Errorf("error decoding artifact list: %v", err)
-	}
-
-	return response.Results, nil
+	return listAllPages[PlatformArtifact](c, ARTIFACT_PATH, params, "artifacts")
 }
 
 func (c *NullClient) ListPlatformArtifactRevisions(artifactID string) ([]*PlatformArtifactRevision, error) {
 	path := fmt.Sprintf("%s/%s/revisions", ARTIFACT_PATH, artifactID)
-
-	body, err := c.getJSON(path, "artifact revisions")
-	if err != nil {
-		return nil, err
-	}
-
-	response := &platformArtifactRevisionListResponse{}
-	if err := json.Unmarshal(body, response); err != nil {
-		return nil, fmt.Errorf("error decoding artifact revision list: %v", err)
-	}
-
-	return response.Results, nil
+	return listAllPages[PlatformArtifactRevision](c, path, map[string]string{}, "artifact revisions")
 }
 
 // getJSON performs a GET and returns the raw body on 200, mapping API error
@@ -193,4 +171,35 @@ func (c *NullClient) getJSON(path, entity string) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+// listPageSize is how many items a listing asks for per page.
+const listPageSize = 100
+
+// listAllPages walks a paged listing (`limit`/`offset`, `{ results }`) until a
+// page comes back short, and returns every item. Lookups that search a listing
+// must see all of it: the API answers 30 items by default, and trusting the
+// first page made a lookup fail as soon as a listing grew past it.
+func listAllPages[T any](c *NullClient, path string, params map[string]string, entity string) ([]*T, error) {
+	var all []*T
+	for offset := 0; ; offset += listPageSize {
+		query := map[string]string{"limit": strconv.Itoa(listPageSize), "offset": strconv.Itoa(offset)}
+		for k, v := range params {
+			query[k] = v
+		}
+		body, err := c.getJSON(path+c.PrepareQueryString(query), entity)
+		if err != nil {
+			return nil, err
+		}
+		page := struct {
+			Results []*T `json:"results"`
+		}{}
+		if err := json.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("error decoding %s list: %v", entity, err)
+		}
+		all = append(all, page.Results...)
+		if len(page.Results) < listPageSize {
+			return all, nil
+		}
+	}
 }

@@ -3,12 +3,12 @@
 page_title: "nullplatform_package Data Source - nullplatform"
 subcategory: ""
 description: |-
-  Looks up an existing nullplatform package by its natural key (nrn, slug). Optionally resolves a specific published version to its revision id; otherwise revision_id follows the package default (falling back to latest). The revision ids are what services bind to and what package-in-package composition will pin.
+  Looks up an existing nullplatform package by slug: either by its natural key (nrn, slug), or among the packages visible at an NRN (visible_at, slug) — the way to find a package published for every organization, whose owner NRN is not the caller's. Optionally resolves a specific published version to its revision id; otherwise revision_id follows the package default (falling back to latest). The revision ids are what services bind to and what package-in-package composition will pin.
 ---
 
 # nullplatform_package (Data Source)
 
-Looks up an existing nullplatform package by its natural key (nrn, slug). Optionally resolves a specific published version to its revision id; otherwise `revision_id` follows the package default (falling back to latest). The revision ids are what services bind to and what package-in-package composition will pin.
+Looks up an existing nullplatform package by slug: either by its natural key (`nrn`, `slug`), or among the packages visible at an NRN (`visible_at`, `slug`) — the way to find a package published for every organization, whose owner NRN is not the caller's. Optionally resolves a specific published version to its revision id; otherwise `revision_id` follows the package default (falling back to latest). The revision ids are what services bind to and what package-in-package composition will pin.
 
 ## Example Usage
 
@@ -26,6 +26,13 @@ data "nullplatform_package" "k8s_containers_v1" {
   version = "1.0.0"
 }
 
+# A package published for every organization is found by where it is visible,
+# not by its owner: visible_at is an NRN of your own organization.
+data "nullplatform_package" "global_lambda" {
+  visible_at = "organization=123:account=456"
+  slug       = "scopes-lambda"
+}
+
 output "default_revision_id" {
   value = data.nullplatform_package.k8s_containers.revision_id
 }
@@ -36,12 +43,13 @@ output "default_revision_id" {
 
 ### Required
 
-- `nrn` (String) The owner NRN of the package.
 - `slug` (String) The package slug, unique per NRN.
 
 ### Optional
 
+- `nrn` (String) The owner NRN of the package. Exactly one of `nrn` and `visible_at` is set.
 - `version` (String) Resolve this exact published semver to `revision_id`. When omitted, `revision_id` follows the package default.
+- `visible_at` (String) An NRN the package must be visible at. Finds packages owned there or above it, shared with it, or published for every organization (`visible_to` `organization=*`). Fails when more than one visible package has the slug. For a package visible to other organizations, the API reports `nrn` as the caller's own organization root, never the owner's.
 
 ### Read-Only
 
