@@ -27,6 +27,12 @@ nullplatform/resource_service.go:456-457  # d.Set(status, string) arm after wait
 nullplatform/resource_service.go:459-460  # d.Set(archived_at, string) arm after wait
 nullplatform/resource_service_specification.go:279-280  # d.Set(use_managed_actions, bool) arm
 nullplatform/resource_service_specification.go:326-327  # d.Set(selectors, list) arm
+nullplatform/resource_package_installation.go:135-136  # d.Set(missing_optional_requirements, list of maps) arm
+nullplatform/resource_package_installation.go:194-195  # d.Set arm in setPackageInstallation (strings and []string)
+#
+# JSON encode error arm: the installation bodies are structs of strings and
+# []string only, which encoding/json cannot fail to marshal.
+nullplatform/package_installation.go:104-105  # json Encode(PackageInstallationCreate/Patch) arm
 #
 # Type-assertion fallthroughs: WaitForStateContext returns the value produced
 # by Refresh, which always returns *Service / *Link when err is nil; the
