@@ -1,6 +1,7 @@
 package nullplatform
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -126,5 +127,43 @@ func TestPackageInstallationClient_AnUnreachableAPIFailsEveryVerb(t *testing.T) 
 	}
 	if err := client.DeletePackageInstallation("inst-1"); err == nil || !strings.Contains(err.Error(), "error making DELETE request") {
 		t.Errorf("delete: %v", err)
+	}
+}
+
+// truncatedAPI promises a longer body than it sends, so reading the response
+// fails mid-body, as a connection dropped by a proxy does.
+func truncatedAPI(t *testing.T, status int) *NullClient {
+	t.Helper()
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(`{"id"`))
+	}))
+	t.Cleanup(server.Close)
+	return newTestClient(server)
+}
+
+func TestPackageInstallationClient_AResponseCutShortIsAnError(t *testing.T) {
+	if _, err := truncatedAPI(t, http.StatusOK).GetPackageInstallation("inst-1"); err == nil || !strings.Contains(err.Error(), "error reading response body") {
+		t.Errorf("get: %v", err)
+	}
+	if err := truncatedAPI(t, http.StatusBadRequest).DeletePackageInstallation("inst-1"); err == nil || !strings.Contains(err.Error(), "error reading response body") {
+		t.Errorf("delete: %v", err)
+	}
+}
+
+// A read that fails for any reason other than "gone" must fail the plan, not
+// drop the installation from state: dropping it would offer to install again.
+func TestPackageInstallationResource_AReadFailureKeepsTheInstallationInState(t *testing.T) {
+	client, _, _ := installationAPI(t, http.StatusInternalServerError, `{"message":"database unavailable"}`)
+	d := resourcePackageInstallation().TestResourceData()
+	d.SetId("inst-1")
+
+	diags := packageInstallationResourceRead(context.Background(), d, client)
+	if !diags.HasError() || !strings.Contains(diags[0].Summary, "database unavailable") {
+		t.Fatalf("diags = %v", diags)
+	}
+	if d.Id() != "inst-1" {
+		t.Errorf("id = %q, want the installation kept in state", d.Id())
 	}
 }

@@ -150,6 +150,47 @@ func TestFunctionalPackageInstallation_RefusedRevisionSurfacesTheAPIMessage(t *t
 	})
 }
 
+// An explicit visible_to is installed as given instead of the [nrn] default.
+func TestFunctionalPackageInstallation_ExplicitVisibilityIsInstalledAsGiven(t *testing.T) {
+	fake, _ := newInstallationFake(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{{
+			Config: installationConfig(`  visible_to = ["organization=1:account=2:namespace=3:application=4", "organization=1:account=2:namespace=5"]`),
+			Check: resource.ComposeTestCheckFunc(
+				resource.TestCheckResourceAttr(installationResource, "visible_to.#", "2"),
+				resource.TestCheckResourceAttr(installationResource, "visible_to.0", "organization=1:account=2:namespace=3:application=4"),
+				resource.TestCheckResourceAttr(installationResource, "visible_to.1", "organization=1:account=2:namespace=5"),
+			),
+		}},
+	})
+}
+
+// A refused move of the default revision surfaces the API's message, and the
+// installation stays on the revision it had: the next refresh reads it back.
+func TestFunctionalPackageInstallation_RefusedMoveKeepsTheInstalledRevision(t *testing.T) {
+	fake, _ := newInstallationFake(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{
+			{Config: installationConfig(`  default_revision_id = "rev-9"`)},
+			{
+				Config:      installationConfig(`  default_revision_id = "rev-of-another-package"`),
+				ExpectError: regexp.MustCompile(`Revision rev-of-another-package does not belong to package pkg-global`),
+			},
+			{
+				Config: installationConfig(`  default_revision_id = "rev-9"`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(installationResource, "id", "inst-1"),
+					resource.TestCheckResourceAttr(installationResource, "default_version", "0.9.0"),
+				),
+			},
+		},
+	})
+}
+
 // Uninstalling while a service born from the installation is alive is refused
 // with the API's message; once the services are gone, destroy goes through.
 func TestFunctionalPackageInstallation_UninstallRefusedWhileServicesLive(t *testing.T) {
