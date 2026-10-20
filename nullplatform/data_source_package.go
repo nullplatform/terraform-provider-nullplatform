@@ -10,16 +10,29 @@ import (
 
 func dataSourcePackage() *schema.Resource {
 	return &schema.Resource{
-		Description: "Looks up an existing nullplatform package by its natural key (nrn, slug). " +
-			"Optionally resolves a specific published version to its revision id; otherwise " +
+		Description: "Looks up an existing nullplatform package by slug: either by its natural key " +
+			"(`nrn`, `slug`), or among the packages visible at an NRN (`visible_at`, `slug`) — the " +
+			"way to find a package published for every organization, whose owner NRN is not the " +
+			"caller's. Optionally resolves a specific published version to its revision id; otherwise " +
 			"`revision_id` follows the package default (falling back to latest). The revision ids " +
 			"are what services bind to and what package-in-package composition will pin.",
 		ReadContext: dataSourcePackageRead,
 		Schema: map[string]*schema.Schema{
 			"nrn": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The owner NRN of the package.",
+				Type:         schema.TypeString,
+				Optional:     true,
+				ExactlyOneOf: []string{"nrn", "visible_at"},
+				Description:  "The owner NRN of the package. Exactly one of `nrn` and `visible_at` is set.",
+			},
+			"visible_at": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				ExactlyOneOf: []string{"nrn", "visible_at"},
+				Description: "An NRN the package must be visible at. Finds packages owned there or above it, " +
+					"shared with it, or published for every organization (`visible_to` `organization=*`). " +
+					"Fails when more than one visible package has the slug. For a package visible to " +
+					"other organizations, the API reports `nrn` as the caller's own organization root, " +
+					"never the owner's.",
 			},
 			"slug": {
 				Type:        schema.TypeString,
@@ -77,7 +90,14 @@ func dataSourcePackageRead(_ context.Context, d *schema.ResourceData, m interfac
 	nrn := d.Get("nrn").(string)
 	slug := d.Get("slug").(string)
 
-	pkg, err := nullOps.FindPackage(nrn, slug)
+	var pkg *Package
+	var err error
+	if visibleAt, ok := d.GetOk("visible_at"); ok {
+		nrn = visibleAt.(string)
+		pkg, err = nullOps.FindVisiblePackage(nrn, slug)
+	} else {
+		pkg, err = nullOps.FindPackage(nrn, slug)
+	}
 	if err != nil {
 		return diag.FromErr(err)
 	}

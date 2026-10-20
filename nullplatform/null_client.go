@@ -258,6 +258,11 @@ type NullOps interface {
 	PatchPackage(packageID string, p *PackagePatch) error
 	DeletePackage(packageID string) error
 	FindPackage(nrn, slug string) (*Package, error)
+	FindVisiblePackage(visibleAt, slug string) (*Package, error)
+	CreatePackageInstallation(body *PackageInstallationCreate) (*PackageInstallation, error)
+	GetPackageInstallation(id string) (*PackageInstallation, error)
+	PatchPackageInstallation(id string, body *PackageInstallationPatch) (*PackageInstallation, error)
+	DeletePackageInstallation(id string) error
 	ListPackageRevisions(packageID string) ([]*PackageRevision, error)
 	SetPackageTag(packageID, name string, body *PackageTagSet) error
 	DeletePackageTag(packageID, name string) error
