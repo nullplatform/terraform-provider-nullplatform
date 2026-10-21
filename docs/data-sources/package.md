@@ -3,12 +3,12 @@
 page_title: "nullplatform_package Data Source - nullplatform"
 subcategory: ""
 description: |-
-  Looks up an existing nullplatform package by its natural key (nrn, slug). Optionally resolves a specific published version to its revision id; otherwise revision_id follows the package default (falling back to latest). The revision ids are what services bind to and what package-in-package composition will pin.
+  Looks up an existing nullplatform package by slug: either by its natural key (nrn, slug), or among the packages visible at an NRN (visible_at, slug) — the way to find a package published for every organization, whose owner NRN is not the caller's. Optionally resolves a specific published version to its revision id; otherwise revision_id follows the package default (falling back to latest). The revision ids are what services bind to and what package-in-package composition will pin.
 ---
 
 # nullplatform_package (Data Source)
 
-Looks up an existing nullplatform package by its natural key (nrn, slug). Optionally resolves a specific published version to its revision id; otherwise `revision_id` follows the package default (falling back to latest). The revision ids are what services bind to and what package-in-package composition will pin.
+Looks up an existing nullplatform package by slug: either by its natural key (`nrn`, `slug`), or among the packages visible at an NRN (`visible_at`, `slug`) — the way to find a package published for every organization, whose owner NRN is not the caller's. Optionally resolves a specific published version to its revision id; otherwise `revision_id` follows the package default (falling back to latest). The revision ids are what services bind to and what package-in-package composition will pin.
 
 ## Example Usage
 
@@ -26,8 +26,25 @@ data "nullplatform_package" "k8s_containers_v1" {
   version = "1.0.0"
 }
 
+# A package published for every organization is found by where it is visible,
+# not by its owner: visible_at is an NRN of your own organization.
+data "nullplatform_package" "global_lambda" {
+  visible_at = "organization=123:account=456"
+  slug       = "scopes-lambda"
+}
+
 output "default_revision_id" {
   value = data.nullplatform_package.k8s_containers.revision_id
+}
+
+# components is the resolved revision's bill of materials: the way to reach the
+# resources of a package you do not own, e.g. the service specification a scope
+# type must point at.
+output "global_lambda_specification_id" {
+  value = one([
+    for c in data.nullplatform_package.global_lambda.components : c.resource_id
+    if c.resource_type == "service_specification"
+  ])
 }
 ```
 
@@ -36,15 +53,17 @@ output "default_revision_id" {
 
 ### Required
 
-- `nrn` (String) The owner NRN of the package.
 - `slug` (String) The package slug, unique per NRN.
 
 ### Optional
 
+- `nrn` (String) The owner NRN of the package. Exactly one of `nrn` and `visible_at` is set.
 - `version` (String) Resolve this exact published semver to `revision_id`. When omitted, `revision_id` follows the package default.
+- `visible_at` (String) An NRN the package must be visible at. Finds packages owned there or above it, shared with it, or published for every organization (`visible_to` `organization=*`). Fails when more than one visible package has the slug. For a package visible to other organizations, the API reports `nrn` as the caller's own organization root, never the owner's.
 
 ### Read-Only
 
+- `components` (List of Object) Bill of materials of `revision_id`: one entry per pinned component. How an installing organization finds the resources of a package it does not own, e.g. the service specification a scope type must point at. (see [below for nested schema](#nestedatt--components))
 - `default_revision_id` (String) Revision UUID services bind to by default.
 - `default_version` (String) Semver of the default revision.
 - `id` (String) The ID of this resource.
@@ -53,3 +72,14 @@ output "default_revision_id" {
 - `name` (String) Human-readable display name.
 - `revision_id` (String) Revision UUID for `version` when set; otherwise the default (or latest) revision.
 - `visible_to` (List of String) NRNs allowed to consume this package.
+
+<a id="nestedatt--components"></a>
+### Nested Schema for `components`
+
+Read-Only:
+
+- `name` (String)
+- `parent_id` (String)
+- `resource_id` (String)
+- `resource_revision_id` (String)
+- `resource_type` (String)
