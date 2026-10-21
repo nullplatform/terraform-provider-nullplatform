@@ -45,3 +45,7 @@ nullplatform/data_source_platform_artifact.go:212-213  # d.Set(digest, string) a
 # provider schema's attributes and types (mux-enforced identical to SDKv2), so
 # decoding the provider config into it cannot fail.
 nullplatform/framework_provider.go:84-85  # req.Config.Get(frameworkProviderModel) arm
+
+# data_source_package components: the list is built by flattenPackageComponents
+# with exactly the schema's element shape, so Set cannot reject it.
+nullplatform/data_source_package.go:192-193  # d.Set(components, []map[string]interface{}) arm

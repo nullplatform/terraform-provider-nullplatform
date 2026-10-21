@@ -24,7 +24,9 @@ func errorsOf(diags diag.Diagnostics) error {
 	return fmt.Errorf("%s", strings.Join(parts, "; "))
 }
 
-// packageListServer answers GET /packages with `results` and records the query.
+// packageListServer answers GET /packages with `results` and records the query,
+// the revision listing with `revisions`, and a single-revision read with the
+// entry of `revisions` whose id matches (an empty revision when none does).
 func packageListServer(t *testing.T, results []*Package, revisions []*PackageRevision, gotQuery *string) *httptest.Server {
 	t.Helper()
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -35,6 +37,15 @@ func packageListServer(t *testing.T, results []*Package, revisions []*PackageRev
 			_ = json.NewEncoder(w).Encode(packageListResponse{Results: results})
 		case strings.HasSuffix(r.URL.Path, "/revisions"):
 			_ = json.NewEncoder(w).Encode(packageRevisionListResponse{Results: revisions})
+		case strings.Contains(r.URL.Path, "/revisions/"):
+			id := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+			revision := &PackageRevision{ID: id}
+			for _, candidate := range revisions {
+				if candidate.ID == id {
+					revision = candidate
+				}
+			}
+			_ = json.NewEncoder(w).Encode(revision)
 		default:
 			t.Errorf("unexpected request: %s", r.URL.Path)
 		}
@@ -91,6 +102,60 @@ func TestDataSourcePackageRead_VisibleAtFindsAGlobalPackageBySlug(t *testing.T) 
 	}
 }
 
+// An installing organization does not own the package's resources, so the
+// lookup hands it the resolved revision's bill of materials: a scope's
+// installation reads the service specification id from it.
+func TestDataSourcePackageRead_ExposesTheResolvedRevisionComponents(t *testing.T) {
+	var gotQuery string
+	specID := "spec-1"
+	server := packageListServer(t, []*Package{{ID: "pkg-1", Slug: "lambda", DefaultRevisionID: "rev-2"}},
+		[]*PackageRevision{
+			{ID: "rev-1", Version: "1.0.0", Components: []PackageComponent{
+				{Name: "scope", ResourceType: "service_specification", ResourceID: specID, ResourceRevisionID: "snap-old"},
+			}},
+			{ID: "rev-2", Version: "1.1.0", Components: []PackageComponent{
+				{Name: "scope", ResourceType: "service_specification", ResourceID: specID, ResourceRevisionID: "snap-1"},
+				{Name: "create-scope", ResourceType: "action_specification", ResourceID: "action-1", ResourceRevisionID: "snap-2", ParentID: &specID},
+			}},
+		}, &gotQuery)
+	defer server.Close()
+
+	d, err := readPackage(t, server, map[string]interface{}{"visible_at": "organization=1", "slug": "lambda", "version": "1.1.0"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := d.Get("components.#").(int); got != 2 {
+		t.Fatalf("components = %d, want the 2 of rev-2", got)
+	}
+	if got := d.Get("components.0.resource_id").(string); got != specID {
+		t.Errorf("components.0.resource_id = %q, want %q", got, specID)
+	}
+	if got := d.Get("components.0.resource_revision_id").(string); got != "snap-1" {
+		t.Errorf("components.0.resource_revision_id = %q, want the pin of rev-2 (snap-1)", got)
+	}
+	if got := d.Get("components.0.parent_id").(string); got != "" {
+		t.Errorf("components.0.parent_id = %q, want empty for the specification", got)
+	}
+	if got := d.Get("components.1.parent_id").(string); got != specID {
+		t.Errorf("components.1.parent_id = %q, want %q", got, specID)
+	}
+}
+
+// A package with no revision yet has no bill of materials to report.
+func TestDataSourcePackageRead_NoRevisionNoComponents(t *testing.T) {
+	var gotQuery string
+	server := packageListServer(t, []*Package{{ID: "pkg-1", Slug: "lambda"}}, nil, &gotQuery)
+	defer server.Close()
+
+	d, err := readPackage(t, server, map[string]interface{}{"nrn": "organization=1", "slug": "lambda"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := d.Get("components.#").(int); got != 0 {
+		t.Errorf("components = %d, want 0", got)
+	}
+}
+
 // Two packages with the same slug can be visible at one NRN (an organization's
 // own and a global one): the lookup refuses to guess.
 func TestDataSourcePackageRead_VisibleAtRefusesAnAmbiguousSlug(t *testing.T) {
@@ -142,5 +207,67 @@ func TestDataSourcePackage_NrnAndVisibleAtAreExclusive(t *testing.T) {
 	}
 	if got := s["nrn"].ExactlyOneOf; len(got) != 2 {
 		t.Errorf("nrn.ExactlyOneOf = %v, want [nrn visible_at]", got)
+	}
+}
+
+func TestPackageRevisionClient_ReadsOneRevisionWithItsComponents(t *testing.T) {
+	client, seen, _ := installationAPI(t, http.StatusOK, `{"id":"rev-1","version":"1.0.0","components":[{"name":"scope","resource_type":"service_specification","resource_id":"spec-1","resource_revision_id":"snap-1","parent_id":null}]}`)
+
+	revision, err := client.GetPackageRevision("pkg-1", "rev-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if seen.Method != http.MethodGet || seen.URL.Path != PACKAGE_PATH+"/pkg-1/revisions/rev-1" {
+		t.Errorf("request = %s %s, want GET %s/pkg-1/revisions/rev-1", seen.Method, seen.URL.Path, PACKAGE_PATH)
+	}
+	if len(revision.Components) != 1 || revision.Components[0].ResourceID != "spec-1" || revision.Components[0].ParentID != nil {
+		t.Errorf("components = %+v", revision.Components)
+	}
+}
+
+func TestPackageRevisionClient_AnAPIErrorIsReported(t *testing.T) {
+	client, _, _ := installationAPI(t, http.StatusNotFound, `{"message":"Revision rev-1 not found"}`)
+
+	_, err := client.GetPackageRevision("pkg-1", "rev-1")
+	if err == nil || !strings.Contains(err.Error(), "Revision rev-1 not found") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestPackageRevisionClient_AnUndecodableSuccessIsAnError(t *testing.T) {
+	client, _, _ := installationAPI(t, http.StatusOK, `not json`)
+
+	_, err := client.GetPackageRevision("pkg-1", "rev-1")
+	if err == nil || !strings.Contains(err.Error(), "error decoding package revision") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestFindVisiblePackage_AListingErrorIsReported(t *testing.T) {
+	client, _, _ := installationAPI(t, http.StatusInternalServerError, `{"message":"listing failed"}`)
+
+	_, err := client.FindVisiblePackage("organization=1", "lambda")
+	if err == nil || !strings.Contains(err.Error(), "listing failed") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// The package resolves but its revision cannot be read: the lookup fails
+// instead of reporting a package without its bill of materials.
+func TestDataSourcePackageRead_ARevisionReadErrorFailsTheLookup(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/packages" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(packageListResponse{Results: []*Package{{ID: "pkg-1", Slug: "lambda", DefaultRevisionID: "rev-1"}}})
+			return
+		}
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"forbidden"}`))
+	}))
+	defer server.Close()
+
+	_, err := readPackage(t, server, map[string]interface{}{"visible_at": "organization=1", "slug": "lambda"})
+	if err == nil || !strings.Contains(err.Error(), "forbidden") {
+		t.Fatalf("want the revision read error, got %v", err)
 	}
 }

@@ -80,8 +80,62 @@ func dataSourcePackage() *schema.Resource {
 				Computed:    true,
 				Description: "Semver of the latest revision.",
 			},
+			"components": {
+				Type:     schema.TypeList,
+				Computed: true,
+				Description: "Bill of materials of `revision_id`: one entry per pinned component. How an " +
+					"installing organization finds the resources of a package it does not own, e.g. the " +
+					"service specification a scope type must point at.",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"name": {
+							Type:        schema.TypeString,
+							Computed:    true,
+							Description: "Component name, unique within the revision (e.g. \"scope\", \"service\", \"create-scope\").",
+						},
+						"resource_type": {
+							Type:        schema.TypeString,
+							Computed:    true,
+							Description: "Kind of resource (e.g. \"service_specification\", \"action_specification\", \"artifact\").",
+						},
+						"resource_id": {
+							Type:        schema.TypeString,
+							Computed:    true,
+							Description: "UUID of the underlying resource.",
+						},
+						"resource_revision_id": {
+							Type:        schema.TypeString,
+							Computed:    true,
+							Description: "UUID of the snapshot or artifact revision the component pins.",
+						},
+						"parent_id": {
+							Type:        schema.TypeString,
+							Computed:    true,
+							Description: "resource_id of the owning component, for action and link specifications.",
+						},
+					},
+				},
+			},
 		},
 	}
+}
+
+func flattenPackageComponents(components []PackageComponent) []map[string]interface{} {
+	flattened := make([]map[string]interface{}, 0, len(components))
+	for _, component := range components {
+		parentID := ""
+		if component.ParentID != nil {
+			parentID = *component.ParentID
+		}
+		flattened = append(flattened, map[string]interface{}{
+			"name":                 component.Name,
+			"resource_type":        component.ResourceType,
+			"resource_id":          component.ResourceID,
+			"resource_revision_id": component.ResourceRevisionID,
+			"parent_id":            parentID,
+		})
+	}
+	return flattened
 }
 
 func dataSourcePackageRead(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
@@ -124,7 +178,19 @@ func dataSourcePackageRead(_ context.Context, d *schema.ResourceData, m interfac
 		}
 	}
 
+	var components []PackageComponent
+	if revisionID != "" {
+		revision, err := nullOps.GetPackageRevision(pkg.ID, revisionID)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		components = revision.Components
+	}
+
 	d.SetId(pkg.ID)
+	if err := d.Set("components", flattenPackageComponents(components)); err != nil {
+		return diag.FromErr(err)
+	}
 	if err := d.Set("name", pkg.Name); err != nil {
 		return diag.FromErr(err)
 	}

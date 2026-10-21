@@ -87,9 +87,10 @@ type PackageTagSet struct {
 
 // PackageRevision is one published, immutable revision of a package.
 type PackageRevision struct {
-	ID        string `json:"id,omitempty"`
-	PackageID string `json:"package_id,omitempty"`
-	Version   string `json:"version,omitempty"`
+	ID         string             `json:"id,omitempty"`
+	PackageID  string             `json:"package_id,omitempty"`
+	Version    string             `json:"version,omitempty"`
+	Components []PackageComponent `json:"components,omitempty"`
 }
 
 type packageListResponse struct {
@@ -307,4 +308,22 @@ func (c *NullClient) FindVisiblePackage(visibleAt, slug string) (*Package, error
 func (c *NullClient) ListPackageRevisions(packageID string) ([]*PackageRevision, error) {
 	path := fmt.Sprintf("%s/%s/revisions", PACKAGE_PATH, packageID)
 	return listAllPages[PackageRevision](c, path, map[string]string{}, "package revisions")
+}
+
+// GetPackageRevision reads one revision with its bill of materials: the
+// listing omits components, the single-revision read carries them.
+func (c *NullClient) GetPackageRevision(packageID, revisionID string) (*PackageRevision, error) {
+	path := fmt.Sprintf("%s/%s/revisions/%s", PACKAGE_PATH, packageID, revisionID)
+
+	body, err := c.getJSON(path, "package revision")
+	if err != nil {
+		return nil, err
+	}
+
+	revision := &PackageRevision{}
+	if err := json.Unmarshal(body, revision); err != nil {
+		return nil, fmt.Errorf("error decoding package revision: %v", err)
+	}
+
+	return revision, nil
 }

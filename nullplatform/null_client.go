@@ -264,6 +264,7 @@ type NullOps interface {
 	PatchPackageInstallation(id string, body *PackageInstallationPatch) (*PackageInstallation, error)
 	DeletePackageInstallation(id string) error
 	ListPackageRevisions(packageID string) ([]*PackageRevision, error)
+	GetPackageRevision(packageID, revisionID string) (*PackageRevision, error)
 	SetPackageTag(packageID, name string, body *PackageTagSet) error
 	DeletePackageTag(packageID, name string) error
 	GetLatestSnapshotID(kind, id string) (string, error)
