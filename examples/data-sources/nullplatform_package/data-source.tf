@@ -21,3 +21,13 @@ data "nullplatform_package" "global_lambda" {
 output "default_revision_id" {
   value = data.nullplatform_package.k8s_containers.revision_id
 }
+
+# components is the resolved revision's bill of materials: the way to reach the
+# resources of a package you do not own, e.g. the service specification a scope
+# type must point at.
+output "global_lambda_specification_id" {
+  value = one([
+    for c in data.nullplatform_package.global_lambda.components : c.resource_id
+    if c.resource_type == "service_specification"
+  ])
+}

@@ -270,7 +270,8 @@ func TestFunctionalPackageInstallation_Import(t *testing.T) {
 }
 
 // The global-package path end to end: look the package up by visibility, then
-// install the revision the data source resolved.
+// install the revision the data source resolved, whose bill of materials names
+// the specification the installing organization does not own.
 func TestFunctionalPackageInstallation_FromTheVisibilityLookup(t *testing.T) {
 	fake, _ := newInstallationFake(t)
 	fake.Register("packages", "pkg", fakeplatform.Hooks{
@@ -283,6 +284,14 @@ func TestFunctionalPackageInstallation_FromTheVisibilityLookup(t *testing.T) {
 				"visible_to": []any{"organization=*"}, "default_revision_id": "rev-10", "default_version": "0.10.0",
 				"latest_revision_id": "rev-10", "latest_version": "0.10.0",
 			}}}, nil
+		},
+	})
+	fake.Register("packages/pkg-global/revisions", "rev", fakeplatform.Hooks{})
+	fake.Seed("packages/pkg-global/revisions", "rev-10", fakeplatform.Item{
+		"package_id": "pkg-global", "version": "0.10.0",
+		"components": []any{
+			map[string]any{"name": "scope", "resource_type": "service_specification", "resource_id": "spec-1", "resource_revision_id": "snap-1", "parent_id": nil},
+			map[string]any{"name": "create-scope", "resource_type": "action_specification", "resource_id": "action-1", "resource_revision_id": "snap-2", "parent_id": "spec-1"},
 		},
 	})
 
@@ -306,6 +315,10 @@ resource "nullplatform_package_installation" "lambda" {
 			Check: resource.ComposeTestCheckFunc(
 				resource.TestCheckResourceAttr(installationResource, "package_id", "pkg-global"),
 				resource.TestCheckResourceAttr(installationResource, "default_version", "0.10.0"),
+				resource.TestCheckResourceAttr("data.nullplatform_package.lambda", "components.#", "2"),
+				resource.TestCheckResourceAttr("data.nullplatform_package.lambda", "components.0.name", "scope"),
+				resource.TestCheckResourceAttr("data.nullplatform_package.lambda", "components.0.resource_id", "spec-1"),
+				resource.TestCheckResourceAttr("data.nullplatform_package.lambda", "components.1.parent_id", "spec-1"),
 			),
 		}},
 	})
