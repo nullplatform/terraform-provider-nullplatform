@@ -3,8 +3,10 @@ package nullplatform
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -12,24 +14,53 @@ import (
 )
 
 // artifactServer serves the two endpoints the data source hits: the visibility-
-// scoped artifact listing and one artifact's revision listing. It records the
-// listing query string so tests can assert the visible_to filter is used.
+// scoped artifact listing and one artifact's revision listing. Both page as
+// the real API does — by offset, 30 per page unless a limit is sent, the
+// paging echoed back and no total — so a set past one page is only whole to a
+// client that walks every page. It records the listing query string so tests
+// can assert the visible_to filter is used (and, with paging, the last page
+// read).
 func artifactServer(t *testing.T, artifacts []*PlatformArtifact, revisions map[string][]*PlatformArtifactRevision, gotListQuery *string) *httptest.Server {
 	t.Helper()
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		if r.URL.Path == "/artifacts" {
 			*gotListQuery = r.URL.RawQuery
-			_ = json.NewEncoder(w).Encode(platformArtifactListResponse{Results: artifacts})
+			page, paging := artifactPage(r, artifacts)
+			_ = json.NewEncoder(w).Encode(platformArtifactListResponse{Results: page, Paging: paging})
 			return
 		}
 		if strings.HasSuffix(r.URL.Path, "/revisions") {
 			id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/artifacts/"), "/revisions")
-			_ = json.NewEncoder(w).Encode(platformArtifactRevisionListResponse{Results: revisions[id]})
+			page, paging := artifactPage(r, revisions[id])
+			_ = json.NewEncoder(w).Encode(platformArtifactRevisionListResponse{Results: page, Paging: paging})
 			return
 		}
 		t.Errorf("unexpected request: %s", r.URL.Path)
 	}))
+}
+
+// artifactPage is the API's paging: `limit` items (30 when not sent) from
+// `offset`, both echoed back in `paging`.
+func artifactPage[T any](r *http.Request, all []T) ([]T, *Paging) {
+	limit, offset := 30, 0
+	if n, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && n > 0 {
+		limit = n
+	}
+	if n, err := strconv.Atoi(r.URL.Query().Get("offset")); err == nil && n > 0 {
+		offset = n
+	}
+	start := min(offset, len(all))
+	return all[start:min(start+limit, len(all))], &Paging{Offset: offset, Limit: limit}
+}
+
+// setPlatformArtifactPageSize shrinks the page the client reads in, so a
+// handful of items spans several pages.
+func setPlatformArtifactPageSize(t *testing.T, n int) {
+	t.Helper()
+	was := platformArtifactPageSize
+	platformArtifactPageSize = n
+	t.Cleanup(func() { platformArtifactPageSize = was })
 }
 
 // The lookup must query by visibility, not ownership: a global artifact
@@ -379,5 +410,131 @@ func TestDataSourcePlatformArtifactRead_DigestPinsOldRevision(t *testing.T) {
 	}
 	if got := d.Get("digest").(string); got != "sha256:old" {
 		t.Errorf("digest = %q, want sha256:old", got)
+	}
+}
+
+// The listing pages at 30 by default and answers no total. When the globals
+// crossed 30 (2026-10-06) the older production ones — scopes/lambda,
+// scopes/containers, services/s3 — fell to page two, where no provider
+// version looked, and every lookup of them failed as "not visible". The
+// wanted artifact is the LAST of 31: absent from the first page, present only
+// to a client that walks them all.
+func TestDataSourcePlatformArtifactRead_ArtifactBeyondFirstPage(t *testing.T) {
+	setPlatformArtifactPageSize(t, 10)
+	var artifacts []*PlatformArtifact
+	for i := 0; i < 30; i++ {
+		artifacts = append(artifacts, &PlatformArtifact{
+			ResourceID:   fmt.Sprintf("art-beta-%d", i),
+			Type:         "oci_image",
+			Nrn:          "organization=1",
+			IdentityMeta: map[string]interface{}{"registry": "public.ecr.aws", "repository": fmt.Sprintf("nullplatform/beta/%d", i)},
+			VisibleTo:    []string{"organization=*"},
+		})
+	}
+	artifacts = append(artifacts, &PlatformArtifact{
+		ResourceID:       "art-lambda",
+		Type:             "oci_image",
+		Nrn:              "organization=1",
+		IdentityMeta:     map[string]interface{}{"registry": "public.ecr.aws", "repository": "nullplatform/scopes/lambda"},
+		VisibleTo:        []string{"organization=*"},
+		LatestRevisionID: "rev-1",
+	})
+	var gotQuery string
+	server := artifactServer(t, artifacts,
+		map[string][]*PlatformArtifactRevision{"art-lambda": {
+			{ResourceID: "art-lambda", ResourceRevisionID: "rev-1", Meta: map[string]interface{}{"registry": "public.ecr.aws", "repository": "nullplatform/scopes/lambda", "tag": "v0.8.3", "digest": "sha256:aaa"}, CreatedAt: "2026-09-01T00:00:00Z"},
+		}},
+		&gotQuery,
+	)
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, dataSourcePlatformArtifact().Schema, map[string]interface{}{
+		"nrn":  "organization=4",
+		"type": "oci_image",
+		"meta": `{"registry":"public.ecr.aws","repository":"nullplatform/scopes/lambda","tag":"v0.8.3"}`,
+	})
+
+	diags := dataSourcePlatformArtifactRead(context.Background(), d, newTestClient(server))
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if got := d.Get("artifact_id").(string); got != "art-lambda" {
+		t.Errorf("artifact_id = %q, want art-lambda (31st visible artifact)", got)
+	}
+	if got := d.Get("digest").(string); got != "sha256:aaa" {
+		t.Errorf("digest = %q, want sha256:aaa", got)
+	}
+	if !strings.Contains(gotQuery, "offset=30") {
+		t.Errorf("listing must be read to its last page, final query %q", gotQuery)
+	}
+}
+
+// A revision listing pages the same way, newest first, so an artifact with
+// more than a page of revisions loses its OLDEST ones to a client that reads
+// one page — a tag only an early revision carries becomes unresolvable (the
+// lambda global already holds 21). The wanted tag is on the 31st revision.
+func TestDataSourcePlatformArtifactRead_RevisionBeyondFirstPage(t *testing.T) {
+	setPlatformArtifactPageSize(t, 10)
+	var revisions []*PlatformArtifactRevision
+	for i := 30; i >= 0; i-- { // newest first, as the API answers
+		revisions = append(revisions, &PlatformArtifactRevision{
+			ResourceID:         "art-1",
+			ResourceRevisionID: fmt.Sprintf("rev-%d", i),
+			Meta:               map[string]interface{}{"registry": "r.io", "repository": "org/app", "tag": fmt.Sprintf("v0.%d.0", i), "digest": fmt.Sprintf("sha256:%d", i)},
+			CreatedAt:          fmt.Sprintf("2026-08-%02dT00:00:00Z", i+1),
+		})
+	}
+	var gotQuery string
+	server := artifactServer(t,
+		[]*PlatformArtifact{{
+			ResourceID:   "art-1",
+			Type:         "oci_image",
+			Nrn:          "organization=4",
+			IdentityMeta: map[string]interface{}{"registry": "r.io", "repository": "org/app"},
+		}},
+		map[string][]*PlatformArtifactRevision{"art-1": revisions},
+		&gotQuery,
+	)
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, dataSourcePlatformArtifact().Schema, map[string]interface{}{
+		"nrn":  "organization=4",
+		"type": "oci_image",
+		"meta": `{"registry":"r.io","repository":"org/app","tag":"v0.0.0"}`,
+	})
+
+	diags := dataSourcePlatformArtifactRead(context.Background(), d, newTestClient(server))
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if got := d.Get("revision_id").(string); got != "rev-0" {
+		t.Errorf("revision_id = %q, want rev-0 (31st, oldest revision)", got)
+	}
+	if got := d.Get("digest").(string); got != "sha256:0" {
+		t.Errorf("digest = %q, want sha256:0", got)
+	}
+}
+
+// A listing page that does not decode is the read's error, named as such —
+// not an empty page silently taken as the end of the listing.
+func TestDataSourcePlatformArtifactRead_UndecodableListingPageErrors(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"results": "not a list"}`))
+	}))
+	defer server.Close()
+
+	d := schema.TestResourceDataRaw(t, dataSourcePlatformArtifact().Schema, map[string]interface{}{
+		"nrn":  "organization=4",
+		"type": "oci_image",
+		"meta": `{"registry":"r.io","repository":"org/app"}`,
+	})
+
+	diags := dataSourcePlatformArtifactRead(context.Background(), d, newTestClient(server))
+	if !diags.HasError() {
+		t.Fatal("expected an error for an undecodable listing page")
+	}
+	if got := diags[0].Summary; !strings.Contains(got, "error decoding artifacts list") {
+		t.Errorf("error = %q, want it to name the listing decode failure", got)
 	}
 }
