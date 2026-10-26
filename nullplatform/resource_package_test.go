@@ -1,6 +1,7 @@
 package nullplatform
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
 // packagePublishFake is a stateful fake of the package publish contract the
@@ -72,6 +74,7 @@ func (f *packagePublishFake) publish(t *testing.T, w http.ResponseWriter, r *htt
 
 	if f.pkg == nil {
 		f.pkg = &Package{ID: "pkg-1", Nrn: body.Nrn, Slug: body.Slug, Name: body.Name}
+		f.declareInstallation(t, raw)
 		revision := f.addRevision(body.Version, body.Components)
 		f.pkg.DefaultRevisionID = revision.id
 		w.WriteHeader(http.StatusCreated)
@@ -79,6 +82,7 @@ func (f *packagePublishFake) publish(t *testing.T, w http.ResponseWriter, r *htt
 		return
 	}
 
+	f.declareInstallation(t, raw)
 	components := body.Components
 	if merge, sent := raw["merge_components"]; !sent || merge != false {
 		components = mergeComponentsByName(f.revision(f.resolvedRevisionID()).components, body.Components)
@@ -91,6 +95,25 @@ func (f *packagePublishFake) publish(t *testing.T, w http.ResponseWriter, r *htt
 		}
 	}
 	_ = json.NewEncoder(w).Encode(f.pkg)
+}
+
+// declareInstallation mirrors the API: a body that carries `installation`
+// replaces the declaration whole (null clears it); one that omits it keeps it.
+func (f *packagePublishFake) declareInstallation(t *testing.T, raw map[string]interface{}) {
+	value, sent := raw["installation"]
+	if !sent {
+		return
+	}
+	if value == nil {
+		f.pkg.Installation = nil
+		return
+	}
+	encoded, _ := json.Marshal(value)
+	declaration := &PackageInstallationDeclaration{}
+	if err := json.Unmarshal(encoded, declaration); err != nil {
+		t.Fatalf("decoding installation: %v", err)
+	}
+	f.pkg.Installation = declaration
 }
 
 // seedPackage arranges a package that already exists on the platform — e.g.
@@ -275,5 +298,110 @@ func TestPackageCreate_OverAnExistingPackagePublishesOnlyTheConfiguredBOM(t *tes
 	}
 	if got := d.Get("published_revision_id").(string); got != fake.pkg.LatestRevisionID {
 		t.Errorf("published_revision_id = %q, want %q", got, fake.pkg.LatestRevisionID)
+	}
+}
+
+func requiresProvider(kind, slug string, optional bool) map[string]interface{} {
+	return map[string]interface{}{kind: slug, "optional": optional}
+}
+
+// The declared requirements travel on the publish and come back on read; a
+// package that declares none sends no `installation` at all, so publishing
+// keeps working against an API that predates the declaration.
+func TestPackageCreate_PublishesTheInstallationRequirements(t *testing.T) {
+	fake := &packagePublishFake{}
+	server := fake.serve(t)
+	defer server.Close()
+
+	config := packageConfig("1.0.0", specComponent("scope"))
+	config["requires_provider"] = []interface{}{
+		requiresProvider("category", "cloud-providers", false),
+		requiresProvider("specification", "datadog", true),
+	}
+	d := schema.TestResourceDataRaw(t, resourcePackage().Schema, config)
+	if err := PackageCreate(d, newTestClient(server)); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	sent, _ := json.Marshal(fake.bodies[0]["installation"])
+	want := `{"requires":{"providers":[{"category":"cloud-providers","optional":false},{"optional":true,"specification":"datadog"}]}}`
+	if string(sent) != want {
+		t.Errorf("installation sent = %s, want %s", sent, want)
+	}
+	if got := d.Get("requires_provider.#").(int); got != 2 {
+		t.Fatalf("requires_provider.# = %d, want 2", got)
+	}
+	if got := d.Get("requires_provider.1.specification").(string); got != "datadog" {
+		t.Errorf("requires_provider.1.specification = %q, want datadog", got)
+	}
+
+	bare := &packagePublishFake{}
+	bareServer := bare.serve(t)
+	defer bareServer.Close()
+	plain := schema.TestResourceDataRaw(t, resourcePackage().Schema, packageConfig("1.0.0", specComponent("scope")))
+	if err := PackageCreate(plain, newTestClient(bareServer)); err != nil {
+		t.Fatalf("create without requirements: %v", err)
+	}
+	if _, sent := bare.bodies[0]["installation"]; sent {
+		t.Errorf("a package without requirements sent installation = %v, want it omitted", bare.bodies[0]["installation"])
+	}
+}
+
+// Removing the last requirement must clear the declaration: the API keeps it
+// when a publish omits `installation`, so the provider sends an explicit null.
+func TestPackageUpdate_RemovingEveryRequirementClearsTheDeclaration(t *testing.T) {
+	fake := &packagePublishFake{}
+	server := fake.serve(t)
+	defer server.Close()
+	client := newTestClient(server)
+
+	config := packageConfig("1.0.0", specComponent("scope"))
+	config["requires_provider"] = []interface{}{requiresProvider("category", "cloud-providers", false)}
+	state := schema.TestResourceDataRaw(t, resourcePackage().Schema, config)
+	if err := PackageCreate(state, client); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	r := resourcePackage()
+	desired := terraform.NewResourceConfigRaw(packageConfig("1.0.0", specComponent("scope")))
+	diff, err := r.Diff(context.Background(), state.State(), desired, client)
+	if err != nil {
+		t.Fatalf("diff: %v", err)
+	}
+	updated, err := schema.InternalMap(r.Schema).Data(state.State(), diff)
+	if err != nil {
+		t.Fatalf("data: %v", err)
+	}
+	if err := PackageUpdate(updated, client); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	last := fake.bodies[len(fake.bodies)-1]
+	if value, sent := last["installation"]; !sent || value != nil {
+		t.Errorf("installation sent = %v (sent: %v), want an explicit null", value, sent)
+	}
+	if fake.pkg.Installation != nil {
+		t.Errorf("declaration after update = %+v, want cleared", fake.pkg.Installation)
+	}
+	if got := updated.Get("requires_provider.#").(int); got != 0 {
+		t.Errorf("requires_provider.# = %d, want 0", got)
+	}
+}
+
+func TestValidateRequiresProviders_NamesExactlyOneOfCategoryOrSpecification(t *testing.T) {
+	r := resourcePackage()
+	cases := map[string]map[string]interface{}{
+		"neither": {"optional": true},
+		"both":    {"category": "cloud-providers", "specification": "aws"},
+	}
+	for name, requirement := range cases {
+		t.Run(name, func(t *testing.T) {
+			config := packageConfig("1.0.0", specComponent("scope"))
+			config["requires_provider"] = []interface{}{requirement}
+			_, err := r.Diff(context.Background(), nil, terraform.NewResourceConfigRaw(config), nil)
+			if err == nil || !strings.Contains(err.Error(), "exactly one of category, specification") {
+				t.Errorf("diff error = %v, want the exactly-one refusal", err)
+			}
+		})
 	}
 }

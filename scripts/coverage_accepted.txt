@@ -28,6 +28,7 @@ nullplatform/resource_service.go:459-460  # d.Set(archived_at, string) arm after
 nullplatform/resource_service_specification.go:279-280  # d.Set(use_managed_actions, bool) arm
 nullplatform/resource_service_specification.go:326-327  # d.Set(selectors, list) arm
 nullplatform/resource_package_installation.go:135-136  # d.Set(missing_optional_requirements, list of maps) arm
+nullplatform/resource_package.go:403-404  # d.Set(requires_provider, list of maps) arm
 nullplatform/resource_package_installation.go:194-195  # d.Set arm in setPackageInstallation (strings and []string)
 #
 # JSON encode error arm: the installation bodies are structs of strings and
