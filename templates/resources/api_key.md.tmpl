@@ -29,4 +29,23 @@ description: |-
 
 ~> **`internal` cannot be read back or changed in place** The API accepts the mark only when the key is created and never returns it. Changing `internal` therefore **replaces the API key**, which mints a new secret — anything already authenticating with the old one stops working. A key adopted with `terraform import` arrives with no mark at all, so declaring `internal = true` on it plans a replacement; leave the attribute out to keep the key as it was created.
 
+### Granting actions instead of a role
+
+A grant can carry a literal list of `actions`, or `inherits` existing roles and
+adjust the union with `add_actions` and `remove_actions`. Either way nullplatform
+creates a role private to the key; you never manage it, and it is recreated
+whenever the grants change, so it is deliberately absent from state. What the
+grant resolves to is reported in `effective_actions`.
+
+{{ tffile (printf "examples/resources/%s/fine_grained.tf" .Name) }}
+
+~> **Name roles one way** Use `role_id` in every grant of a key, or `role_slug`
+in every grant — never one in some and the other in others. The API resolves
+every grant of a key by whichever of the two the first one used. The provider
+rejects the mix at plan time.
+
+~> **Action aliases** An action that has an alias is reported under the alias.
+If you write the stored name of such an action, every plan will show a
+difference; write the name the API reports.
+
 {{ .SchemaMarkdown | trimspace }}
