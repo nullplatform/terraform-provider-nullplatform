@@ -58,9 +58,9 @@ func artifactPage[T any](r *http.Request, all []T) ([]T, *Paging) {
 // handful of items spans several pages.
 func setPlatformArtifactPageSize(t *testing.T, n int) {
 	t.Helper()
-	was := platformArtifactPageSize
-	platformArtifactPageSize = n
-	t.Cleanup(func() { platformArtifactPageSize = was })
+	was := listPageSize
+	listPageSize = n
+	t.Cleanup(func() { listPageSize = was })
 }
 
 // The lookup must query by visibility, not ownership: a global artifact

@@ -10,16 +10,29 @@ import (
 
 func dataSourcePackage() *schema.Resource {
 	return &schema.Resource{
-		Description: "Looks up an existing nullplatform package by its natural key (nrn, slug). " +
-			"Optionally resolves a specific published version to its revision id; otherwise " +
+		Description: "Looks up an existing nullplatform package by slug: either by its natural key " +
+			"(`nrn`, `slug`), or among the packages visible at an NRN (`visible_at`, `slug`) — the " +
+			"way to find a package published for every organization, whose owner NRN is not the " +
+			"caller's. Optionally resolves a specific published version to its revision id; otherwise " +
 			"`revision_id` follows the package default (falling back to latest). The revision ids " +
 			"are what services bind to and what package-in-package composition will pin.",
 		ReadContext: dataSourcePackageRead,
 		Schema: map[string]*schema.Schema{
 			"nrn": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The owner NRN of the package.",
+				Type:         schema.TypeString,
+				Optional:     true,
+				ExactlyOneOf: []string{"nrn", "visible_at"},
+				Description:  "The owner NRN of the package. Exactly one of `nrn` and `visible_at` is set.",
+			},
+			"visible_at": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				ExactlyOneOf: []string{"nrn", "visible_at"},
+				Description: "An NRN the package must be visible at. Finds packages owned there or above it, " +
+					"shared with it, or published for every organization (`visible_to` `organization=*`). " +
+					"Fails when more than one visible package has the slug. For a package visible to " +
+					"other organizations, the API reports `nrn` as the caller's own organization root, " +
+					"never the owner's.",
 			},
 			"slug": {
 				Type:        schema.TypeString,
@@ -67,8 +80,62 @@ func dataSourcePackage() *schema.Resource {
 				Computed:    true,
 				Description: "Semver of the latest revision.",
 			},
+			"components": {
+				Type:     schema.TypeList,
+				Computed: true,
+				Description: "Bill of materials of `revision_id`: one entry per pinned component. How an " +
+					"installing organization finds the resources of a package it does not own, e.g. the " +
+					"service specification a scope type must point at.",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"name": {
+							Type:        schema.TypeString,
+							Computed:    true,
+							Description: "Component name, unique within the revision (e.g. \"scope\", \"service\", \"create-scope\").",
+						},
+						"resource_type": {
+							Type:        schema.TypeString,
+							Computed:    true,
+							Description: "Kind of resource (e.g. \"service_specification\", \"action_specification\", \"artifact\").",
+						},
+						"resource_id": {
+							Type:        schema.TypeString,
+							Computed:    true,
+							Description: "UUID of the underlying resource.",
+						},
+						"resource_revision_id": {
+							Type:        schema.TypeString,
+							Computed:    true,
+							Description: "UUID of the snapshot or artifact revision the component pins.",
+						},
+						"parent_id": {
+							Type:        schema.TypeString,
+							Computed:    true,
+							Description: "resource_id of the owning component, for action and link specifications.",
+						},
+					},
+				},
+			},
 		},
 	}
+}
+
+func flattenPackageComponents(components []PackageComponent) []map[string]interface{} {
+	flattened := make([]map[string]interface{}, 0, len(components))
+	for _, component := range components {
+		parentID := ""
+		if component.ParentID != nil {
+			parentID = *component.ParentID
+		}
+		flattened = append(flattened, map[string]interface{}{
+			"name":                 component.Name,
+			"resource_type":        component.ResourceType,
+			"resource_id":          component.ResourceID,
+			"resource_revision_id": component.ResourceRevisionID,
+			"parent_id":            parentID,
+		})
+	}
+	return flattened
 }
 
 func dataSourcePackageRead(_ context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
@@ -77,7 +144,14 @@ func dataSourcePackageRead(_ context.Context, d *schema.ResourceData, m interfac
 	nrn := d.Get("nrn").(string)
 	slug := d.Get("slug").(string)
 
-	pkg, err := nullOps.FindPackage(nrn, slug)
+	var pkg *Package
+	var err error
+	if visibleAt, ok := d.GetOk("visible_at"); ok {
+		nrn = visibleAt.(string)
+		pkg, err = nullOps.FindVisiblePackage(nrn, slug)
+	} else {
+		pkg, err = nullOps.FindPackage(nrn, slug)
+	}
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -104,7 +178,19 @@ func dataSourcePackageRead(_ context.Context, d *schema.ResourceData, m interfac
 		}
 	}
 
+	var components []PackageComponent
+	if revisionID != "" {
+		revision, err := nullOps.GetPackageRevision(pkg.ID, revisionID)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		components = revision.Components
+	}
+
 	d.SetId(pkg.ID)
+	if err := d.Set("components", flattenPackageComponents(components)); err != nil {
+		return diag.FromErr(err)
+	}
 	if err := d.Set("name", pkg.Name); err != nil {
 		return diag.FromErr(err)
 	}

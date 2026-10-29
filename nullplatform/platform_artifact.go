@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 )
 
 const (
@@ -58,15 +57,6 @@ type platformArtifactRevisionListResponse struct {
 	Results []*PlatformArtifactRevision `json:"results"`
 	Paging  *Paging                     `json:"paging,omitempty"`
 }
-
-// platformArtifactPageSize is the page GET /artifacts and
-// GET /artifacts/:id/revisions are read in. Both page by offset — 30 per page
-// unless a limit is sent — and answer no total, so a listing is only whole
-// when every page is read until a short one. Reading the first page alone
-// truncated the visible set once the globals crossed 30 (2026-10-06): the
-// older production artifacts fell to page two and every lookup of them
-// failed as "not visible".
-var platformArtifactPageSize = 200
 
 func (c *NullClient) RegisterPlatformArtifact(r *PlatformArtifactRegistration) (*PlatformArtifactRevision, error) {
 	var buf bytes.Buffer
@@ -151,7 +141,7 @@ func (c *NullClient) ListPlatformArtifacts(nrn, artifactType string) ([]*Platfor
 	if artifactType != "" {
 		params["type"] = artifactType
 	}
-	return listPlatformArtifactPages(c, ARTIFACT_PATH, params, "artifacts",
+	return listAllPages(c, ARTIFACT_PATH, params, "artifacts",
 		func(artifact *PlatformArtifact) string { return artifact.ResourceID })
 }
 
@@ -159,51 +149,8 @@ func (c *NullClient) ListPlatformArtifacts(nrn, artifactType string) ([]*Platfor
 // page of them.
 func (c *NullClient) ListPlatformArtifactRevisions(artifactID string) ([]*PlatformArtifactRevision, error) {
 	path := fmt.Sprintf("%s/%s/revisions", ARTIFACT_PATH, artifactID)
-	return listPlatformArtifactPages(c, path, map[string]string{}, "artifact revisions",
+	return listAllPages(c, path, map[string]string{}, "artifact revisions",
 		func(revision *PlatformArtifactRevision) string { return revision.ResourceRevisionID })
-}
-
-// listPlatformArtifactPages reads a paged artifact listing whole: page after
-// page from offset 0, platformArtifactPageSize at a time, until a page
-// shorter than the limit the API echoes back (the API answers no total). The
-// pages are keyed by offset, so an item registered between two reads shifts
-// the rest and may come twice: idOf keeps it once.
-func listPlatformArtifactPages[T any](c *NullClient, path string, params map[string]string, entity string, idOf func(T) string) ([]T, error) {
-	var items []T
-	seen := map[string]bool{}
-	for offset := 0; ; {
-		params["limit"] = strconv.Itoa(platformArtifactPageSize)
-		params["offset"] = strconv.Itoa(offset)
-
-		body, err := c.getJSON(path+c.PrepareQueryString(params), entity)
-		if err != nil {
-			return nil, err
-		}
-
-		var page struct {
-			Results []T     `json:"results"`
-			Paging  *Paging `json:"paging"`
-		}
-		if err := json.Unmarshal(body, &page); err != nil {
-			return nil, fmt.Errorf("error decoding %s list: %v", entity, err)
-		}
-
-		for _, item := range page.Results {
-			if id := idOf(item); !seen[id] {
-				seen[id] = true
-				items = append(items, item)
-			}
-		}
-
-		limit := platformArtifactPageSize
-		if page.Paging != nil && page.Paging.Limit > 0 {
-			limit = page.Paging.Limit
-		}
-		if len(page.Results) < limit {
-			return items, nil
-		}
-		offset += len(page.Results)
-	}
 }
 
 // getJSON performs a GET and returns the raw body on 200, mapping API error

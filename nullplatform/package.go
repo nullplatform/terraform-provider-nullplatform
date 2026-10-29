@@ -21,6 +21,27 @@ type PackageComponent struct {
 	ParentID           *string `json:"parent_id,omitempty"`
 }
 
+// PackageInstallationDeclaration is what a package declares about installing
+// it: the providers an organization must already have configured at the
+// installation NRN or above before it installs the package. The package's,
+// not a revision's; the API replaces it whole on every write that carries it.
+type PackageInstallationDeclaration struct {
+	Requires PackageRequires `json:"requires"`
+}
+
+type PackageRequires struct {
+	Providers []PackageProviderRequirement `json:"providers"`
+}
+
+// PackageProviderRequirement names exactly one of a provider category (any
+// specification in it satisfies it) or a provider specification. A missing
+// required one refuses the install; a missing optional one is reported.
+type PackageProviderRequirement struct {
+	Category      string `json:"category,omitempty"`
+	Specification string `json:"specification,omitempty"`
+	Optional      bool   `json:"optional"`
+}
+
 // PackageUpsert is the PUT /packages body: an idempotent slug-keyed publish.
 // Missing (nrn, slug) creates the package + first revision; existing ones
 // publish a new revision. `default` promotes the published revision to the
@@ -40,6 +61,10 @@ type PackageUpsert struct {
 	MergeComponents bool               `json:"merge_components"`
 	VisibleTo       []string           `json:"visible_to,omitempty"`
 	Default         bool               `json:"default,omitempty"`
+	// Installation is raw so a publish can omit it (leave the declaration as
+	// it is, and stay compatible with APIs that predate it) or send an
+	// explicit null (clear it).
+	Installation json.RawMessage `json:"installation,omitempty"`
 }
 
 // PackagePatch carries the mutable envelope fields for PATCH /packages/:id.
@@ -55,17 +80,18 @@ type PackagePatch struct {
 // Package is the envelope returned by the package read endpoints, with the
 // resolved BOM of the default (or latest) revision inlined as components.
 type Package struct {
-	ID                string             `json:"id,omitempty"`
-	Nrn               string             `json:"nrn,omitempty"`
-	Slug              string             `json:"slug,omitempty"`
-	Name              string             `json:"name,omitempty"`
-	VisibleTo         []string           `json:"visible_to,omitempty"`
-	DefaultRevisionID string             `json:"default_revision_id,omitempty"`
-	LatestRevisionID  string             `json:"latest_revision_id,omitempty"`
-	DefaultVersion    string             `json:"default_version,omitempty"`
-	LatestVersion     string             `json:"latest_version,omitempty"`
-	Tags              []*PackageTag      `json:"tags,omitempty"`
-	Components        []PackageComponent `json:"components,omitempty"`
+	ID                string                          `json:"id,omitempty"`
+	Nrn               string                          `json:"nrn,omitempty"`
+	Slug              string                          `json:"slug,omitempty"`
+	Name              string                          `json:"name,omitempty"`
+	VisibleTo         []string                        `json:"visible_to,omitempty"`
+	DefaultRevisionID string                          `json:"default_revision_id,omitempty"`
+	LatestRevisionID  string                          `json:"latest_revision_id,omitempty"`
+	DefaultVersion    string                          `json:"default_version,omitempty"`
+	LatestVersion     string                          `json:"latest_version,omitempty"`
+	Tags              []*PackageTag                   `json:"tags,omitempty"`
+	Components        []PackageComponent              `json:"components,omitempty"`
+	Installation      *PackageInstallationDeclaration `json:"installation,omitempty"`
 }
 
 // PackageTag is a named, movable pointer to one package revision (npm
@@ -87,9 +113,10 @@ type PackageTagSet struct {
 
 // PackageRevision is one published, immutable revision of a package.
 type PackageRevision struct {
-	ID        string `json:"id,omitempty"`
-	PackageID string `json:"package_id,omitempty"`
-	Version   string `json:"version,omitempty"`
+	ID         string             `json:"id,omitempty"`
+	PackageID  string             `json:"package_id,omitempty"`
+	Version    string             `json:"version,omitempty"`
+	Components []PackageComponent `json:"components,omitempty"`
 }
 
 type packageListResponse struct {
@@ -285,18 +312,46 @@ func (c *NullClient) FindPackage(nrn, slug string) (*Package, error) {
 	return response.Results[0], nil
 }
 
+// FindVisiblePackage resolves a package by slug among the packages visible at
+// an NRN (the listing's visible_to filter), not merely owned there: a package
+// published for every organization is owned by another organization, so an
+// owner lookup can never return it.
+func (c *NullClient) FindVisiblePackage(visibleAt, slug string) (*Package, error) {
+	packages, err := listAllPages(c, PACKAGE_PATH, map[string]string{"visible_to": visibleAt, "slug": slug}, "packages",
+		func(p *Package) string { return p.ID })
+	if err != nil {
+		return nil, err
+	}
+	switch len(packages) {
+	case 0:
+		return nil, fmt.Errorf("no package with slug %s is visible at %s", slug, visibleAt)
+	case 1:
+		return packages[0], nil
+	default:
+		return nil, fmt.Errorf("%d packages with slug %s are visible at %s; look it up by its owner nrn instead", len(packages), slug, visibleAt)
+	}
+}
+
 func (c *NullClient) ListPackageRevisions(packageID string) ([]*PackageRevision, error) {
 	path := fmt.Sprintf("%s/%s/revisions", PACKAGE_PATH, packageID)
+	return listAllPages(c, path, map[string]string{}, "package revisions",
+		func(revision *PackageRevision) string { return revision.ID })
+}
 
-	body, err := c.getJSON(path, "package revisions")
+// GetPackageRevision reads one revision with its bill of materials: the
+// listing omits components, the single-revision read carries them.
+func (c *NullClient) GetPackageRevision(packageID, revisionID string) (*PackageRevision, error) {
+	path := fmt.Sprintf("%s/%s/revisions/%s", PACKAGE_PATH, packageID, revisionID)
+
+	body, err := c.getJSON(path, "package revision")
 	if err != nil {
 		return nil, err
 	}
 
-	response := &packageRevisionListResponse{}
-	if err := json.Unmarshal(body, response); err != nil {
-		return nil, fmt.Errorf("error decoding package revision list: %v", err)
+	revision := &PackageRevision{}
+	if err := json.Unmarshal(body, revision); err != nil {
+		return nil, fmt.Errorf("error decoding package revision: %v", err)
 	}
 
-	return response.Results, nil
+	return revision, nil
 }

@@ -46,3 +46,31 @@ resource "nullplatform_package" "pinned" {
     resource_revision_id = var.containers_spec_snapshot_id
   }
 }
+
+# A package other organizations install declares what they must already have
+# configured: installing it where a required provider is missing is refused,
+# and a missing optional one is reported on the installation.
+resource "nullplatform_package" "functions" {
+  nrn        = "organization=123"
+  slug       = "functions"
+  name       = "Functions"
+  version    = "1.0.0"
+  default    = true
+  visible_to = ["organization=*"]
+
+  components {
+    name                 = "scope"
+    resource_type        = "service_specification"
+    resource_id          = nullplatform_service_specification.functions.id
+    resource_revision_id = var.functions_spec_snapshot_id
+  }
+
+  requires_provider {
+    category = "cloud-providers" # any provider specification in the category
+  }
+
+  requires_provider {
+    category = "metrics"
+    optional = true
+  }
+}
