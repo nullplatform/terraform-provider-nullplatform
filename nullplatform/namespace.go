@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 )
 
 const NAMESPACE_PATH = "/namespace"
@@ -122,4 +123,15 @@ func (c *NullClient) DeleteNamespace(namespaceId string) error {
 	}
 
 	return nil
+}
+
+// ListNamespaces lists every namespace of an account, every page of them.
+// GET /namespace requires account_id — an organization_id filter is refused
+// with 403 — and pages by offset in an unstable order unless sorted:
+// unsorted, consecutive pages repeat some rows and never return others, so
+// the walk asks for sort=id:asc.
+func (c *NullClient) ListNamespaces(accountID string) ([]*Namespace, error) {
+	return listAllPages(c, NAMESPACE_PATH,
+		map[string]string{"account_id": accountID, "sort": "id:asc"}, "namespaces",
+		func(namespace *Namespace) string { return strconv.Itoa(namespace.Id) })
 }
