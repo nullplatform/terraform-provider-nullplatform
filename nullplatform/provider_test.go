@@ -99,6 +99,12 @@ func TestProvider_HasChildDataSources(t *testing.T) {
 		"nullplatform_action_specifications",
 		"nullplatform_artifact",
 		"nullplatform_package",
+		"nullplatform_applications",
+		"nullplatform_scopes",
+		"nullplatform_services",
+		"nullplatform_dimensions",
+		"nullplatform_provider_configs",
+		"nullplatform_parameters",
 	}
 
 	dataSources := nullplatform.Provider().DataSourcesMap
