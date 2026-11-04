@@ -83,18 +83,18 @@ func dataSourceAccounts() *schema.Resource {
 func dataSourceAccountsRead(_ context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
-	organizationID := strconv.Itoa(d.Get("organization_id").(int))
-	if d.Get("organization_id").(int) == 0 {
+	orgID := d.Get("organization_id").(int)
+	if orgID == 0 {
 		fromToken, err := nullOps.GetOrganizationIDFromToken()
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("organization_id is not set and could not be read from the provider's credentials: %v", err))
+			return diag.Errorf("organization_id is not set and could not be read from the provider's credentials: %v", err)
 		}
-		organizationID = fromToken
+		orgID, err = strconv.Atoi(fromToken)
+		if err != nil {
+			return diag.Errorf("organization ID %q read from the provider's credentials is not a valid integer: %v", fromToken, err)
+		}
 	}
-	orgID, err := strconv.Atoi(organizationID)
-	if err != nil {
-		return diag.FromErr(fmt.Errorf("invalid organization ID %q: %v", organizationID, err))
-	}
+	organizationID := strconv.Itoa(orgID)
 
 	accounts, err := nullOps.ListAccounts(organizationID)
 	if err != nil {

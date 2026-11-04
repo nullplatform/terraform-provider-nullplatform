@@ -238,7 +238,7 @@ func TestDataSourceAccountsRead_NonNumericTokenOrganizationIsAnError(t *testing.
 	d := schema.TestResourceDataRaw(t, dataSourceAccounts().Schema, map[string]any{})
 
 	diags := dataSourceAccountsRead(context.Background(), d, orgFromToken{orgID: "abc"})
-	if !diags.HasError() || !strings.Contains(diags[0].Summary, `invalid organization ID "abc"`) {
+	if !diags.HasError() || !strings.Contains(diags[0].Summary, `organization ID "abc" read from the provider's credentials is not a valid integer`) {
 		t.Fatalf("want an invalid organization error, got %v", diags)
 	}
 }
