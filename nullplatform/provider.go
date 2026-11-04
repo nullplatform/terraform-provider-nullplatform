@@ -96,7 +96,9 @@ func Provider() *schema.Provider {
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"nullplatform_account":               dataSourceAccount(),
+			"nullplatform_accounts":              dataSourceAccounts(),
 			"nullplatform_namespace":             dataSourceNamespace(),
+			"nullplatform_namespaces":            dataSourceNamespaces(),
 			"nullplatform_dimension":             dataSourceDimension(),
 			"nullplatform_scope":                 dataSourceScope(),
 			"nullplatform_application":           dataSourceApplication(),

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 )
 
 const ACCOUNT_PATH = "/account"
@@ -129,4 +130,15 @@ func (c *NullClient) DeleteAccount(accountId string) error {
 	}
 
 	return nil
+}
+
+// ListAccounts lists every account of an organization, every page of them.
+// GET /account refuses a listing without organization_id (403 — the token's
+// organization is not inferred), and pages by offset in an unstable order
+// unless sorted: unsorted, consecutive pages repeat some rows and never
+// return others, so the walk asks for sort=id:asc.
+func (c *NullClient) ListAccounts(organizationID string) ([]*Account, error) {
+	return listAllPages(c, ACCOUNT_PATH,
+		map[string]string{"organization_id": organizationID, "sort": "id:asc"}, "accounts",
+		func(account *Account) string { return strconv.Itoa(account.Id) })
 }

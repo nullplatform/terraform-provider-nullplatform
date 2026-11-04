@@ -84,7 +84,9 @@ func TestProvider_HasChildResources(t *testing.T) {
 func TestProvider_HasChildDataSources(t *testing.T) {
 	expectedDataSources := []string{
 		"nullplatform_account",
+		"nullplatform_accounts",
 		"nullplatform_namespace",
+		"nullplatform_namespaces",
 		"nullplatform_scope",
 		"nullplatform_service",
 		"nullplatform_application",

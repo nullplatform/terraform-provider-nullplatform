@@ -184,11 +184,13 @@ type NullOps interface {
 	GetAccount(accountId string) (*Account, error)
 	PatchAccount(accountId string, account *Account) error
 	DeleteAccount(accountId string) error
+	ListAccounts(organizationID string) ([]*Account, error)
 
 	CreateNamespace(namespace *Namespace) (*Namespace, error)
 	GetNamespace(namespaceId string) (*Namespace, error)
 	PatchNamespace(namespaceId string, account *Namespace) error
 	DeleteNamespace(namespaceId string) error
+	ListNamespaces(accountID string) ([]*Namespace, error)
 
 	CreateMetadataSpecification(spec *MetadataSpecification) (*MetadataSpecification, error)
 	GetMetadataSpecification(specId string) (*MetadataSpecification, error)
