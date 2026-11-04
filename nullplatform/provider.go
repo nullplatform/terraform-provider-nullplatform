@@ -111,6 +111,12 @@ func Provider() *schema.Provider {
 			"nullplatform_action_specifications": dataSourceActionSpecifications(),
 			"nullplatform_artifact":              dataSourcePlatformArtifact(),
 			"nullplatform_package":               dataSourcePackage(),
+			"nullplatform_applications":          dataSourceApplications(),
+			"nullplatform_scopes":                dataSourceScopes(),
+			"nullplatform_services":              dataSourceServices(),
+			"nullplatform_dimensions":            dataSourceDimensions(),
+			"nullplatform_provider_configs":      dataSourceProviderConfigs(),
+			"nullplatform_parameters":            dataSourceParameters(),
 		},
 	}
 

@@ -191,6 +191,12 @@ type NullOps interface {
 	PatchNamespace(namespaceId string, account *Namespace) error
 	DeleteNamespace(namespaceId string) error
 	ListNamespaces(accountID string) ([]*Namespace, error)
+	ListApplications(namespaceID string) ([]*Application, error)
+	ListScopes(applicationID, status string) ([]*ScopeListItem, error)
+	ListServices(nrn string) ([]*Service, error)
+	ListDimensions(nrn string) ([]*Dimension, error)
+	ListProviderConfigs(nrn string) ([]*ProviderConfig, error)
+	ListParameters(nrn string) ([]*Parameter, error)
 
 	CreateMetadataSpecification(spec *MetadataSpecification) (*MetadataSpecification, error)
 	GetMetadataSpecification(specId string) (*MetadataSpecification, error)

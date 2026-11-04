@@ -20,6 +20,12 @@ nullplatform/resource_link_specification.go:366-367  # d.Set(selectors, list) ar
 nullplatform/data_source_accounts.go:128-129  # d.Set(organization_id, int) arm
 nullplatform/data_source_accounts.go:131-132  # d.Set(accounts, list of schema-typed rows) arm
 nullplatform/data_source_namespaces.go:87-88  # d.Set(namespaces, list of schema-typed rows) arm
+nullplatform/data_source_applications.go:85-86  # d.Set(applications, list of schema-typed rows) arm
+nullplatform/data_source_dimensions.go:87-88  # d.Set(dimensions, list of schema-typed rows) arm
+nullplatform/data_source_parameters.go:66-67  # d.Set(parameters, list of schema-typed rows) arm
+nullplatform/data_source_provider_configs.go:63-64  # d.Set(provider_configs, list of schema-typed rows) arm
+nullplatform/data_source_scopes.go:80-81  # d.Set(scopes, list of schema-typed rows) arm
+nullplatform/data_source_services.go:74-75  # d.Set(services, list of schema-typed rows) arm
 nullplatform/resource_service.go:269-270  # d.Set(status, string) arm in create
 nullplatform/resource_service.go:272-273  # d.Set(archived_at, string) arm in create
 nullplatform/resource_service.go:328-329  # d.Set(status, string) arm in read
