@@ -14,8 +14,3 @@ resource "nullplatform_package_installation" "lambda" {
   # Defaults to [nrn].
   visible_to = ["organization=123:account=456:namespace=789"]
 }
-
-# Providers the package can use but the organization has not configured yet.
-output "missing_optional_requirements" {
-  value = nullplatform_package_installation.lambda.missing_optional_requirements
-}

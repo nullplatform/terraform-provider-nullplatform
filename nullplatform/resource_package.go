@@ -2,7 +2,6 @@ package nullplatform
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
@@ -41,7 +40,6 @@ func resourcePackage() *schema.Resource {
 				n, _ := new.(string)
 				return o != "" && n != "" && o != n
 			}),
-			validateRequiresProviders,
 		),
 
 		Schema: map[string]*schema.Schema{
@@ -52,8 +50,8 @@ func resourcePackage() *schema.Resource {
 				Description: "The owner NRN of the package. Writes (publishes, patches, delete) are gated on it.",
 			},
 			"slug": {
-				Type:        schema.TypeString,
-				Required:    true,
+				Type:     schema.TypeString,
+				Required: true,
 				Description: "URL-safe identifier, unique per NRN. Together with nrn it is the publish key. " +
 					"Replaces the package only on a real rename (see CustomizeDiff), not when it merely " +
 					"resolves to the same value after apply.",
@@ -155,35 +153,6 @@ func resourcePackage() *schema.Resource {
 					"Movable pointers layered over default/latest; reserved names (default, latest) are not " +
 					"allowed here. Terraform manages exactly the tags listed — removing a key deletes the tag.",
 			},
-			"requires_provider": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Description: "A provider an organization must already have configured at the installation " +
-					"NRN or above it before installing this package, named by `category` (any provider " +
-					"specification in it) or by `specification`. A missing required one refuses the install; " +
-					"a missing optional one is reported on the installation. The list is the package's whole " +
-					"declaration, not a revision's: removing every entry clears it.",
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"category": {
-							Type:        schema.TypeString,
-							Optional:    true,
-							Description: "Provider category slug (e.g. \"scope-configurations\"). Exactly one of `category`, `specification`.",
-						},
-						"specification": {
-							Type:        schema.TypeString,
-							Optional:    true,
-							Description: "Provider specification slug. Exactly one of `category`, `specification`.",
-						},
-						"optional": {
-							Type:        schema.TypeBool,
-							Optional:    true,
-							Default:     false,
-							Description: "When true, a missing provider is reported instead of refusing the install.",
-						},
-					},
-				},
-			},
 			"published_revision_id": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -224,63 +193,7 @@ func buildPackageUpsert(d *schema.ResourceData) *PackageUpsert {
 		}
 	}
 
-	upsert.Installation = buildInstallationDeclaration(d)
-
 	return upsert
-}
-
-// buildInstallationDeclaration is the `installation` a publish sends: the
-// declared requirements, an explicit null when the last one was just removed
-// from config (the API keeps the declaration otherwise), or nothing at all.
-func buildInstallationDeclaration(d *schema.ResourceData) json.RawMessage {
-	requirements := expandRequiresProviders(d.Get("requires_provider").([]interface{}))
-	if len(requirements) == 0 {
-		if d.Id() != "" && d.HasChange("requires_provider") {
-			return json.RawMessage("null")
-		}
-		return nil
-	}
-	declaration, _ := json.Marshal(PackageInstallationDeclaration{Requires: PackageRequires{Providers: requirements}})
-	return declaration
-}
-
-func expandRequiresProviders(raw []interface{}) []PackageProviderRequirement {
-	requirements := []PackageProviderRequirement{}
-	for _, entry := range raw {
-		requirement := entry.(map[string]interface{})
-		requirements = append(requirements, PackageProviderRequirement{
-			Category:      requirement["category"].(string),
-			Specification: requirement["specification"].(string),
-			Optional:      requirement["optional"].(bool),
-		})
-	}
-	return requirements
-}
-
-func flattenRequiresProviders(declaration *PackageInstallationDeclaration) []interface{} {
-	flattened := []interface{}{}
-	if declaration == nil {
-		return flattened
-	}
-	for _, requirement := range declaration.Requires.Providers {
-		flattened = append(flattened, map[string]interface{}{
-			"category":      requirement.Category,
-			"specification": requirement.Specification,
-			"optional":      requirement.Optional,
-		})
-	}
-	return flattened
-}
-
-// validateRequiresProviders refuses at plan what the API would refuse at
-// apply: a requirement names exactly one of category, specification.
-func validateRequiresProviders(ctx context.Context, d *schema.ResourceDiff, meta interface{}) error {
-	for i, requirement := range expandRequiresProviders(d.Get("requires_provider").([]interface{})) {
-		if (requirement.Category == "") == (requirement.Specification == "") {
-			return fmt.Errorf("requires_provider.%d: set exactly one of category, specification", i)
-		}
-	}
-	return nil
 }
 
 // configuredDefaultVersion distinguishes a user-set default_version from the
@@ -399,9 +312,6 @@ func PackageRead(d *schema.ResourceData, m interface{}) error {
 	if err := d.Set("latest_version", pkg.LatestVersion); err != nil {
 		return err
 	}
-	if err := d.Set("requires_provider", flattenRequiresProviders(pkg.Installation)); err != nil {
-		return err
-	}
 
 	// Reflect the user tags currently on the package (system tags default/
 	// latest are surfaced through their own attributes, not here).
@@ -443,9 +353,9 @@ func PackageUpdate(d *schema.ResourceData, m interface{}) error {
 	nullOps := m.(NullOps)
 
 	published := false
-	if d.HasChange("version") || d.HasChange("components") || d.HasChange("visible_to") || d.HasChange("default") || d.HasChange("requires_provider") {
+	if d.HasChange("version") || d.HasChange("components") || d.HasChange("visible_to") || d.HasChange("default") {
 		// Publishing is the natural write path and also carries the envelope
-		// fields (name, visible_to, installation) along.
+		// fields (name, visible_to) along.
 		if _, err := nullOps.UpsertPackage(buildPackageUpsert(d)); err != nil {
 			return err
 		}

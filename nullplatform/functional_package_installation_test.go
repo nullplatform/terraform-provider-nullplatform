@@ -61,8 +61,7 @@ resource "nullplatform_package_installation" "lambda" {
 }
 
 // Installing without a revision takes the package default at install time, and
-// visibility defaults to the installation NRN. The optional requirements the
-// organization lacks come back once, and stay in state on later plans.
+// visibility defaults to the installation NRN.
 func TestFunctionalPackageInstallation_InstallsOnThePackageDefault(t *testing.T) {
 	fake, _ := newInstallationFake(t)
 
@@ -76,8 +75,6 @@ func TestFunctionalPackageInstallation_InstallsOnThePackageDefault(t *testing.T)
 				resource.TestCheckResourceAttr(installationResource, "visible_to.#", "1"),
 				resource.TestCheckResourceAttr(installationResource, "visible_to.0", "organization=1:account=2:namespace=3"),
 				resource.TestCheckResourceAttr(installationResource, "created_by", "3"),
-				resource.TestCheckResourceAttr(installationResource, "missing_optional_requirements.#", "1"),
-				resource.TestCheckResourceAttr(installationResource, "missing_optional_requirements.0.category", "scope-configurations"),
 			),
 		}},
 	})
@@ -260,10 +257,9 @@ func TestFunctionalPackageInstallation_Import(t *testing.T) {
 		Steps: []resource.TestStep{
 			{Config: installationConfig("")},
 			{
-				ResourceName:            installationResource,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"missing_optional_requirements"},
+				ResourceName:      installationResource,
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 		},
 	})

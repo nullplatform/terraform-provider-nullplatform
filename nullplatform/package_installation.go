@@ -38,23 +38,14 @@ type PackageInstallationPatch struct {
 	VisibleTo         []string `json:"visible_to,omitempty"`
 }
 
-// MissingRequirement is an optional provider the package declares that the
-// organization has not configured at the installation NRN or above it.
-// Required ones refuse the install instead.
-type MissingRequirement struct {
-	Category      string `json:"category,omitempty"`
-	Specification string `json:"specification,omitempty"`
-}
-
 type PackageInstallation struct {
-	ID                          string               `json:"id,omitempty"`
-	Nrn                         string               `json:"nrn,omitempty"`
-	PackageID                   string               `json:"package_id,omitempty"`
-	DefaultRevisionID           string               `json:"default_revision_id,omitempty"`
-	DefaultVersion              string               `json:"default_version,omitempty"`
-	VisibleTo                   []string             `json:"visible_to,omitempty"`
-	CreatedBy                   string               `json:"created_by,omitempty"`
-	MissingOptionalRequirements []MissingRequirement `json:"missing_optional_requirements,omitempty"`
+	ID                string   `json:"id,omitempty"`
+	Nrn               string   `json:"nrn,omitempty"`
+	PackageID         string   `json:"package_id,omitempty"`
+	DefaultRevisionID string   `json:"default_revision_id,omitempty"`
+	DefaultVersion    string   `json:"default_version,omitempty"`
+	VisibleTo         []string `json:"visible_to,omitempty"`
+	CreatedBy         string   `json:"created_by,omitempty"`
 }
 
 func (c *NullClient) CreatePackageInstallation(body *PackageInstallationCreate) (*PackageInstallation, error) {

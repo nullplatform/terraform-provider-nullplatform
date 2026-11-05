@@ -73,27 +73,6 @@ func resourcePackageInstallation() *schema.Resource {
 				Computed:    true,
 				Description: "Id of the user that installed the package.",
 			},
-			"missing_optional_requirements": {
-				Type:     schema.TypeList,
-				Computed: true,
-				Description: "Optional providers the package declares that the organization had not " +
-					"configured at `nrn` or above when it was installed. Reported once, at install; " +
-					"missing required providers refuse the install instead.",
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"category": {
-							Type:        schema.TypeString,
-							Computed:    true,
-							Description: "Provider category slug, when the requirement names a category.",
-						},
-						"specification": {
-							Type:        schema.TypeString,
-							Computed:    true,
-							Description: "Provider specification slug, when the requirement names a specification.",
-						},
-					},
-				},
-			},
 		},
 	}
 }
@@ -123,17 +102,6 @@ func packageInstallationResourceCreate(_ context.Context, d *schema.ResourceData
 		return diag.FromErr(err)
 	}
 	d.SetId(installation.ID)
-
-	missing := make([]map[string]interface{}, 0, len(installation.MissingOptionalRequirements))
-	for _, requirement := range installation.MissingOptionalRequirements {
-		missing = append(missing, map[string]interface{}{
-			"category":      requirement.Category,
-			"specification": requirement.Specification,
-		})
-	}
-	if err := d.Set("missing_optional_requirements", missing); err != nil {
-		return diag.FromErr(err)
-	}
 
 	return setPackageInstallation(d, installation)
 }
