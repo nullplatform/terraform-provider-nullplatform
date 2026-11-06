@@ -68,6 +68,10 @@ type Hooks struct {
 	// OnList answers GET /<collection>, whole body included; nil leaves the
 	// route unhandled. Query() has the request's filters.
 	OnList func(s *Server) (any, *Refusal)
+	// OnSubList answers GET /<collection>/<id>/<sub> — a listing that hangs
+	// off one item (its snapshots, its action specifications) — whole body
+	// included; nil leaves the route to OnSub, or unhandled.
+	OnSubList func(s *Server, parent Item, sub string) (any, *Refusal)
 	// OnGet runs before an item is returned — the place asynchronous
 	// transitions progress, one observation at a time.
 	OnGet func(s *Server, item Item)
@@ -263,6 +267,13 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch {
+	case r.Method == http.MethodGet && len(segments) == 2 && col.hooks.OnSubList != nil:
+		list, refusal := col.hooks.OnSubList(s, col.items[id], segments[1])
+		if refusal != nil {
+			writeRefusal(w, refusal)
+			return
+		}
+		writeJSON(w, list)
 	case len(segments) > 1 && col.hooks.OnSub != nil:
 		sub := Item{}
 		body(&sub)

@@ -10,7 +10,14 @@ provider "nullplatform" {
 
 # Resource: Service Specification
 resource "nullplatform_service_specification" "redis_service_spec" {
-  name          = "Redis Service Specification"
+  name = "Redis Service Specification"
+  # Optional. Omitted, the platform derives the slug from the name
+  # ("redis-service-specification"). Give one to keep a namespaced identifier
+  # under a plain name — a specification published for every organization uses
+  # it to live next to the copies organizations already run under the derived
+  # slug. Lowercase letters and digits joined by single dashes; it never changes
+  # afterwards, so changing it here replaces the specification.
+  # slug = "np-redis"
   type          = "dependency"
   assignable_to = "any" # Options: "any", "dimension", "scope"
 

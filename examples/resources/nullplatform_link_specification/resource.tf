@@ -8,7 +8,10 @@ terraform {
 provider "nullplatform" {}
 
 resource "nullplatform_link_specification" "redis_link_spec" {
-  name             = "Redis Link Specification"
+  name = "Redis Link Specification"
+  # Optional, same contract as the service specification's: derived from the
+  # name when omitted, kept as given otherwise, never changed.
+  # slug = "np-redis-link"
   unique           = false
   specification_id = nullplatform_service_specification.redis_service_spec.id
   assignable_to    = "any"

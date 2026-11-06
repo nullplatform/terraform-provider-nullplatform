@@ -23,7 +23,10 @@ terraform {
 provider "nullplatform" {}
 
 resource "nullplatform_link_specification" "redis_link_spec" {
-  name             = "Redis Link Specification"
+  name = "Redis Link Specification"
+  # Optional, same contract as the service specification's: derived from the
+  # name when omitted, kept as given otherwise, never changed.
+  # slug = "np-redis-link"
   unique           = false
   specification_id = nullplatform_service_specification.redis_service_spec.id
   assignable_to    = "any"
@@ -80,6 +83,7 @@ resource "nullplatform_link_specification" "redis_link_spec" {
 - `external` (String) JSON string with the configuration for resolving external context data via the nullplatform agent
 - `scopes` (String) JSON string containing scope configurations. Example: {"provider": {"values": ["AWS:SERVERLESS:LAMBDA"]}}
 - `selectors` (Block List, Max: 1) Selectors for the service specification (see [below for nested schema](#nestedblock--selectors))
+- `slug` (String) Slug of the link specification. Omitted, the platform derives it from `name`; given, it is stored as sent and must be lowercase letters and digits joined by single dashes (what the derivation produces). It never changes afterwards, so changing it replaces the link specification. Give one to keep a namespaced identifier under a plain name, e.g. "AWS Lambda" as `np-aws-lambda`.
 - `use_default_actions` (Boolean) Indicates whether to use default actions for the link specification. Left to the API default when not set
 - `use_default_naming` (Boolean) Indicates whether the entry point of the link specification actions is derived from the default naming convention (`<service-slug>/link/<action-slug>`). Left to the API default when not set
 - `use_managed_actions` (Boolean) Indicates whether the CRUD verbs on instances of this specification run through the generated actions instead of writing directly: a PATCH mints the `update` action, a DELETE mints `delete`, and `status = "archived"` mints `archive`. Requires `use_default_actions` — a specification that authors its own actions has none to stamp as managed. Left to the API default (false) when not set
@@ -91,7 +95,6 @@ resource "nullplatform_link_specification" "redis_link_spec" {
 - `external_resolution` (String) JSON string with the status of the external context resolution when the link specification was read
 - `id` (String) The ID of this resource.
 - `last_snapshot_id` (String) Newest snapshot id of this link specification. Pin it as a package BOM component's resource_revision_id to freeze this exact version into a package.
-- `slug` (String) The computed slug for the link specification
 
 <a id="nestedblock--selectors"></a>
 ### Nested Schema for `selectors`
