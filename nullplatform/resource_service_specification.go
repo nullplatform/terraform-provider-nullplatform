@@ -52,11 +52,7 @@ func resourceServiceSpecification() *schema.Resource {
 				Optional:    true,
 				Description: "Description of the service specification",
 			},
-			"slug": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The computed slug for the service specification",
-			},
+			"slug": specificationSlugSchema("service specification"),
 			"last_snapshot_id": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -208,6 +204,7 @@ func CreateServiceSpecification(_ context.Context, d *schema.ResourceData, m int
 
 	spec := &ServiceSpecification{
 		Name:              d.Get("name").(string),
+		Slug:              d.Get("slug").(string), // empty when omitted: omitempty keeps it off the wire and the API derives it
 		Description:       d.Get("description").(string),
 		VisibleTo:         visibleTo,
 		Dimensions:        dimensions,

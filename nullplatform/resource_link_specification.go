@@ -48,11 +48,7 @@ func resourceLinkSpecification() *schema.Resource {
 				Required:    true,
 				Description: "Name of the link specification",
 			},
-			"slug": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The computed slug for the link specification",
-			},
+			"slug": specificationSlugSchema("link specification"),
 			"last_snapshot_id": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -222,6 +218,7 @@ func CreateLinkSpecification(_ context.Context, d *schema.ResourceData, m interf
 
 	spec := &LinkSpecification{
 		Name:              d.Get("name").(string),
+		Slug:              d.Get("slug").(string), // empty when omitted: omitempty keeps it off the wire and the API derives it
 		Unique:            d.Get("unique").(bool),
 		SpecificationId:   d.Get("specification_id").(string),
 		VisibleTo:         visibleTo,
