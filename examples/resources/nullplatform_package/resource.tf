@@ -47,9 +47,8 @@ resource "nullplatform_package" "pinned" {
   }
 }
 
-# A package other organizations install declares what they must already have
-# configured: installing it where a required provider is missing is refused,
-# and a missing optional one is reported on the installation.
+# A package published for every organization: each one installs it with
+# nullplatform_package_installation, at the revision it chooses.
 resource "nullplatform_package" "functions" {
   nrn        = "organization=123"
   slug       = "functions"
@@ -63,14 +62,5 @@ resource "nullplatform_package" "functions" {
     resource_type        = "service_specification"
     resource_id          = nullplatform_service_specification.functions.id
     resource_revision_id = var.functions_spec_snapshot_id
-  }
-
-  requires_provider {
-    category = "cloud-providers" # any provider specification in the category
-  }
-
-  requires_provider {
-    category = "metrics"
-    optional = true
   }
 }

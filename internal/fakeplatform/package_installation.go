@@ -45,12 +45,7 @@ func RegisterPackageInstallation(s *Server, contract *PackageInstallationContrac
 				item["visible_to"] = []any{item["nrn"]}
 			}
 			item["created_by"] = "3"
-			item["missing_optional_requirements"] = []any{Item{"category": "scope-configurations"}}
 			return nil
-		},
-		// The API answers missing_optional_requirements only on the install response.
-		OnGet: func(_ *Server, item Item) {
-			delete(item, "missing_optional_requirements")
 		},
 		OnPatch: func(_ *Server, existing, patch Item) *Refusal {
 			if revisionID, ok := patch["default_revision_id"].(string); ok && revisionID != "" {

@@ -62,9 +62,8 @@ resource "nullplatform_package" "pinned" {
   }
 }
 
-# A package other organizations install declares what they must already have
-# configured: installing it where a required provider is missing is refused,
-# and a missing optional one is reported on the installation.
+# A package published for every organization: each one installs it with
+# nullplatform_package_installation, at the revision it chooses.
 resource "nullplatform_package" "functions" {
   nrn        = "organization=123"
   slug       = "functions"
@@ -78,15 +77,6 @@ resource "nullplatform_package" "functions" {
     resource_type        = "service_specification"
     resource_id          = nullplatform_service_specification.functions.id
     resource_revision_id = var.functions_spec_snapshot_id
-  }
-
-  requires_provider {
-    category = "cloud-providers" # any provider specification in the category
-  }
-
-  requires_provider {
-    category = "metrics"
-    optional = true
   }
 }
 ```
@@ -106,7 +96,6 @@ resource "nullplatform_package" "functions" {
 
 - `default` (Boolean) When true, every publish from this resource also promotes the published revision to the package default (one-shot bump-and-promote).
 - `default_version` (String) Pin the package default to this published version (resolved to its revision id and PATCHed after each apply). Mutually exclusive with `default`. When omitted, reflects the server-side default.
-- `requires_provider` (Block List) A provider an organization must already have configured at the installation NRN or above it before installing this package, named by `category` (any provider specification in it) or by `specification`. A missing required one refuses the install; a missing optional one is reported on the installation. The list is the package's whole declaration, not a revision's: removing every entry clears it. (see [below for nested schema](#nestedblock--requires_provider))
 - `tags` (Map of String) User release tags as name => published version (e.g. { beta = "1.2.0" }). Movable pointers layered over default/latest; reserved names (default, latest) are not allowed here. Terraform manages exactly the tags listed — removing a key deletes the tag.
 - `visible_to` (List of String) NRNs allowed to consume (read/link) this package. Supports trailing-wildcard scopes ("organization=1:account=*") and the global wildcard "organization=*" (requires the write action org-wide). Defaults to [nrn].
 
@@ -131,13 +120,3 @@ Required:
 Optional:
 
 - `parent_id` (String) resource_id of the owning spec/link component in this BOM (required for action/link specification components).
-
-
-<a id="nestedblock--requires_provider"></a>
-### Nested Schema for `requires_provider`
-
-Optional:
-
-- `category` (String) Provider category slug (e.g. "scope-configurations"). Exactly one of `category`, `specification`.
-- `optional` (Boolean) When true, a missing provider is reported instead of refusing the install.
-- `specification` (String) Provider specification slug. Exactly one of `category`, `specification`.
