@@ -25,7 +25,14 @@ provider "nullplatform" {
 
 # Resource: Service Specification
 resource "nullplatform_service_specification" "redis_service_spec" {
-  name          = "Redis Service Specification"
+  name = "Redis Service Specification"
+  # Optional. Omitted, the platform derives the slug from the name
+  # ("redis-service-specification"). Give one to keep a namespaced identifier
+  # under a plain name — a specification published for every organization uses
+  # it to live next to the copies organizations already run under the derived
+  # slug. Lowercase letters and digits joined by single dashes; it never changes
+  # afterwards, so changing it here replaces the specification.
+  # slug = "np-redis"
   type          = "dependency"
   assignable_to = "any" # Options: "any", "dimension", "scope"
 
@@ -114,6 +121,7 @@ resource "nullplatform_service_specification" "redis_service_spec" {
 - `dimensions` (String) JSON string containing dimension configurations. Example: {"environment": {"required": true}}
 - `scopes` (String) JSON string containing scope configurations. Example: {"provider": {"values": ["AWS:SERVERLESS:LAMBDA"]}}
 - `selectors` (Block List, Max: 1) Selectors for the service specification (see [below for nested schema](#nestedblock--selectors))
+- `slug` (String) Slug of the service specification. Omitted, the platform derives it from `name`; given, it is stored as sent and must be lowercase letters and digits joined by single dashes (what the derivation produces). It never changes afterwards, so changing it replaces the service specification. Give one to keep a namespaced identifier under a plain name, e.g. "AWS Lambda" as `np-aws-lambda`.
 - `type` (String) Type of the service specification
 - `use_default_actions` (Boolean) Indicates whether to use default actions for the service specification. Left to the API default when not set
 - `use_default_naming` (Boolean) Indicates whether the entry point of the service specification actions is derived from the default naming convention based on the service and action slugs. Left to the API default when not set
@@ -124,7 +132,6 @@ resource "nullplatform_service_specification" "redis_service_spec" {
 - `action_specifications` (List of Object) Default-created action specifications for this spec (populated when use_default_actions is true). Pin each into a package BOM component: resource_id = id, resource_revision_id = last_snapshot_id, parent_id = this spec's id. (see [below for nested schema](#nestedatt--action_specifications))
 - `id` (String) The ID of this resource.
 - `last_snapshot_id` (String) Newest snapshot id of this specification. Pin it as a package BOM component's resource_revision_id to freeze this exact version into a package.
-- `slug` (String) The computed slug for the service specification
 
 <a id="nestedblock--selectors"></a>
 ### Nested Schema for `selectors`
