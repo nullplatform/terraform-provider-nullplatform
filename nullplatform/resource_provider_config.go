@@ -59,7 +59,35 @@ func suppressEquivalentJSON(k, old, new string, d *schema.ResourceData) bool {
 	if err := json.Unmarshal([]byte(new), &newJSON); err != nil {
 		return false
 	}
-	return reflect.DeepEqual(oldJSON, newJSON)
+	if reflect.DeepEqual(oldJSON, newJSON) {
+		return true
+	}
+	// The API populates its own defaults into attributes it stores (e.g. naming
+	// patterns, traffic_manager.port), so the state (old) holds keys the config
+	// (new) never set. Treat the config as satisfied when every key it DOES set
+	// matches the state, ignoring the extra server-populated keys. This avoids a
+	// permanent drift that would otherwise try to remove those defaults.
+	// Known limitation: removing a key that was set to a non-default value to
+	// revert it to the default is also suppressed; set it explicitly to change it.
+	return isJSONSubset(newJSON, oldJSON)
+}
+
+// isJSONSubset reports whether sub is contained in sup: every object key in sub
+// exists in sup with a value that is itself a subset (recursively for objects,
+// deep-equal otherwise). Non-object values must be deep-equal.
+func isJSONSubset(sub, sup interface{}) bool {
+	subMap, subIsMap := sub.(map[string]interface{})
+	supMap, supIsMap := sup.(map[string]interface{})
+	if subIsMap && supIsMap {
+		for key, subVal := range subMap {
+			supVal, ok := supMap[key]
+			if !ok || !isJSONSubset(subVal, supVal) {
+				return false
+			}
+		}
+		return true
+	}
+	return reflect.DeepEqual(sub, sup)
 }
 
 func ProviderConfigCreate(d *schema.ResourceData, m interface{}) error {
