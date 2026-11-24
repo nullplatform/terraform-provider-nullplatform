@@ -25,6 +25,12 @@ type Application struct {
 	Settings             map[string]interface{} `json:"settings,omitempty"`
 	Messages             []interface{}          `json:"messages,omitempty"`
 	Nrn                  string                 `json:"nrn,omitempty"`
+	// The type of the application, the snapshot of it the application is on,
+	// and the values of the type's fields. All three stay out of a request
+	// that does not set them.
+	ApplicationTypeId         string                 `json:"application_type_id,omitempty"`
+	ApplicationTypeSnapshotId string                 `json:"application_type_snapshot_id,omitempty"`
+	Attributes                map[string]interface{} `json:"attributes,omitempty"`
 }
 
 func (c *NullClient) CreateApplication(application *Application) (*Application, error) {

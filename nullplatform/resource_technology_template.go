@@ -41,6 +41,11 @@ func resourceTechnologyTemplate() *schema.Resource {
 				Optional:    true,
 				Description: "Account ID the template belongs to. If not specified, it will be a global template",
 			},
+			"application_type_id": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The ID of the application type the template belongs to. A template of a type serves applications of that type only, and a template with no type serves applications with no type. Remove it to take the template out of its type.",
+			},
 			"provider_config": {
 				Type:     schema.TypeMap,
 				Required: true,
@@ -165,6 +170,10 @@ func TechnologyTemplateCreate(ctx context.Context, d *schema.ResourceData, m int
 		Rules:        rules,
 	}
 
+	if applicationTypeId := d.Get("application_type_id").(string); applicationTypeId != "" {
+		template.ApplicationTypeId = (*nullableString)(&applicationTypeId)
+	}
+
 	newTemplate, err := nullOps.CreateTechnologyTemplate(template)
 	if err != nil {
 		return diag.FromErr(err)
@@ -191,6 +200,9 @@ func TechnologyTemplateRead(ctx context.Context, d *schema.ResourceData, m inter
 		return diag.FromErr(err)
 	}
 	if err := d.Set("account", template.GetAccount()); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("application_type_id", template.ApplicationTypeId.String()); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := d.Set("provider_config", template.Provider); err != nil {
@@ -253,6 +265,11 @@ func TechnologyTemplateUpdate(ctx context.Context, d *schema.ResourceData, m int
 
 	if d.HasChange("provider_config") {
 		template.Provider = d.Get("provider_config").(map[string]interface{})
+	}
+
+	if d.HasChange("application_type_id") {
+		applicationTypeId := nullableString(d.Get("application_type_id").(string))
+		template.ApplicationTypeId = &applicationTypeId
 	}
 
 	if d.HasChange("components") {

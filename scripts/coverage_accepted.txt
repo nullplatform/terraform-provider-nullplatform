@@ -59,3 +59,14 @@ nullplatform/framework_provider.go:84-85  # req.Config.Get(frameworkProviderMode
 # data_source_package components: the list is built by flattenPackageComponents
 # with exactly the schema's element shape, so Set cannot reject it.
 nullplatform/data_source_package.go:192-193  # d.Set(components, []map[string]interface{}) arm
+
+# Application types. Every d.Set below writes a Go string (or, for the type's
+# visible_to, a []string into a set of strings) into an attribute of that exact
+# type. The json.Marshal arm encodes a map that json.Unmarshal just built from
+# the API's answer, which always encodes back.
+nullplatform/resource_application.go:228-229  # d.Set(application_type_id, string) arm
+nullplatform/resource_application.go:231-232  # d.Set(application_type_snapshot_id, string) arm
+nullplatform/resource_application.go:239-240  # json.Marshal(attributes decoded from JSON) arm
+nullplatform/resource_application.go:244-245  # d.Set(attributes, string) arm
+nullplatform/resource_application_type.go:142-143  # d.Set arm of setApplicationTypeState
+nullplatform/resource_technology_template.go:206-207  # d.Set(application_type_id, string) arm

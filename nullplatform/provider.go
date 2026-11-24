@@ -57,6 +57,7 @@ func Provider() *schema.Provider {
 		ResourcesMap: map[string]*schema.Resource{
 			"nullplatform_account":                            resourceAccount(),
 			"nullplatform_application":                        resourceApplication(),
+			"nullplatform_application_type":                   resourceApplicationType(),
 			"nullplatform_api_key":                            resourceApiKey(),
 			"nullplatform_approval_action":                    resourceApprovalAction(),
 			"nullplatform_approval_policy":                    resourceApprovalPolicy(),
@@ -102,6 +103,7 @@ func Provider() *schema.Provider {
 			"nullplatform_dimension":             dataSourceDimension(),
 			"nullplatform_scope":                 dataSourceScope(),
 			"nullplatform_application":           dataSourceApplication(),
+			"nullplatform_application_type":      dataSourceApplicationType(),
 			"nullplatform_service":               dataSourceService(),
 			"nullplatform_parameter":             dataSourceParameter(),
 			"nullplatform_parameter_by_name":     dataSourceParameterByName(),

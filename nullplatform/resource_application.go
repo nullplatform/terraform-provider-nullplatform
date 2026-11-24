@@ -103,6 +103,26 @@ func resourceApplication() *schema.Resource {
 				Computed:    true,
 				Description: "The Nullplatform Resource Name (NRN) for the application.",
 			},
+			"application_type_id": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				ForceNew:    true,
+				Description: "The ID of the application type of this application (see `nullplatform_application_type`). The type must be active and visible in the application's namespace. It is set when the application is created and cannot be changed: a different type is a different application. With a type, `repository_url` may be left out and arrive later from the type's workflow.",
+			},
+			"attributes": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				Computed:         true,
+				DiffSuppressFunc: suppressEquivalentJSON,
+				Description: "JSON string with the values of the fields of the application's type, checked against the type's schema. Only for an application with `application_type_id`. " +
+					"The platform merges what is sent into what it holds, so a key removed here is not removed there: it keeps showing in the plan until the configuration names it again. " +
+					"When not set, it reads what the platform holds (`{}` for an application with no type).",
+			},
+			"application_type_snapshot_id": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The ID of the snapshot of its type the application is on: its `attributes` pass that snapshot's schema. Empty for an application with no type.",
+			},
 		},
 	}
 }
@@ -134,6 +154,15 @@ func ApplicationCreate(ctx context.Context, d *schema.ResourceData, m interface{
 			return diag.FromErr(fmt.Errorf("error parsing settings JSON: %v", err))
 		}
 		newApp.Settings = settings
+	}
+
+	newApp.ApplicationTypeId = d.Get("application_type_id").(string)
+	if attributesStr := configuredString(d, "attributes"); attributesStr != "" {
+		var attributes map[string]interface{}
+		if err := json.Unmarshal([]byte(attributesStr), &attributes); err != nil {
+			return diag.FromErr(fmt.Errorf("error parsing attributes JSON: %v", err))
+		}
+		newApp.Attributes = attributes
 	}
 
 	app, err := nullOps.CreateApplication(newApp)
@@ -192,6 +221,26 @@ func ApplicationRead(ctx context.Context, d *schema.ResourceData, m interface{})
 		return diag.FromErr(err)
 	}
 	if err := d.Set("nrn", app.Nrn); err != nil {
+		return diag.FromErr(err)
+	}
+
+	if err := d.Set("application_type_id", app.ApplicationTypeId); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("application_type_snapshot_id", app.ApplicationTypeSnapshotId); err != nil {
+		return diag.FromErr(err)
+	}
+	// Always an object: the platform answers {} for an application with no
+	// type, and so does an API from before application types (no field).
+	attributesJSON := "{}"
+	if len(app.Attributes) > 0 {
+		encoded, err := json.Marshal(app.Attributes)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("error serializing attributes to JSON: %v", err))
+		}
+		attributesJSON = string(encoded)
+	}
+	if err := d.Set("attributes", attributesJSON); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -263,6 +312,14 @@ func ApplicationUpdate(ctx context.Context, d *schema.ResourceData, m interface{
 			}
 			app.Settings = settings
 		}
+	}
+
+	if d.HasChange("attributes") {
+		var attributes map[string]interface{}
+		if err := json.Unmarshal([]byte(d.Get("attributes").(string)), &attributes); err != nil {
+			return diag.FromErr(fmt.Errorf("error parsing attributes JSON: %v", err))
+		}
+		app.Attributes = attributes
 	}
 
 	if err := nullOps.PatchApplication(appId, app); err != nil {

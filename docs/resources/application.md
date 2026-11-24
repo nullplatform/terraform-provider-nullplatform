@@ -55,6 +55,8 @@ output "application_nrn" {
 
 ### Optional
 
+- `application_type_id` (String) The ID of the application type of this application (see `nullplatform_application_type`). The type must be active and visible in the application's namespace. It is set when the application is created and cannot be changed: a different type is a different application. With a type, `repository_url` may be left out and arrive later from the type's workflow.
+- `attributes` (String) JSON string with the values of the fields of the application's type, checked against the type's schema. Only for an application with `application_type_id`. The platform merges what is sent into what it holds, so a key removed here is not removed there: it keeps showing in the plan until the configuration names it again. When not set, it reads what the platform holds (`{}` for an application with no type).
 - `auto_deploy_on_creation` (Boolean) `True` if the application must be deployed immediately after being created, `false` otherwise.
 - `is_mono_repo` (Boolean) `True` if the application shares the repository with other apps, `false` otherwise.
 - `repository_app_path` (String) The folder where the application is located inside a monorepo.
@@ -67,6 +69,7 @@ output "application_nrn" {
 
 ### Read-Only
 
+- `application_type_snapshot_id` (String) The ID of the snapshot of its type the application is on: its `attributes` pass that snapshot's schema. Empty for an application with no type.
 - `id` (String) The ID of this resource.
 - `messages` (String) JSON string containing status messages for the application.
 - `nrn` (String) The Nullplatform Resource Name (NRN) for the application.
