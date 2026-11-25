@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 const APPLICATION_TYPE_PATH = "/application_type"
@@ -50,6 +51,11 @@ func (c *NullClient) sendApplicationType(method, path, doing string, body *Appli
 	defer res.Body.Close()
 
 	answer, _ := io.ReadAll(res.Body)
+	// Only a caller allowed on the type is told it was deleted; an id the API
+	// never had answers 403, like one the caller may not see.
+	if res.StatusCode == http.StatusNotFound && method == http.MethodGet {
+		return nil, &ResourceNotFoundError{ApiType: "application type", Key: path[strings.LastIndex(path, "/")+1:], Message: string(answer)}
+	}
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to %s application type: status code %d, response: %s", doing, res.StatusCode, string(answer))
 	}
@@ -67,6 +73,22 @@ func (c *NullClient) CreateApplicationType(applicationType *ApplicationType) (*A
 
 func (c *NullClient) GetApplicationType(applicationTypeId string) (*ApplicationType, error) {
 	return c.sendApplicationType("GET", fmt.Sprintf("%s/%s", APPLICATION_TYPE_PATH, applicationTypeId), "get", nil)
+}
+
+// DeleteApplicationType deletes the type. One already deleted is done; any
+// other refusal carries the API's whole response body.
+func (c *NullClient) DeleteApplicationType(applicationTypeId string) error {
+	res, err := c.MakeRequest("DELETE", fmt.Sprintf("%s/%s", APPLICATION_TYPE_PATH, applicationTypeId), nil)
+	if err != nil {
+		return fmt.Errorf("failed to make API request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusNoContent || res.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	answer, _ := io.ReadAll(res.Body)
+	return fmt.Errorf("failed to delete application type: status code %d, response: %s", res.StatusCode, string(answer))
 }
 
 func (c *NullClient) PatchApplicationType(applicationTypeId string, applicationType *ApplicationType) (*ApplicationType, error) {

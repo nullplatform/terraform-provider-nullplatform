@@ -67,6 +67,82 @@ func TestGetAndPatchApplicationType_Paths(t *testing.T) {
 	}
 }
 
+func TestDeleteApplicationType(t *testing.T) {
+	for name, tc := range map[string]struct {
+		status  int
+		wantErr string
+	}{
+		"deleted":                      {status: http.StatusNoContent},
+		"already gone":                 {status: http.StatusNotFound},
+		"refused, with the API's body": {status: http.StatusConflict, wantErr: `failed to delete application type: status code 409, response: {"detail":"1 application of this type still exists"}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var calls []string
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls = append(calls, r.Method+" "+r.URL.Path)
+				w.WriteHeader(tc.status)
+				if tc.status != http.StatusNoContent {
+					_, _ = w.Write([]byte(`{"detail":"1 application of this type still exists"}`))
+				}
+			}))
+			defer server.Close()
+
+			err := newTestClient(server).DeleteApplicationType("0b0e")
+
+			if got := strings.Join(calls, "|"); got != "DELETE /application_type/0b0e" {
+				t.Errorf("calls: got %s", got)
+			}
+			if (tc.wantErr == "" && err != nil) || (tc.wantErr != "" && (err == nil || err.Error() != tc.wantErr)) {
+				t.Errorf("error: got %v, want %q", err, tc.wantErr)
+			}
+		})
+	}
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	client := newTestClient(server)
+	server.Close()
+	if err := client.DeleteApplicationType("0b0e"); err == nil || !strings.Contains(err.Error(), "failed to make API request") {
+		t.Errorf("want a request error, got %v", err)
+	}
+}
+
+func TestGetApplicationType_ADeletedTypeIsNotFound(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"code":"APPLICATION_TYPE.NOT_FOUND"}`))
+	}))
+	defer server.Close()
+
+	_, err := newTestClient(server).GetApplicationType("0b0e")
+
+	notFound, ok := IsResourceNotFoundError(err)
+	if !ok {
+		t.Fatalf("want a not found error, got %v", err)
+	}
+	if want := `application type not found (0b0e): {"code":"APPLICATION_TYPE.NOT_FOUND"}`; notFound.Error() != want {
+		t.Errorf("error:\n got %s\nwant %s", notFound.Error(), want)
+	}
+}
+
+func TestApplicationTypeRead_ADeletedTypeLeavesTheState(t *testing.T) {
+	d := schema.TestResourceDataRaw(t, resourceApplicationType().Schema, map[string]any{})
+	d.SetId("0b0e")
+	ops := applicationTypeOps{err: &ResourceNotFoundError{ApiType: "application type", Key: "0b0e"}}
+
+	if diags := ApplicationTypeRead(context.Background(), d, ops); diags.HasError() {
+		t.Fatalf("unexpected error: %v", diags)
+	}
+	if d.Id() != "" {
+		t.Errorf("want the type out of the state, got id %q", d.Id())
+	}
+
+	// A data source names a type that must exist.
+	data := schema.TestResourceDataRaw(t, dataSourceApplicationType().Schema, map[string]any{"id": "0b0e"})
+	if diags := dataSourceApplicationTypeRead(context.Background(), data, ops); !diags.HasError() || !strings.Contains(diags[0].Summary, "application type not found (0b0e)") {
+		t.Errorf("data source: want a not found error, got %v", diags)
+	}
+}
+
 func TestApplicationTypeClient_ARefusalCarriesTheResponseBody(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
@@ -133,6 +209,10 @@ func (o applicationTypeOps) PatchApplicationType(string, *ApplicationType) (*App
 	return o.answer, o.err
 }
 
+func (o applicationTypeOps) DeleteApplicationType(string) error {
+	return o.err
+}
+
 func TestApplicationTypeResource_AnAPIErrorIsReturned(t *testing.T) {
 	ops := applicationTypeOps{err: errors.New("failed to get application type: status code 403, response: {\"message\":\"Forbidden\"}")}
 	ctx := context.Background()
@@ -168,7 +248,7 @@ func TestApplicationTypeResource_AnAPIErrorIsReturned(t *testing.T) {
 			if !hasError || !strings.Contains(summary, "Forbidden") {
 				t.Errorf("want the API's error, got %q", summary)
 			}
-			// A type that could not be retired is still in the state.
+			// A type that could not be deleted is still in the state.
 			if name == "delete" && d.Id() != "0b0e" {
 				t.Errorf("want the id kept, got %q", d.Id())
 			}

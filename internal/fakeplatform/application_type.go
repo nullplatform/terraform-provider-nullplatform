@@ -78,8 +78,18 @@ func RegisterApplicationTypes(s *Server) {
 			}
 			return nil
 		},
-		OnDelete: func(*Server, Item) *Refusal {
-			return &Refusal{Status: http.StatusNotFound, Message: "Route DELETE:/application_type not found"}
+		// A deleted type is gone for whoever could read it (the generic 404) and
+		// gives its name back. Refused while something still points at it.
+		OnDelete: func(s *Server, item Item) *Refusal {
+			if using := pointingAt(s, "application", item); using > 0 {
+				return stillUsed("APPLICATIONS_EXIST", "while applications of it exist",
+					fmt.Sprintf("%s of this type still %s", counted(using, "application"), plural(using, "exists", "exist")))
+			}
+			if using := pointingAt(s, "template", item); using > 0 {
+				return stillUsed("TEMPLATES_EXIST", "while templates belong to it",
+					fmt.Sprintf("%s still %s to it", counted(using, "template"), plural(using, "belongs", "belong")))
+			}
+			return nil
 		},
 	})
 
@@ -130,6 +140,38 @@ func RegisterApplicationTypes(s *Server) {
 			return nil
 		},
 	})
+}
+
+// pointingAt counts the items of a collection whose application_type_id is
+// this type's id.
+func pointingAt(s *Server, collection string, applicationType Item) int {
+	count := 0
+	for _, item := range s.collections[collection].items {
+		if Str(item, "application_type_id") == Str(applicationType, "id") {
+			count++
+		}
+	}
+	return count
+}
+
+func plural(count int, one, many string) string {
+	if count == 1 {
+		return one
+	}
+	return many
+}
+
+func counted(count int, noun string) string {
+	return fmt.Sprintf("%d %s", count, plural(count, noun, noun+"s"))
+}
+
+// stillUsed is the API's 409 for a type that cannot be deleted yet.
+func stillUsed(code, why, detail string) *Refusal {
+	return &Refusal{Status: http.StatusConflict, Body: Item{
+		"code":    "APPLICATION_TYPE." + code,
+		"message": "The application type cannot be deleted " + why,
+		"detail":  "The application type cannot be deleted: " + detail,
+	}}
 }
 
 // nameTaken refuses a name another type of the same organization holds,

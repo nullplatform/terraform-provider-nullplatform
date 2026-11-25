@@ -18,7 +18,7 @@ import (
 
 // Real plan/apply/import/destroy over the fake platform: an application type
 // keeps the order of its schema, cuts a snapshot when the schema changes, is
-// retired instead of deleted, and gives applications and templates their type.
+// deleted on destroy, and gives applications and templates their type.
 
 func newApplicationTypeFake(t *testing.T) *fakeplatform.Server {
 	t.Helper()
@@ -61,14 +61,17 @@ func TestFunctionalApplicationType_Lifecycle(t *testing.T) {
 
 	resource.UnitTest(t, resource.TestCase{
 		ProviderFactories: functionalFactories(fake),
-		// Destroy retires the type: the API has no delete, so none is sent.
+		// Destroy deletes the type, and so does replacing it.
 		CheckDestroy: func(*terraform.State) error {
-			types := fake.Items("application_type")
-			if len(types) != 2 || fakeplatform.Str(types[0], "status") != "inactive" || fakeplatform.Str(types[1], "status") != "inactive" {
-				return fmt.Errorf("want both types kept and inactive, got %v", types)
+			if types := fake.Items("application_type"); len(types) != 0 {
+				return fmt.Errorf("want no type left, got %v", types)
 			}
-			if deletes := requestsOf(fake, http.MethodDelete); len(deletes) != 0 {
-				return fmt.Errorf("want no DELETE, got %v", deletes)
+			deletes := requestsOf(fake, http.MethodDelete)
+			if len(deletes) != 2 || deletes[0].Path != "/application_type/type-1" || deletes[1].Path != "/application_type/type-2" {
+				return fmt.Errorf("want one DELETE per type, got %v", deletes)
+			}
+			if retired := requestsTo(fake, http.MethodPatch, "/application_type/type-2"); len(retired) != 0 {
+				return fmt.Errorf("want no PATCH on destroy, got %v", retired)
 			}
 			return nil
 		},
@@ -153,9 +156,9 @@ func TestFunctionalApplicationType_Lifecycle(t *testing.T) {
 				),
 			},
 			{
-				// A different owner is a different type. The one left behind keeps its
-				// name, so the new one needs its own.
-				Config: strings.Replace(applicationTypeConfig("Agent of account 9", agentSchema, ""),
+				// A different owner is a different type: the old one is deleted first,
+				// which gives its name back.
+				Config: strings.Replace(applicationTypeConfig("Agent", agentSchema, ""),
 					`nrn    = "organization=1:account=2"`, `nrn    = "organization=1:account=9"`, 1),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
@@ -217,9 +220,84 @@ func TestFunctionalApplicationType_SchemaOrderIsKeptAndIsAChange(t *testing.T) {
 	})
 }
 
+// callFake sends one request to the fake, as something other than Terraform
+// would to the API.
+func callFake(t *testing.T, fake *fakeplatform.Server, method, path string) {
+	t.Helper()
+	request, err := http.NewRequest(method, fake.URL()+path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := fake.HTTP().Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = response.Body.Close()
+	if response.StatusCode >= 300 {
+		t.Fatalf("%s %s: status %d", method, path, response.StatusCode)
+	}
+}
+
+func TestFunctionalApplicationType_DeletedOutsideTerraformIsCreatedAgain(t *testing.T) {
+	fake := newApplicationTypeFake(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{
+			{Config: applicationTypeConfig("AI Agent", agentSchema, "")},
+			{
+				PreConfig: func() { callFake(t, fake, http.MethodDelete, "/application_type/type-1") },
+				Config:    applicationTypeConfig("AI Agent", agentSchema, ""),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("nullplatform_application_type.agent", plancheck.ResourceActionCreate),
+					},
+				},
+				// The name was given back with the delete.
+				Check: resource.TestCheckResourceAttr("nullplatform_application_type.agent", "id", "type-2"),
+			},
+		},
+	})
+}
+
+func TestFunctionalApplicationType_DestroyIsRefusedWhileSomethingUsesTheType(t *testing.T) {
+	fake := newApplicationTypeFake(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{
+			{Config: applicationTypeConfig("AI Agent", agentSchema, "")},
+			{
+				// An application Terraform does not manage has the type.
+				PreConfig: func() {
+					fake.Seed("application", "7", fakeplatform.Item{"name": "Support bot", "application_type_id": "type-1"})
+				},
+				Config:      applicationTypeConfig("AI Agent", agentSchema, ""),
+				Destroy:     true,
+				ExpectError: regexp.MustCompile(`status code 409(.|\s)*1 application of this type still exists`),
+			},
+			{
+				PreConfig: func() {
+					callFake(t, fake, http.MethodDelete, "/application/7")
+					fake.Seed("template", "3", fakeplatform.Item{"name": "Agent template", "application_type_id": "type-1"})
+				},
+				Config:      applicationTypeConfig("AI Agent", agentSchema, ""),
+				Destroy:     true,
+				ExpectError: regexp.MustCompile(`status code 409(.|\s)*1 template still belongs to it`),
+			},
+			{
+				// Once nothing uses it, the type is still in the state and goes.
+				PreConfig: func() { callFake(t, fake, http.MethodDelete, "/template/3") },
+				Config:    applicationTypeConfig("AI Agent", agentSchema, ""),
+				Check:     resource.TestCheckResourceAttr("nullplatform_application_type.agent", "id", "type-1"),
+			},
+		},
+	})
+}
+
 func TestFunctionalApplicationType_RefusalsCarryTheAPIMessage(t *testing.T) {
 	fake := newApplicationTypeFake(t)
-	// A retired type still holds its name in its organization.
+	// An inactive type still holds its name in its organization.
 	fake.Seed("application_type", "type-1", fakeplatform.Item{"nrn": "organization=1:account=7", "name": "AI Agent", "status": "inactive"})
 	// Another organization's type does not.
 	fake.Seed("application_type", "type-2", fakeplatform.Item{"nrn": "organization=5", "name": "Job", "status": "active"})

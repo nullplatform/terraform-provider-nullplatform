@@ -4,14 +4,14 @@ page_title: "nullplatform_application_type Resource - nullplatform"
 subcategory: ""
 description: |-
   The application_type resource manages a nullplatform Application Type: a kind of application an organization defines, with the fields its applications carry and the places it can be used.
-  An application type cannot be deleted. terraform destroy sets its status to inactive, which stops new applications from taking it, and removes it from the state; the applications that have the type keep it. The type keeps its name, so creating another with the same name is refused: bring the existing one back with terraform import and set status = "active".
+  terraform destroy deletes the type, which gives its name back. The platform refuses the delete while an application of the type exists or a template belongs to it: delete those first, or move the templates to another type. To stop new applications from taking a type that is still in use, set status = "inactive" instead.
 ---
 
 # nullplatform_application_type (Resource)
 
 The application_type resource manages a nullplatform Application Type: a kind of application an organization defines, with the fields its applications carry and the places it can be used.
 
-An application type cannot be deleted. `terraform destroy` sets its `status` to `inactive`, which stops new applications from taking it, and removes it from the state; the applications that have the type keep it. The type keeps its name, so creating another with the same name is refused: bring the existing one back with `terraform import` and set `status = "active"`.
+`terraform destroy` deletes the type, which gives its name back. The platform refuses the delete while an application of the type exists or a template belongs to it: delete those first, or move the templates to another type. To stop new applications from taking a type that is still in use, set `status = "inactive"` instead.
 
 ## Example Usage
 
@@ -116,7 +116,7 @@ output "application_type_snapshot" {
 ### Required
 
 - `name` (String) The name of the application type, up to 120 characters. No two types visible in the same organization share a name. Renaming a type does not change its `slug`.
-- `nrn` (String) The NRN that owns the application type, for example `organization=1:account=2`. It cannot be changed: a different NRN is a different type, so changing it retires this one and creates another. The retired type keeps its name, so inside the same organization the new one needs a different `name`.
+- `nrn` (String) The NRN that owns the application type, for example `organization=1:account=2`. It cannot be changed: a different NRN is a different type, so changing it deletes this one and creates another, which the platform refuses while applications or templates use this one.
 - `schema` (String) The JSON Schema (draft-07, 2019-09 or 2020-12, root `type` `object`) that the `attributes` of an application of this type must pass, as a JSON string. The platform shows its properties as a form **in the order they are written**, so that order is kept: the properties are sent in the order written, and reordering them is a change. `jsonencode()` writes the keys of every object in alphabetical order; to choose the order, write the schema as JSON with `file()` or a heredoc. A change of schema cuts a new snapshot (`last_snapshot_id`); applications stay on the snapshot they are on until they are moved.
 
 ### Optional

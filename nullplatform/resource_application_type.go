@@ -14,9 +14,9 @@ func resourceApplicationType() *schema.Resource {
 	return &schema.Resource{
 		Description: "The application_type resource manages a nullplatform Application Type: a kind of application an organization defines, " +
 			"with the fields its applications carry and the places it can be used.\n\n" +
-			"An application type cannot be deleted. `terraform destroy` sets its `status` to `inactive`, which stops new applications " +
-			"from taking it, and removes it from the state; the applications that have the type keep it. The type keeps its name, so " +
-			"creating another with the same name is refused: bring the existing one back with `terraform import` and set `status = \"active\"`.",
+			"`terraform destroy` deletes the type, which gives its name back. The platform refuses the delete while an application of " +
+			"the type exists or a template belongs to it: delete those first, or move the templates to another type. To stop new " +
+			"applications from taking a type that is still in use, set `status = \"inactive\"` instead.",
 
 		CreateContext: ApplicationTypeCreate,
 		ReadContext:   ApplicationTypeRead,
@@ -35,7 +35,7 @@ func resourceApplicationType() *schema.Resource {
 				Required:     true,
 				ForceNew:     true,
 				ValidateFunc: validation.StringIsNotEmpty,
-				Description:  "The NRN that owns the application type, for example `organization=1:account=2`. It cannot be changed: a different NRN is a different type, so changing it retires this one and creates another. The retired type keeps its name, so inside the same organization the new one needs a different `name`.",
+				Description:  "The NRN that owns the application type, for example `organization=1:account=2`. It cannot be changed: a different NRN is a different type, so changing it deletes this one and creates another, which the platform refuses while applications or templates use this one.",
 			},
 			"name": {
 				Type:         schema.TypeString,
@@ -180,10 +180,14 @@ func ApplicationTypeCreate(_ context.Context, d *schema.ResourceData, m any) dia
 func ApplicationTypeRead(_ context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
-	// The API answers an id it does not know like one the caller may not see,
-	// and a type is never deleted, so there is no "gone" to reconcile here.
 	applicationType, err := nullOps.GetApplicationType(d.Id())
 	if err != nil {
+		// Deleted outside Terraform: drop it from state so the plan proposes
+		// creating it again. (An id the API never had answers 403, an error.)
+		if _, ok := IsResourceNotFoundError(err); ok {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 
@@ -219,12 +223,12 @@ func ApplicationTypeUpdate(_ context.Context, d *schema.ResourceData, m any) dia
 	return diag.FromErr(setApplicationTypeState(d, updated))
 }
 
-// ApplicationTypeDelete retires the type: the API has no delete, because
-// applications keep pointing at their type and at its snapshots.
+// ApplicationTypeDelete deletes the type. The API refuses while an application
+// of the type exists or a template belongs to it, and its message says which.
 func ApplicationTypeDelete(_ context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nullOps := m.(NullOps)
 
-	if _, err := nullOps.PatchApplicationType(d.Id(), &ApplicationType{Status: "inactive"}); err != nil {
+	if err := nullOps.DeleteApplicationType(d.Id()); err != nil {
 		return diag.FromErr(err)
 	}
 
