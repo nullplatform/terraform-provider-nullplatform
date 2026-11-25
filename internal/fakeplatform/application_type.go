@@ -39,6 +39,7 @@ func RegisterApplicationTypes(s *Server) {
 		item["last_snapshot_id"] = fmt.Sprintf("snapshot-%d", snapshots)
 	}
 
+	deleted := map[string]bool{}
 	s.Register("application_type", "type", Hooks{
 		OnCreate: func(s *Server, item Item) *Refusal {
 			if refusal := nameTaken(s, Str(item, "name"), item); refusal != nil {
@@ -78,8 +79,19 @@ func RegisterApplicationTypes(s *Server) {
 			}
 			return nil
 		},
-		// A deleted type is gone for whoever could read it (the generic 404) and
-		// gives its name back. Refused while something still points at it.
+		// A deleted type answers 404 with the API's code; an id the API never
+		// had answers like one the caller may not see.
+		OnMissing: func(_ *Server, id string) *Refusal {
+			if deleted[id] {
+				return &Refusal{Status: http.StatusNotFound, Body: Item{
+					"code":    "APPLICATION_TYPE.NOT_FOUND",
+					"message": "The application type was deleted",
+				}}
+			}
+			return &Refusal{Status: http.StatusForbidden, Message: "Forbidden"}
+		},
+		// A deleted type gives its name back. Refused while something still
+		// points at it.
 		OnDelete: func(s *Server, item Item) *Refusal {
 			if using := pointingAt(s, "application", item); using > 0 {
 				return stillUsed("APPLICATIONS_EXIST", "while applications of it exist",
@@ -89,6 +101,7 @@ func RegisterApplicationTypes(s *Server) {
 				return stillUsed("TEMPLATES_EXIST", "while templates belong to it",
 					fmt.Sprintf("%s still %s to it", counted(using, "template"), plural(using, "belongs", "belong")))
 			}
+			deleted[Str(item, "id")] = true
 			return nil
 		},
 	})

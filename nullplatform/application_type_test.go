@@ -70,20 +70,23 @@ func TestGetAndPatchApplicationType_Paths(t *testing.T) {
 func TestDeleteApplicationType(t *testing.T) {
 	for name, tc := range map[string]struct {
 		status  int
+		answer  string
 		wantErr string
 	}{
-		"deleted":                      {status: http.StatusNoContent},
-		"already gone":                 {status: http.StatusNotFound},
-		"refused, with the API's body": {status: http.StatusConflict, wantErr: `failed to delete application type: status code 409, response: {"detail":"1 application of this type still exists"}`},
+		"deleted":      {status: http.StatusNoContent},
+		"already gone": {status: http.StatusNotFound, answer: `{"code":"APPLICATION_TYPE.NOT_FOUND"}`},
+		// An API that has no delete yet: the type is still there.
+		"a route the API does not have": {status: http.StatusNotFound, answer: `<pre>Cannot DELETE /application_type/0b0e</pre>`,
+			wantErr: `failed to delete application type: status code 404, response: <pre>Cannot DELETE /application_type/0b0e</pre>`},
+		"refused, with the API's body": {status: http.StatusConflict, answer: `{"detail":"1 application of this type still exists"}`,
+			wantErr: `failed to delete application type: status code 409, response: {"detail":"1 application of this type still exists"}`},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var calls []string
 			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls = append(calls, r.Method+" "+r.URL.Path)
 				w.WriteHeader(tc.status)
-				if tc.status != http.StatusNoContent {
-					_, _ = w.Write([]byte(`{"detail":"1 application of this type still exists"}`))
-				}
+				_, _ = w.Write([]byte(tc.answer))
 			}))
 			defer server.Close()
 
@@ -121,6 +124,21 @@ func TestGetApplicationType_ADeletedTypeIsNotFound(t *testing.T) {
 	}
 	if want := `application type not found (0b0e): {"code":"APPLICATION_TYPE.NOT_FOUND"}`; notFound.Error() != want {
 		t.Errorf("error:\n got %s\nwant %s", notFound.Error(), want)
+	}
+}
+
+// Any other 404 says nothing about the type, so it must not take it out of the state.
+func TestGetApplicationType_AnotherNotFoundIsAnError(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"Route GET:/application_type/0b0e not found"}`))
+	}))
+	defer server.Close()
+
+	_, err := newTestClient(server).GetApplicationType("0b0e")
+
+	if _, ok := IsResourceNotFoundError(err); ok || err == nil || !strings.Contains(err.Error(), "status code 404, response: {\"message\":\"Route GET") {
+		t.Errorf("want a plain error carrying the body, got %v", err)
 	}
 }
 

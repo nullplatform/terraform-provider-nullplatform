@@ -51,9 +51,7 @@ func (c *NullClient) sendApplicationType(method, path, doing string, body *Appli
 	defer res.Body.Close()
 
 	answer, _ := io.ReadAll(res.Body)
-	// Only a caller allowed on the type is told it was deleted; an id the API
-	// never had answers 403, like one the caller may not see.
-	if res.StatusCode == http.StatusNotFound && method == http.MethodGet {
+	if method == http.MethodGet && applicationTypeWasDeleted(res.StatusCode, answer) {
 		return nil, &ResourceNotFoundError{ApiType: "application type", Key: path[strings.LastIndex(path, "/")+1:], Message: string(answer)}
 	}
 	if res.StatusCode != http.StatusOK {
@@ -75,6 +73,18 @@ func (c *NullClient) GetApplicationType(applicationTypeId string) (*ApplicationT
 	return c.sendApplicationType("GET", fmt.Sprintf("%s/%s", APPLICATION_TYPE_PATH, applicationTypeId), "get", nil)
 }
 
+// applicationTypeWasDeleted tells the API's answer for a deleted type, which
+// only a caller allowed on the type gets, from any other 404: a route an older
+// API or a gateway does not have says nothing about the type. (An id the API
+// never had answers 403.)
+func applicationTypeWasDeleted(status int, answer []byte) bool {
+	var refusal struct {
+		Code string `json:"code"`
+	}
+	_ = json.Unmarshal(answer, &refusal)
+	return status == http.StatusNotFound && refusal.Code == "APPLICATION_TYPE.NOT_FOUND"
+}
+
 // DeleteApplicationType deletes the type. One already deleted is done; any
 // other refusal carries the API's whole response body.
 func (c *NullClient) DeleteApplicationType(applicationTypeId string) error {
@@ -84,10 +94,10 @@ func (c *NullClient) DeleteApplicationType(applicationTypeId string) error {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == http.StatusNoContent || res.StatusCode == http.StatusNotFound {
+	answer, _ := io.ReadAll(res.Body)
+	if res.StatusCode == http.StatusNoContent || applicationTypeWasDeleted(res.StatusCode, answer) {
 		return nil
 	}
-	answer, _ := io.ReadAll(res.Body)
 	return fmt.Errorf("failed to delete application type: status code %d, response: %s", res.StatusCode, string(answer))
 }
 
