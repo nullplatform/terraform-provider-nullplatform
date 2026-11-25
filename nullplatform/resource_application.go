@@ -116,7 +116,7 @@ func resourceApplication() *schema.Resource {
 				DiffSuppressFunc: suppressEquivalentJSONWithoutNulls,
 				Description: "JSON string with the values of the fields of the application's type, checked against the type's schema. Only for an application with `application_type_id`. " +
 					"When set, it is the whole of them: only what changed is sent, and a key that is no longer here is removed from the application, also one that was set outside Terraform. " +
-					"A key written as `null` is a key left out. " +
+					"A key written as `null` is a key left out, and a key the platform holds as `null` is removed. " +
 					"When not set, it reads what the platform holds (`{}` for an application with no type).",
 			},
 			"application_type_snapshot_id": {

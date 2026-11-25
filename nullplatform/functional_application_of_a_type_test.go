@@ -134,6 +134,36 @@ func TestFunctionalApplication_OfAType(t *testing.T) {
 	})
 }
 
+// An application saved before the platform took merge patches can hold a null.
+// It is not in the configuration, so it is removed like any other key.
+func TestFunctionalApplication_ANullThePlatformHoldsIsRemoved(t *testing.T) {
+	fake := newApplicationTypeFake(t)
+	config := typedApplicationConfig("  application_type_id = nullplatform_application_type.agent.id\n",
+		`  attributes = jsonencode({ model = "opus" })`+"\n")
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{
+			{Config: config},
+			{
+				PreConfig: func() {
+					fake.Items("application")[0]["attributes"] = fakeplatform.Item{"model": "opus", "autonomy": nil}
+				},
+				Config: config,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("nullplatform_application.bot", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("nullplatform_application.bot", "attributes", `{"model":"opus"}`),
+					lastPatchIs(fake, 1, `{"attributes":{"autonomy":null}}`),
+				),
+			},
+		},
+	})
+}
+
 func TestFunctionalApplication_WithNoTypeSendsWhatItAlwaysSent(t *testing.T) {
 	fake := newApplicationTypeFake(t)
 	config := `

@@ -21,7 +21,11 @@ func TestMergePatchBetween(t *testing.T) {
 		{"an object takes the place of a value", `{"target":"node"}`, `{"target":{"runtime":"deno","flags":null}}`, `{"target":{"runtime":"deno"}}`},
 		{"a value takes the place of an object", `{"target":{"runtime":"deno"}}`, `{"target":"node"}`, `{"target":"node"}`},
 		{"a null wanted is a member left out", `{"model":"opus","autonomy":"low"}`, `{"model":"opus","autonomy":null,"limits":null}`, `{"autonomy":null}`},
-		{"a null held is a member not held", `{"model":"opus","autonomy":null}`, `{"model":"opus"}`, `{}`},
+		// The platform of before merge patches could store one: it is removed like any other.
+		{"a null held and not wanted is removed", `{"model":"opus","autonomy":null}`, `{"model":"opus"}`, `{"autonomy":null}`},
+		{"a null held inside an object is removed", `{"limits":{"tokens":1,"depth":null}}`, `{"limits":{"tokens":1}}`, `{"limits":{"depth":null}}`},
+		{"a null held and wanted with a value takes it", `{"model":null}`, `{"model":"opus"}`, `{"model":"opus"}`},
+		{"a null held and written as null is removed", `{"model":"opus","autonomy":null}`, `{"model":"opus","autonomy":null}`, `{"autonomy":null}`},
 	}
 
 	for _, c := range cases {
@@ -56,6 +60,9 @@ func TestSuppressEquivalentJSONWithoutNulls(t *testing.T) {
 		{"another value", `{"model":"opus"}`, `{"model":"fable"}`, false},
 		{"a member more", `{"model":"opus"}`, `{"model":"opus","autonomy":"low"}`, false},
 		{"a null in a list is a value", `{"tools":["a"]}`, `{"tools":["a",null]}`, false},
+		// What the platform holds is compared as it is: a null it stores is not "nothing".
+		{"a null the platform holds against none", `{"model":"opus","autonomy":null}`, `{"model":"opus"}`, false},
+		{"a null the platform holds against a null written", `{"model":"opus","autonomy":null}`, `{"model":"opus","autonomy":null}`, false},
 		{"what is not JSON", `{"model":"opus"}`, `not json`, false},
 		{"what was not JSON", `not json`, `{"model":"opus"}`, false},
 	}

@@ -12,10 +12,12 @@ import (
 // longer wanted goes as null, and one that did not change does not go. Objects
 // are compared member by member; any other value, a list included, goes whole.
 //
-// A null member, on either side, is a member that is not there: a merge patch
-// cannot store one, so the platform never holds one.
+// A null member of `wanted` is a member that is not there: a merge patch cannot
+// store one. A null member of `held` (the platform of before merge patches
+// could store one) is a member like any other: not wanted, it goes as null,
+// which removes it.
 func mergePatchBetween(held, wanted map[string]interface{}) map[string]interface{} {
-	held, wanted = withoutNulls(held), withoutNulls(wanted)
+	wanted = withoutNulls(wanted)
 	patch := map[string]interface{}{}
 
 	for name := range held {
@@ -60,7 +62,9 @@ func withoutNulls(object map[string]interface{}) map[string]interface{} {
 
 // suppressEquivalentJSONWithoutNulls is suppressEquivalentJSON for an object
 // the platform edits as a merge patch: a member written as null is one that is
-// left out, so it is no diff against an object that does not have it.
+// left out, so it is no diff against an object that does not have it. What the
+// platform holds (`old`) is compared as it is: a null it stores is a diff, and
+// the update that follows removes it.
 func suppressEquivalentJSONWithoutNulls(_, old, new string, _ *schema.ResourceData) bool {
 	var oldObject, newObject map[string]interface{}
 	if err := json.Unmarshal([]byte(old), &oldObject); err != nil {
@@ -69,5 +73,5 @@ func suppressEquivalentJSONWithoutNulls(_, old, new string, _ *schema.ResourceDa
 	if err := json.Unmarshal([]byte(new), &newObject); err != nil {
 		return false
 	}
-	return reflect.DeepEqual(withoutNulls(oldObject), withoutNulls(newObject))
+	return reflect.DeepEqual(oldObject, withoutNulls(newObject))
 }
