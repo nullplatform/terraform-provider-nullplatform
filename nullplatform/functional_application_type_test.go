@@ -278,7 +278,8 @@ func TestFunctionalApplicationType_DestroyIsRefusedWhileSomethingUsesTheType(t *
 			},
 			{
 				PreConfig: func() {
-					callFake(t, fake, http.MethodDelete, "/application/7")
+					// Its workflow finished deleting it.
+					fake.Seed("application", "7", fakeplatform.Item{"name": "Support bot", "application_type_id": "type-1", "status": "deleted"})
 					fake.Seed("template", "3", fakeplatform.Item{"name": "Agent template", "application_type_id": "type-1"})
 				},
 				Config:      applicationTypeConfig("AI Agent", agentSchema, ""),

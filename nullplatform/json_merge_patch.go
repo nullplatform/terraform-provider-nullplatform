@@ -60,6 +60,17 @@ func withoutNulls(object map[string]interface{}) map[string]interface{} {
 	return clean
 }
 
+// suppressEquivalentJSONOrNoneHeld is suppressEquivalentJSON for an object the
+// platform answers as `{}` when it holds none: left out of the configuration,
+// that empty object is no diff. One that holds something still is.
+func suppressEquivalentJSONOrNoneHeld(k, old, new string, d *schema.ResourceData) bool {
+	if new != "" {
+		return suppressEquivalentJSON(k, old, new, d)
+	}
+	var held map[string]interface{}
+	return old == "" || (json.Unmarshal([]byte(old), &held) == nil && len(held) == 0)
+}
+
 // suppressEquivalentJSONWithoutNulls is suppressEquivalentJSON for an object
 // the platform edits as a merge patch: a member written as null is one that is
 // left out, so it is no diff against an object that does not have it. What the

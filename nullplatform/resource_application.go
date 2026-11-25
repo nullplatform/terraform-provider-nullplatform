@@ -5,14 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 func resourceApplication() *schema.Resource {
 	return &schema.Resource{
-		Description: "The application resource allows you to manage a nullplatform Application",
+		Description: "The application resource allows you to manage a nullplatform Application. " +
+			"Destroying it asks the platform to delete the application (status `deleting`) and waits, up to the `delete` timeout, until the application's workflow has removed what it created.",
 
 		CreateContext: ApplicationCreate,
 		ReadContext:   ApplicationRead,
@@ -24,6 +27,12 @@ func resourceApplication() *schema.Resource {
 				d.Set("id", d.Id())
 				return []*schema.ResourceData{d}, nil
 			},
+		},
+
+		Timeouts: &schema.ResourceTimeout{
+			// Delete waits for the platform to finish deleting the application;
+			// create and update are single requests and never wait.
+			Delete: schema.DefaultTimeout(10 * time.Minute),
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -41,13 +50,14 @@ func resourceApplication() *schema.Resource {
 			"repository_url": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Description: "The URL of the repository that holds this application.",
+				Computed:    true,
+				Description: "The URL of the repository that holds this application. When not set, it reads what the platform holds: for an application of a type, the one the type's workflow reported when it created the application.",
 			},
 			"status": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Computed:    true,
-				Description: "The status of the application. Possible values: [`pending`, `creating`, `updating`, `active`, `inactive`, `failed`].",
+				Description: "The status of the application. Possible values: [`pending`, `creating`, `updating`, `active`, `inactive`, `failed`]. An application of a type starts as `pending_hook` and its type's workflow makes it `active`.",
 			},
 			"slug": {
 				Type:        schema.TypeString,
@@ -85,13 +95,13 @@ func resourceApplication() *schema.Resource {
 				Type:             schema.TypeString,
 				Optional:         true,
 				Description:      "JSON string containing tags for the application.",
-				DiffSuppressFunc: suppressEquivalentJSON,
+				DiffSuppressFunc: suppressEquivalentJSONOrNoneHeld,
 			},
 			"settings": {
 				Type:             schema.TypeString,
 				Optional:         true,
 				Description:      "JSON string containing settings for the application.",
-				DiffSuppressFunc: suppressEquivalentJSON,
+				DiffSuppressFunc: suppressEquivalentJSONOrNoneHeld,
 			},
 			"messages": {
 				Type:        schema.TypeString,
@@ -120,9 +130,14 @@ func resourceApplication() *schema.Resource {
 					"When not set, it reads what the platform holds (`{}` for an application with no type).",
 			},
 			"application_type_snapshot_id": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The ID of the snapshot of its type the application is on: its `attributes` pass that snapshot's schema. Empty for an application with no type.",
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+				Description: "The ID of the snapshot of its type the application is on: its `attributes` pass that snapshot's schema. Empty for an application with no type. " +
+					"A change of the type's schema cuts a new snapshot and leaves the application on the one it has. " +
+					"Set it to move the application: to `nullplatform_application_type.<name>.last_snapshot_id` to keep it on the type's latest schema, or to an earlier snapshot of the type to go back. " +
+					"The move is one request together with `attributes`, and it is refused, changing nothing, when the attributes do not pass the destination's schema. " +
+					"When not set, the application stays on its snapshot and this reads it.",
 			},
 		},
 	}
@@ -163,7 +178,10 @@ func ApplicationCreate(ctx context.Context, d *schema.ResourceData, m interface{
 		if err := json.Unmarshal([]byte(attributesStr), &attributes); err != nil {
 			return diag.FromErr(fmt.Errorf("error parsing attributes JSON: %v", err))
 		}
-		newApp.Attributes = withoutNulls(attributes)
+		// None to send is no member at all, as before a type took part.
+		if attributes = withoutNulls(attributes); len(attributes) > 0 {
+			newApp.Attributes = attributes
+		}
 	}
 
 	app, err := nullOps.CreateApplication(newApp)
@@ -172,7 +190,42 @@ func ApplicationCreate(ctx context.Context, d *schema.ResourceData, m interface{
 	}
 
 	d.SetId(strconv.Itoa(app.Id))
+
+	// A new application is on its type's last snapshot; one configured for
+	// another is moved there.
+	if wanted := configuredString(d, "application_type_snapshot_id"); wanted != "" && wanted != app.ApplicationTypeSnapshotId {
+		if err := moveApplicationToSnapshot(nullOps, d.Id(), &Application{}, wanted); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
 	return ApplicationRead(ctx, d, m)
+}
+
+// moveApplicationToSnapshot sends `edit` with the move to `snapshotID`, and
+// checks the application got there. The platform moves an application with an
+// edit of it, and naming the destination alone is not one: it would be stored
+// and applied by whichever edit came next. So the move always carries
+// attributes, empty when none change, which the platform checks against the
+// destination: it moves, or it refuses and changes nothing.
+func moveApplicationToSnapshot(nullOps NullOps, appId string, edit *Application, snapshotID string) error {
+	edit.DesiredApplicationTypeSnapshotId = snapshotID
+	if edit.Attributes == nil {
+		edit.Attributes = map[string]interface{}{}
+	}
+	if err := nullOps.PatchApplication(appId, edit); err != nil {
+		return err
+	}
+
+	moved, err := nullOps.GetApplication(appId)
+	if err != nil {
+		return err
+	}
+	if moved.ApplicationTypeSnapshotId != snapshotID {
+		return fmt.Errorf("application %s was asked to move to snapshot %s of its type and is on %s",
+			appId, snapshotID, moved.ApplicationTypeSnapshotId)
+	}
+	return nil
 }
 
 func ApplicationRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
@@ -326,24 +379,93 @@ func ApplicationUpdate(ctx context.Context, d *schema.ResourceData, m interface{
 		if err := json.Unmarshal([]byte(is.(string)), &wanted); err != nil {
 			return diag.FromErr(fmt.Errorf("error parsing attributes JSON: %v", err))
 		}
-		app.Attributes = mergePatchBetween(held, wanted)
+		// Nothing to change is no member at all.
+		if patch := mergePatchBetween(held, wanted); len(patch) > 0 {
+			app.Attributes = patch
+		}
+	}
+
+	if wanted := configuredString(d, "application_type_snapshot_id"); wanted != "" && d.HasChange("application_type_snapshot_id") {
+		if err := moveApplicationToSnapshot(nullOps, appId, app, wanted); err != nil {
+			// Refused: the state keeps what the platform has, not what was asked.
+			d.Partial(true)
+			return diag.FromErr(err)
+		}
+		return ApplicationRead(ctx, d, m)
 	}
 
 	if err := nullOps.PatchApplication(appId, app); err != nil {
+		d.Partial(true)
 		return diag.FromErr(err)
 	}
 
 	return ApplicationRead(ctx, d, m)
 }
 
+// ApplicationDelete asks the platform to delete the application and waits for
+// it. The platform deletes an application by moving it to `deleting`: its
+// workflow (the type's, or the built-in one) then removes what it created and
+// leaves it `deleted`, or gone. A DELETE of one that is not `deleting` is
+// refused, so it is only sent for one that already is: what a configuration
+// that first set `status = "deleting"` has always done.
 func ApplicationDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	appId := d.Id()
 
-	if err := nullOps.DeleteApplication(appId); err != nil {
+	app, err := nullOps.GetApplication(appId)
+	if err != nil {
+		if _, gone := IsResourceNotFoundError(err); gone {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 
+	switch app.Status {
+	case "deleted":
+	case "deleting":
+		if err := nullOps.DeleteApplication(appId); err != nil {
+			return diag.FromErr(err)
+		}
+	default:
+		if err := nullOps.PatchApplication(appId, &Application{Status: "deleting"}); err != nil {
+			return diag.FromErr(err)
+		}
+		if err := waitForApplicationDeleted(ctx, nullOps, appId, d.Timeout(schema.TimeoutDelete)); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
 	d.SetId("")
+	return nil
+}
+
+// waitForApplicationDeleted polls an application that was moved to `deleting`
+// until its workflow leaves it `deleted`, or gone.
+func waitForApplicationDeleted(ctx context.Context, nullOps NullOps, appId string, timeout time.Duration) error {
+	stateConf := &retry.StateChangeConf{
+		Pending: []string{"deleting"},
+		Target:  []string{"deleted"},
+		Refresh: func() (interface{}, string, error) {
+			app, err := nullOps.GetApplication(appId)
+			if err != nil {
+				if _, gone := IsResourceNotFoundError(err); gone {
+					return &Application{}, "deleted", nil
+				}
+				return nil, "", err
+			}
+			if app.Status == "failed" {
+				return app, app.Status, fmt.Errorf("application %s ended in status %q while it was being deleted: %s",
+					appId, app.Status, summarizeMessages(app.Messages))
+			}
+			return app, app.Status, nil
+		},
+		Timeout:    timeout,
+		Delay:      0,
+		MinTimeout: statusPollInterval,
+	}
+	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+		return fmt.Errorf("application %s was asked to be deleted and its workflow did not finish: %w", appId, err)
+	}
 	return nil
 }

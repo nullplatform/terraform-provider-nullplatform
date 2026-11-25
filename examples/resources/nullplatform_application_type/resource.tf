@@ -62,6 +62,11 @@ resource "nullplatform_application" "support_bot" {
   namespace_id        = var.namespace_id
   application_type_id = nullplatform_application_type.agent.id
 
+  # Keeps the application on the type's latest schema: when the schema above
+  # changes, the same apply moves the application to the snapshot it cuts.
+  # Left out, the application stays on the snapshot it was created on.
+  application_type_snapshot_id = nullplatform_application_type.agent.last_snapshot_id
+
   attributes = jsonencode({
     model     = "large"
     autonomy  = "low"

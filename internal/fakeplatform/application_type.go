@@ -34,9 +34,16 @@ import (
 // /template.
 func RegisterApplicationTypes(s *Server) {
 	snapshots := 0
+	cutOf := map[string]Item{}
 	cut := func(item Item) {
 		snapshots++
 		item["last_snapshot_id"] = fmt.Sprintf("snapshot-%d", snapshots)
+		cutOf[Str(item, "last_snapshot_id")] = item
+	}
+	// Whether a snapshot was cut of a type.
+	snapshotOf := func(typeID, snapshotID string) bool {
+		owner, cut := cutOf[snapshotID]
+		return cut && Str(owner, "id") == typeID
 	}
 
 	deleted := map[string]bool{}
@@ -110,6 +117,7 @@ func RegisterApplicationTypes(s *Server) {
 		OnCreate: func(s *Server, item Item) *Refusal {
 			attributes, _ := item["attributes"].(Item)
 			typeID := Str(item, "application_type_id")
+			item["status"] = "active"
 			if typeID == "" {
 				if len(attributes) > 0 {
 					return Refuse("attributes belong to an application type, and this application has none")
@@ -120,21 +128,74 @@ func RegisterApplicationTypes(s *Server) {
 					return Refuse("The application type %s cannot be used in namespace %v", typeID, item["namespace_id"])
 				}
 				item["application_type_snapshot_id"] = applicationType["last_snapshot_id"]
+				// The type's workflow creates it: it waits for the hook's answer.
+				item["status"] = "pending_hook"
 			}
 			item["attributes"] = mergePatch(Item{}, attributes)
-			item["status"] = "active"
+			item["desired_application_type_snapshot_id"] = nil
+			// The API answers both for an application that has none.
+			for _, member := range []string{"settings", "tags"} {
+				if _, sent := item[member]; !sent {
+					item[member] = Item{}
+				}
+			}
 			return nil
 		},
-		OnPatch: func(_ *Server, existing, patch Item) *Refusal {
-			if sent, ok := patch["attributes"].(Item); ok {
-				if Str(existing, "application_type_id") == "" {
-					return Refuse("attributes belongs to an application type, and this application has none")
+		// The application's workflow, one observation at a time: the type's
+		// answers the creation hook with the repository it made, and the
+		// type's or the built-in one finishes a delete.
+		OnGet: func(_ *Server, item Item) {
+			switch Str(item, "status") {
+			case "pending_hook":
+				item["status"] = "active"
+				if Str(item, "repository_url") == "" {
+					item["repository_url"] = "https://github.com/acme/" + Str(item, "name")
 				}
+			case "deleting":
+				item["status"] = "deleted"
+			}
+		},
+		OnPatch: func(_ *Server, existing, patch Item) *Refusal {
+			typed := Str(existing, "application_type_id") != ""
+			sent, namesAttributes := patch["attributes"].(Item)
+			asked, namesDestination := patch["desired_application_type_snapshot_id"].(string)
+			if !typed && (namesAttributes || namesDestination) {
+				member := "desired_application_type_snapshot_id"
+				if namesAttributes {
+					member = "attributes"
+				}
+				return Refuse("%s belongs to an application type, and this application has none", member)
+			}
+			if namesDestination && !snapshotOf(Str(existing, "application_type_id"), asked) {
+				return Refuse("%s is not a snapshot of the application's type", asked)
+			}
+			if namesAttributes {
 				existing["attributes"] = mergePatch(existing["attributes"], sent)
-				delete(patch, "attributes")
+			}
+			delete(patch, "attributes")
+			delete(patch, "desired_application_type_snapshot_id")
+			// Naming the destination stores it; an edit of the application
+			// moves it there. Naming it alone is not one.
+			if namesDestination {
+				existing["desired_application_type_snapshot_id"] = asked
+			}
+			destination := Str(existing, "desired_application_type_snapshot_id")
+			if destination != "" && (namesAttributes || len(patch) > 0 || destination == Str(existing, "application_type_snapshot_id")) {
+				existing["application_type_snapshot_id"] = destination
+				existing["desired_application_type_snapshot_id"] = nil
 			}
 			for key, value := range patch {
 				existing[key] = value
+			}
+			return nil
+		},
+		// The API deletes only what was first moved to `deleting`.
+		OnDelete: func(_ *Server, item Item) *Refusal {
+			if Str(item, "status") != "deleting" {
+				return &Refusal{Status: http.StatusBadRequest, Body: Item{
+					"code":    "APPLICATION.INVALID_APP_STATUS",
+					"message": "The application status is invalid",
+				}}
 			}
 			return nil
 		},
@@ -156,11 +217,11 @@ func RegisterApplicationTypes(s *Server) {
 }
 
 // pointingAt counts the items of a collection whose application_type_id is
-// this type's id.
+// this type's id; an application that was deleted no longer counts.
 func pointingAt(s *Server, collection string, applicationType Item) int {
 	count := 0
 	for _, item := range s.collections[collection].items {
-		if Str(item, "application_type_id") == Str(applicationType, "id") {
+		if Str(item, "application_type_id") == Str(applicationType, "id") && Str(item, "status") != "deleted" {
 			count++
 		}
 	}
