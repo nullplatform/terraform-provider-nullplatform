@@ -5,6 +5,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/nullplatform/terraform-provider-nullplatform/internal/fakeplatform"
 	"net/http"
 	"regexp"
 	"strings"
@@ -33,6 +34,18 @@ resource "nullplatform_application" "bot" {
 `, agentSchema, typeLine, attributes)
 }
 
+// lastPatchIs checks that the application was edited `count` times so far, the
+// last of them with `body`.
+func lastPatchIs(fake *fakeplatform.Server, count int, body string) resource.TestCheckFunc {
+	return func(*terraform.State) error {
+		patches := requestsTo(fake, http.MethodPatch, "/application/1")
+		if len(patches) != count || patches[count-1].Body != body+"\n" {
+			return fmt.Errorf("edits of the application: got %v, want %d, the last one %s", patches, count, body)
+		}
+		return nil
+	}
+}
+
 func TestFunctionalApplication_OfAType(t *testing.T) {
 	fake := newApplicationTypeFake(t)
 	ofAgent := "  application_type_id = nullplatform_application_type.agent.id\n"
@@ -57,30 +70,51 @@ func TestFunctionalApplication_OfAType(t *testing.T) {
 				),
 			},
 			{
-				// One value changes: the attributes are sent, and nothing else is.
+				// One value changes: it is sent, and nothing else is.
 				Config: typedApplicationConfig(ofAgent, `  attributes = jsonencode({ model = "opus", autonomy = "low" })`+"\n"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("nullplatform_application.bot", "attributes", `{"autonomy":"low","model":"opus"}`),
-					func(*terraform.State) error {
-						patches := requestsTo(fake, http.MethodPatch, "/application/1")
-						if want := `{"attributes":{"autonomy":"low","model":"opus"}}` + "\n"; len(patches) != 1 || patches[0].Body != want {
-							return fmt.Errorf("patch body: got %v, want %s", patches, want)
-						}
-						return nil
-					},
+					lastPatchIs(fake, 1, `{"attributes":{"model":"opus"}}`),
 				),
 			},
 			{
-				// The platform merges: a key taken out of the configuration stays there,
-				// and the plan keeps saying so.
-				Config:             typedApplicationConfig(ofAgent, `  attributes = jsonencode({ model = "opus" })`+"\n"),
-				ExpectNonEmptyPlan: true,
-				Check:              resource.TestCheckResourceAttr("nullplatform_application.bot", "attributes", `{"autonomy":"low","model":"opus"}`),
+				// A key taken out of the configuration is sent as null, which removes it
+				// there: the plan that follows is empty.
+				Config: typedApplicationConfig(ofAgent, `  attributes = jsonencode({ model = "opus" })`+"\n"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("nullplatform_application.bot", "attributes", `{"model":"opus"}`),
+					lastPatchIs(fake, 2, `{"attributes":{"autonomy":null}}`),
+				),
+			},
+			{
+				// An object and a list come in: only what is new is sent.
+				Config: typedApplicationConfig(ofAgent, `  attributes = jsonencode({ model = "opus", limits = { tokens = 1000, depth = 2 }, tools = ["search", "code"] })`+"\n"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("nullplatform_application.bot", "attributes", `{"limits":{"depth":2,"tokens":1000},"model":"opus","tools":["search","code"]}`),
+					lastPatchIs(fake, 3, `{"attributes":{"limits":{"depth":2,"tokens":1000},"tools":["search","code"]}}`),
+				),
+			},
+			{
+				// The object changes member by member, the list whole.
+				Config: typedApplicationConfig(ofAgent, `  attributes = jsonencode({ model = "opus", limits = { tokens = 2000 }, tools = ["search"] })`+"\n"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("nullplatform_application.bot", "attributes", `{"limits":{"tokens":2000},"model":"opus","tools":["search"]}`),
+					lastPatchIs(fake, 4, `{"attributes":{"limits":{"depth":null,"tokens":2000},"tools":["search"]}}`),
+				),
+			},
+			{
+				// A null in the configuration is a key left out: the platform holds none,
+				// so there is nothing to plan and nothing is sent.
+				Config: typedApplicationConfig(ofAgent, `  attributes = jsonencode({ model = "opus", autonomy = null, limits = { tokens = 2000, depth = null }, tools = ["search"] })`+"\n"),
+				Check:  lastPatchIs(fake, 4, `{"attributes":{"limits":{"depth":null,"tokens":2000},"tools":["search"]}}`),
 			},
 			{
 				// Not set: what the platform holds is read, with no plan.
 				Config: typedApplicationConfig(ofAgent, ""),
-				Check:  resource.TestCheckResourceAttr("nullplatform_application.bot", "attributes", `{"autonomy":"low","model":"opus"}`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("nullplatform_application.bot", "attributes", `{"limits":{"tokens":2000},"model":"opus","tools":["search"]}`),
+					lastPatchIs(fake, 4, `{"attributes":{"limits":{"depth":null,"tokens":2000},"tools":["search"]}}`),
+				),
 			},
 			{
 				// The type of an application is for life: another type is another application.

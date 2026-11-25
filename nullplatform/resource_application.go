@@ -113,9 +113,10 @@ func resourceApplication() *schema.Resource {
 				Type:             schema.TypeString,
 				Optional:         true,
 				Computed:         true,
-				DiffSuppressFunc: suppressEquivalentJSON,
+				DiffSuppressFunc: suppressEquivalentJSONWithoutNulls,
 				Description: "JSON string with the values of the fields of the application's type, checked against the type's schema. Only for an application with `application_type_id`. " +
-					"The platform merges what is sent into what it holds, so a key removed here is not removed there: it keeps showing in the plan until the configuration names it again. " +
+					"When set, it is the whole of them: only what changed is sent, and a key that is no longer here is removed from the application, also one that was set outside Terraform. " +
+					"A key written as `null` is a key left out. " +
 					"When not set, it reads what the platform holds (`{}` for an application with no type).",
 			},
 			"application_type_snapshot_id": {
@@ -162,7 +163,7 @@ func ApplicationCreate(ctx context.Context, d *schema.ResourceData, m interface{
 		if err := json.Unmarshal([]byte(attributesStr), &attributes); err != nil {
 			return diag.FromErr(fmt.Errorf("error parsing attributes JSON: %v", err))
 		}
-		newApp.Attributes = attributes
+		newApp.Attributes = withoutNulls(attributes)
 	}
 
 	app, err := nullOps.CreateApplication(newApp)
@@ -315,11 +316,17 @@ func ApplicationUpdate(ctx context.Context, d *schema.ResourceData, m interface{
 	}
 
 	if d.HasChange("attributes") {
-		var attributes map[string]interface{}
-		if err := json.Unmarshal([]byte(d.Get("attributes").(string)), &attributes); err != nil {
+		// The platform takes attributes as a JSON Merge Patch (RFC 7396) of the
+		// ones it holds, so what goes is the way from those to the ones wanted.
+		was, is := d.GetChange("attributes")
+		var held, wanted map[string]interface{}
+		// Read wrote the state; one from before attributes existed is empty and
+		// holds none.
+		_ = json.Unmarshal([]byte(was.(string)), &held)
+		if err := json.Unmarshal([]byte(is.(string)), &wanted); err != nil {
 			return diag.FromErr(fmt.Errorf("error parsing attributes JSON: %v", err))
 		}
-		app.Attributes = attributes
+		app.Attributes = mergePatchBetween(held, wanted)
 	}
 
 	if err := nullOps.PatchApplication(appId, app); err != nil {

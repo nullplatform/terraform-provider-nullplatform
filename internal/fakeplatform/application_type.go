@@ -12,8 +12,10 @@ package fakeplatform
 //     whitespace — key order included — cuts a new snapshot;
 //   - a type is never deleted: the API has no such route;
 //   - a new application takes a type only when it is active, starts on the
-//     type's last snapshot, and its attributes are merged, key by key, into
-//     the ones it has; an application with no type has none;
+//     type's last snapshot, and the attributes it is sent are a JSON Merge
+//     Patch (RFC 7396) of the ones it has: a null removes a member, an object
+//     is merged, any other value replaces; an application with no type has
+//     none;
 //   - a template is edited member by member, a null or empty one meaning
 //     "leave it", except its type, which a null clears.
 //
@@ -96,10 +98,7 @@ func RegisterApplicationTypes(s *Server) {
 				}
 				item["application_type_snapshot_id"] = applicationType["last_snapshot_id"]
 			}
-			if attributes == nil {
-				attributes = Item{}
-			}
-			item["attributes"] = attributes
+			item["attributes"] = mergePatch(Item{}, attributes)
 			item["status"] = "active"
 			return nil
 		},
@@ -108,10 +107,7 @@ func RegisterApplicationTypes(s *Server) {
 				if Str(existing, "application_type_id") == "" {
 					return Refuse("attributes belongs to an application type, and this application has none")
 				}
-				held := existing["attributes"].(Item)
-				for key, value := range sent {
-					held[key] = value
-				}
+				existing["attributes"] = mergePatch(existing["attributes"], sent)
 				delete(patch, "attributes")
 			}
 			for key, value := range patch {
@@ -165,4 +161,25 @@ func sameCompact(a, b json.RawMessage) bool {
 	_ = json.Compact(&compactA, a)
 	_ = json.Compact(&compactB, b)
 	return compactA.String() == compactB.String()
+}
+
+// mergePatch applies `patch` to `target` as a JSON Merge Patch (RFC 7396).
+func mergePatch(target any, patch Item) Item {
+	merged := Item{}
+	if held, isObject := target.(Item); isObject {
+		for name, value := range held {
+			merged[name] = value
+		}
+	}
+	for name, value := range patch {
+		switch value := value.(type) {
+		case nil:
+			delete(merged, name)
+		case Item:
+			merged[name] = mergePatch(merged[name], value)
+		default:
+			merged[name] = value
+		}
+	}
+	return merged
 }
