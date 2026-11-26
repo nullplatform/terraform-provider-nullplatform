@@ -70,3 +70,10 @@ nullplatform/resource_application.go:362-363  # json.Marshal(attributes decoded 
 nullplatform/resource_application.go:367-368  # d.Set(attributes, string) arm
 nullplatform/resource_application_type.go:148-149  # d.Set arm of setApplicationTypeState
 nullplatform/resource_technology_template.go:212-213  # d.Set(application_type_id, string) arm
+
+# Workflows: d.Set with the schema's exact type, and the encoding of a value
+# json.Unmarshal produced (maps, slices, strings, float64, bool, nil: nothing
+# json.Encoder can refuse).
+nullplatform/resource_workflow.go:301-302  # enc.Encode(definition decoded from JSON) arm
+nullplatform/resource_workflow.go:337-338  # d.Set(revision, int) arm
+nullplatform/resource_workflow_alias.go:115-116  # d.Set(webhook_urls, map[string]string) arm

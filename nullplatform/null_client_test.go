@@ -263,3 +263,14 @@ func TestRedactCredentials_AuthorizationLine(t *testing.T) {
 		t.Errorf("redacted %q, want %q", got, want)
 	}
 }
+
+func TestRedactCredentials_WebhookToken(t *testing.T) {
+	dump := `{"triggerStates":{"start":{"runtimeMetadata":{"webhookUrl":"https://api.example.com/workflows/webhooks/wf_1-notify/live/s3cr3tTOKENvalue1234567890"}}}}`
+	got := string(redactCredentials([]byte(dump)))
+	if strings.Contains(got, "s3cr3tTOKENvalue1234567890") {
+		t.Fatalf("the webhook token survived the redaction: %s", got)
+	}
+	if want := `"webhookUrl":"https://api.example.com/workflows/webhooks/wf_1-notify/live/REDACTED"`; !strings.Contains(got, want) {
+		t.Fatalf("want %s in %s", want, got)
+	}
+}

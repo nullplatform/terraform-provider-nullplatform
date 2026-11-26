@@ -35,6 +35,17 @@ func newFakePlatform(t *testing.T, chains map[string]fakeplatform.Chain) *fakepl
 	return fake
 }
 
+// newWorkflowFake is a fake platform with the workflow engine behaving as
+// engine says; a test changes it between steps with
+// fakeplatform.SetWorkflowEngine.
+func newWorkflowFake(t *testing.T, engine fakeplatform.WorkflowEngine) *fakeplatform.Server {
+	t.Helper()
+	fake := fakeplatform.New()
+	fakeplatform.RegisterWorkflows(fake, engine)
+	t.Cleanup(fake.Close)
+	return fake
+}
+
 // functionalFactories serves the REAL provider with only its configure swapped
 // for a client that trusts the fake's certificate.
 func functionalFactories(fake *fakeplatform.Server) map[string]func() (*schema.Provider, error) {

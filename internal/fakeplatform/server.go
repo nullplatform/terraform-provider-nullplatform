@@ -38,6 +38,14 @@ type Refusal struct {
 	Body    Item
 }
 
+// Answer is a response OnRequest gives: the status and, when Body is not nil,
+// its JSON encoding (written without HTML escaping, as the API does). A nil
+// Body answers the status alone.
+type Answer struct {
+	Status int
+	Body   any
+}
+
 // Request is one call the fake received, exactly as the client sent it: the
 // raw query, and the body's raw bytes, trailing newline included.
 type Request struct {
@@ -55,6 +63,15 @@ func Refuse(format string, args ...any) *Refusal {
 // plain generic CRUD. Hooks run under the server lock and may inspect other
 // collections through the Server.
 type Hooks struct {
+	// OnRequest is called first, under the lock, for every request routed to the
+	// collection (after it is recorded in Requests and Query() is set), with the
+	// method, EVERY path segment after the collection's name (not the three-way
+	// split the generic routes use) and the raw body. A non-nil Answer is the
+	// whole response and the generic routes never run; nil falls through to
+	// them unchanged. It is for an API whose shape they cannot express: a PUT
+	// that versions, sub-resources that answer bodies, actions, a lookup by
+	// another key.
+	OnRequest func(s *Server, method string, segments []string, body []byte) *Answer
 	// OnCreate may refuse or mutate the item about to be stored.
 	OnCreate func(s *Server, item Item) *Refusal
 	// OnPatch applies a patch to an existing item; returning a Refusal leaves
@@ -120,6 +137,8 @@ type Server struct {
 	query       url.Values
 	Deletes     int
 	ts          *httptest.Server
+	// workflow is the workflow engine's fake, once RegisterWorkflows mounted it.
+	workflow *workflowFake
 }
 
 func New() *Server {
@@ -217,8 +236,8 @@ func (s *Server) Gets(id string) int  { return s.gets[id] }
 func (s *Server) ResetGets(id string) { s.gets[id] = 0 }
 
 // route resolves a path to the longest registered collection it starts with
-// and the segments after it: [], [id] or [id, sub[, subID]].
-func (s *Server) route(path string) (string, []string) {
+// and what follows it, without the separating /.
+func (s *Server) route(path string) (string, string) {
 	name := ""
 	for registered := range s.collections {
 		if (path == registered || strings.HasPrefix(path, registered+"/")) && len(registered) > len(name) {
@@ -227,13 +246,18 @@ func (s *Server) route(path string) (string, []string) {
 	}
 	if name == "" {
 		name, _, _ = strings.Cut(path, "/")
-		return name, nil
+		return name, ""
 	}
-	rest := strings.TrimPrefix(strings.TrimPrefix(path, name), "/")
+	return name, strings.TrimPrefix(strings.TrimPrefix(path, name), "/")
+}
+
+// splitPath is rest cut at its first n-1 slashes (n < 0: at every one); an
+// empty rest has no segments.
+func splitPath(rest string, n int) []string {
 	if rest == "" {
-		return name, nil
+		return nil
 	}
-	return name, strings.SplitN(rest, "/", 3)
+	return strings.SplitN(rest, "/", n)
 }
 
 func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
@@ -245,11 +269,23 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	s.query = r.URL.Query()
 	body := func(v any) { _ = json.NewDecoder(bytes.NewReader(raw)).Decode(v) }
 
-	name, segments := s.route(strings.TrimPrefix(r.URL.Path, "/"))
+	name, rest := s.route(strings.TrimPrefix(r.URL.Path, "/"))
+	// [], [id] or [id, sub[, subID]] for the generic routes.
+	segments := splitPath(rest, 3)
 	col, ok := s.collections[name]
 	if !ok {
 		http.Error(w, fmt.Sprintf(`{"message":"fakeplatform: no collection %q registered"}`, name), http.StatusInternalServerError)
 		return
+	}
+	if col.hooks.OnRequest != nil {
+		if answer := col.hooks.OnRequest(s, r.Method, splitPath(rest, -1), raw); answer != nil {
+			if answer.Body == nil {
+				w.WriteHeader(answer.Status)
+			} else {
+				writeJSONStatus(w, answer.Status, answer.Body)
+			}
+			return
+		}
 	}
 	id := ""
 	if len(segments) > 0 {
