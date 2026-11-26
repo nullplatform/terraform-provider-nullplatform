@@ -328,14 +328,16 @@ func ReadLinkSpecification(_ context.Context, d *schema.ResourceData, m interfac
 		return diag.FromErr(err)
 	}
 
+	external := ""
 	if spec.External != nil {
 		externalJSON, err := json.Marshal(spec.External)
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("error serializing external to JSON: %v", err))
 		}
-		if err := d.Set("external", string(externalJSON)); err != nil {
-			return diag.FromErr(err)
-		}
+		external = string(externalJSON)
+	}
+	if err := d.Set("external", external); err != nil {
+		return diag.FromErr(err)
 	}
 
 	if spec.ExternalResolution != nil {
