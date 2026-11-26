@@ -318,11 +318,17 @@ var credentialRegex = regexp.MustCompile(`(?i)(\bauthorization\s*:\s*(?:(?:beare
 // three base64url segments, the first a JSON header, which encodes to "eyJ".
 var bareJWTRegex = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`)
 
+// webhookTokenRegex matches the token that ends a workflow webhook URL
+// (/workflows/webhooks/<workflow>/<alias>/<token>): the capability to start the
+// workflow.
+var webhookTokenRegex = regexp.MustCompile(`(/workflows/webhooks/[^/\s"]+/[^/\s"]+/)[^/\s"?#]+`)
+
 // redactCredentials is the logs' redaction for text that may echo the
-// request: the Authorization line, a credential anywhere, a bare JWT and the
-// token fields.
+// request: the Authorization line, a credential anywhere, a bare JWT, the
+// token fields and a webhook URL's token.
 func redactCredentials(body []byte) []byte {
 	body = authHeaderRegex.ReplaceAll(body, authHeaderReplacement)
+	body = webhookTokenRegex.ReplaceAll(body, []byte("${1}REDACTED"))
 	body = credentialRegex.ReplaceAll(body, []byte("${1}${2}REDACTED"))
 	return redactSecrets(bareJWTRegex.ReplaceAll(body, []byte("REDACTED")))
 }

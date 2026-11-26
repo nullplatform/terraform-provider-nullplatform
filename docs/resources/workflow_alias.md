@@ -112,7 +112,7 @@ resource "nullplatform_workflow_alias" "payments_gate_live" {
 ### Required
 
 - `name` (String) The alias's name, such as `live`. `latest` is the API's own and cannot be managed. Changing it replaces the alias: the old one is deactivated and deleted, the new one created and activated.
-- `revision` (Number) The revision the alias publishes, usually `nullplatform_workflow.<name>.revision`. While `active`, changing it moves the alias and activates it again, which registers the triggers of the new revision and releases the ones it no longer has.
+- `revision` (Number) The revision the alias publishes, usually `nullplatform_workflow.<name>.revision`. While `active`, changing it moves the alias and activates it again, which registers the triggers of the new revision.
 - `workflow_id` (String) The id of the workflow, usually `nullplatform_workflow.<name>.id`: its id, not its key. Changing it replaces the alias.
 
 ### Optional

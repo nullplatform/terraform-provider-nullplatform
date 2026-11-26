@@ -60,7 +60,7 @@ func resourceWorkflowAlias() *schema.Resource {
 				ValidateFunc: validation.IntAtLeast(1),
 				Description: "The revision the alias publishes, usually `nullplatform_workflow.<name>.revision`. While " +
 					"`active`, changing it moves the alias and activates it again, which registers the triggers of the new " +
-					"revision and releases the ones it no longer has.",
+					"revision.",
 			},
 			"active": {
 				Type:     schema.TypeBool,
@@ -107,6 +107,11 @@ func WorkflowAliasCreate(ctx context.Context, d *schema.ResourceData, m any) dia
 	// The alias exists from here, inactive: a failed activation keeps it in the
 	// state as the API reads it, and the next apply replaces it.
 	d.SetId(workflowID + "/" + name)
+	// Known from here, so a read that fails plans no change; the next refresh
+	// reads the URLs.
+	if err := d.Set("webhook_urls", map[string]string{}); err != nil {
+		return diag.FromErr(err)
+	}
 	if d.Get("active").(bool) {
 		if err := activateWorkflowAlias(nullOps, workflowID, name, revision, revision); err != nil {
 			return workflowAliasFailed(ctx, d, m, err, revision, false)
@@ -175,7 +180,8 @@ func deactivateWorkflowAlias(nullOps NullOps, workflowID, name string) error {
 	}
 	if deactivation.DeactivateError != "" {
 		return errors.New(redactMessage(fmt.Sprintf("deactivating alias %s of workflow %s: the API marked it inactive but "+
-			"could not release all its triggers: %s. The alias is kept: deactivating it again retries the release",
+			"could not release all its triggers: %s. What it names is still registered; destroying the alias deactivates it "+
+			"again, which retries the release",
 			name, workflowID, deactivation.DeactivateError)))
 	}
 	return nil

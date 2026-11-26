@@ -77,14 +77,22 @@ type WorkflowEngine struct {
 
 type workflowFake struct{ engine *WorkflowEngine }
 
-// RegisterWorkflows mounts /workflows/definitions and /notification/channel.
-// It returns the engine's knobs, which the fake reads on every request: a test
-// changes them between steps (never during one) to lift a refusal.
-func RegisterWorkflows(s *Server, engine WorkflowEngine) *WorkflowEngine {
+// RegisterWorkflows mounts /workflows/definitions and /notification/channel
+// with engine as its starting behavior. SetWorkflowEngine changes it later.
+func RegisterWorkflows(s *Server, engine WorkflowEngine) {
 	w := &workflowFake{engine: &engine}
 	s.RegisterWith(WorkflowDefinitions, "wf", Options{IDFormat: "wf_%012d"}, Hooks{OnRequest: w.onRequest})
 	s.RegisterWith(NotificationChannels, "ch", Options{NumericIDs: true, CreateStatus: http.StatusCreated}, Hooks{OnList: listChannels})
-	return w.engine
+	s.workflow = w
+}
+
+// SetWorkflowEngine changes the engine's behavior under the server's lock,
+// which every request holds: a test lifts a refusal between steps without a
+// data race. change gets the live value and must not keep it.
+func SetWorkflowEngine(s *Server, change func(*WorkflowEngine)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	change(s.workflow.engine)
 }
 
 // WorkflowChannels returns the channels that exist now, by id.

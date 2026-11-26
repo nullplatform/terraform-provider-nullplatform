@@ -137,6 +137,8 @@ type Server struct {
 	query       url.Values
 	Deletes     int
 	ts          *httptest.Server
+	// workflow is the workflow engine's fake, once RegisterWorkflows mounted it.
+	workflow *workflowFake
 }
 
 func New() *Server {

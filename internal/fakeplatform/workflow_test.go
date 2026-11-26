@@ -159,7 +159,7 @@ func TestWorkflowErrorsAndPatch(t *testing.T) {
 func TestWorkflowEngineKnobsAreReadLive(t *testing.T) {
 	s := New()
 	defer s.Close()
-	engine := RegisterWorkflows(s, WorkflowEngine{RefuseActiveAliasDelete: true})
+	RegisterWorkflows(s, WorkflowEngine{RefuseActiveAliasDelete: true})
 	c := wfCall{t, s}
 	_, created := c.do("POST", "/workflows/definitions", checklistWorkflow)
 	base := "/workflows/definitions/" + wfID(created) + "/aliases"
@@ -168,7 +168,7 @@ func TestWorkflowEngineKnobsAreReadLive(t *testing.T) {
 	if status, _ := c.do("DELETE", base+"/live", ""); status != 409 {
 		t.Fatalf("delete with the refusal: %d", status)
 	}
-	engine.RefuseActiveAliasDelete = false
+	SetWorkflowEngine(s, func(e *WorkflowEngine) { e.RefuseActiveAliasDelete = false })
 	if status, _ := c.do("DELETE", base+"/live", ""); status != 204 {
 		t.Errorf("delete with the refusal lifted: %d", status)
 	}

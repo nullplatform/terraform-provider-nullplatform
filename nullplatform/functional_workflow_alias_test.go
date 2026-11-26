@@ -3,10 +3,14 @@ package nullplatform
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
+	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 
 	"github.com/nullplatform/terraform-provider-nullplatform/internal/fakeplatform"
 )
@@ -16,7 +20,13 @@ const functionalChecklistNRN = "organization=1:account=2"
 // workflowAliasConfig is a webhook workflow with the alias "live" on its
 // latest revision.
 func workflowAliasConfig(message string, active bool) string {
-	return workflowConfig(message, "") + fmt.Sprintf(`
+	return workflowConfig(message, "") + workflowAliasBlock(active)
+}
+
+// workflowAliasBlock is the alias "live" of the workflow "gate", on its latest
+// revision.
+func workflowAliasBlock(active bool) string {
+	return fmt.Sprintf(`
 resource "nullplatform_workflow_alias" "live" {
   workflow_id = nullplatform_workflow.gate.id
   name        = "live"
@@ -63,20 +73,26 @@ func aliasOf(fake *fakeplatform.Server, id string) (fakeplatform.Item, error) {
 	return alias, nil
 }
 
+// aliasIs checks a copy of the fake's alias: the fake answers numbers as
+// json.Number.
+func aliasIs(alias fakeplatform.Item, revision int, active bool) error {
+	if fmt.Sprint(alias["revision"]) != strconv.Itoa(revision) || alias["active"] != active {
+		return fmt.Errorf("alias = revision %v active %v, want revision %d active %t", alias["revision"], alias["active"], revision, active)
+	}
+	return nil
+}
+
 func TestFunctionalWorkflowAlias_Lifecycle(t *testing.T) {
-	fake, _ := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
+	fake := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
 	var id string
 	remember := func(s *terraform.State) error { id = workflowIDOf(s, "nullplatform_workflow.gate"); return nil }
-	aliasIs := func(revision int, active bool) resource.TestCheckFunc {
+	aliasHolds := func(revision int, active bool) resource.TestCheckFunc {
 		return func(*terraform.State) error {
 			alias, err := aliasOf(fake, id)
 			if err != nil {
 				return err
 			}
-			if alias["revision"] != revision || alias["active"] != active {
-				return fmt.Errorf("alias = revision %v active %v, want revision %d active %t", alias["revision"], alias["active"], revision, active)
-			}
-			return nil
+			return aliasIs(alias, revision, active)
 		}
 	}
 
@@ -87,7 +103,7 @@ func TestFunctionalWorkflowAlias_Lifecycle(t *testing.T) {
 				Config: workflowAliasConfig("first", true),
 				Check: resource.ComposeTestCheckFunc(
 					remember,
-					aliasIs(1, true),
+					aliasHolds(1, true),
 					resource.TestCheckResourceAttr("nullplatform_workflow_alias.live", "webhook_urls.%", "1"),
 					resource.TestCheckResourceAttrSet("nullplatform_workflow_alias.live", "webhook_urls.start"),
 				),
@@ -97,24 +113,24 @@ func TestFunctionalWorkflowAlias_Lifecycle(t *testing.T) {
 				Config: workflowAliasConfig("second", true),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("nullplatform_workflow_alias.live", "revision", "2"),
-					aliasIs(2, true),
+					aliasHolds(2, true),
 				),
 			},
 			{
 				Config: workflowAliasConfig("second", false),
 				Check: resource.ComposeTestCheckFunc(
-					aliasIs(2, false),
+					aliasHolds(2, false),
 					resource.TestCheckResourceAttr("nullplatform_workflow_alias.live", "webhook_urls.%", "0"),
 				),
 			},
 			{
 				// Inactive, a new revision moves the alias without activating it.
 				Config: workflowAliasConfig("third", false),
-				Check:  aliasIs(3, false),
+				Check:  aliasHolds(3, false),
 			},
 			{
 				Config: workflowAliasConfig("third", true),
-				Check:  aliasIs(3, true),
+				Check:  aliasHolds(3, true),
 			},
 			{
 				ResourceName:      "nullplatform_workflow_alias.live",
@@ -133,7 +149,7 @@ func TestFunctionalWorkflowAlias_Lifecycle(t *testing.T) {
 }
 
 func TestFunctionalWorkflowAlias_ImportRefusals(t *testing.T) {
-	fake, _ := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
+	fake := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
 
 	resource.UnitTest(t, resource.TestCase{
 		ProviderFactories: functionalFactories(fake),
@@ -156,7 +172,7 @@ func TestFunctionalWorkflowAlias_ImportRefusals(t *testing.T) {
 }
 
 func TestFunctionalWorkflowAlias_LatestCannotBeManaged(t *testing.T) {
-	fake, _ := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
+	fake := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
 
 	resource.UnitTest(t, resource.TestCase{
 		ProviderFactories: functionalFactories(fake),
@@ -179,7 +195,7 @@ resource "nullplatform_workflow_alias" "latest" {
 // An alias that exists already is not adopted silently: the error names the
 // import.
 func TestFunctionalWorkflowAlias_ExistingAliasPointsToImport(t *testing.T) {
-	fake, _ := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
+	fake := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
 	var id string
 
 	resource.UnitTest(t, resource.TestCase{
@@ -205,7 +221,7 @@ func TestFunctionalWorkflowAlias_ExistingAliasPointsToImport(t *testing.T) {
 // An alias deleted outside Terraform leaves the state on refresh and is
 // created again.
 func TestFunctionalWorkflowAlias_DeletedOutsideIsRecreated(t *testing.T) {
-	fake, _ := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
+	fake := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
 	var id string
 
 	resource.UnitTest(t, resource.TestCase{
@@ -243,7 +259,7 @@ func TestFunctionalWorkflowAlias_DeletedOutsideIsRecreated(t *testing.T) {
 
 // An alias deactivated outside Terraform is drift: the next apply activates it.
 func TestFunctionalWorkflowAlias_DeactivatedOutsideIsActivated(t *testing.T) {
-	fake, _ := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
+	fake := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
 	var id string
 
 	resource.UnitTest(t, resource.TestCase{
@@ -271,71 +287,116 @@ func TestFunctionalWorkflowAlias_DeactivatedOutsideIsActivated(t *testing.T) {
 	})
 }
 
-func TestFunctionalWorkflowAlias_ActivationFailureIsReported(t *testing.T) {
-	fake, _ := newWorkflowFake(t, fakeplatform.WorkflowEngine{
-		ReportActivationError: true,
-		DeniedChannelNRNs:     []string{functionalChecklistNRN},
-	})
+// channelCountIs checks how many notification channels the fake holds.
+func channelCountIs(fake *fakeplatform.Server, want int) resource.TestCheckFunc {
+	return func(*terraform.State) error {
+		if n := len(fakeplatform.WorkflowChannels(fake)); n != want {
+			return fmt.Errorf("%d channels, want %d", n, want)
+		}
+		return nil
+	}
+}
+
+// workflowAliasURLConfig is workflowAliasConfig plus an output reading the
+// alias's webhook URL, or "none" while it has none.
+func workflowAliasURLConfig(message string, active bool) string {
+	return workflowAliasConfig(message, active) + `
+output "url" {
+  value     = try(nullplatform_workflow_alias.live.webhook_urls["start"], "none")
+  sensitive = true
+}
+`
+}
+
+// webhook_urls is planned unknown when active changes, so what reads it is
+// planned unknown too and takes the URL the apply registers.
+func TestFunctionalWorkflowAlias_WebhookURLFollowsActivation(t *testing.T) {
+	fake := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
+	unknown := resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+		plancheck.ExpectUnknownValue("nullplatform_workflow_alias.live", tfjsonpath.New("webhook_urls")),
+		plancheck.ExpectUnknownOutputValue("url"),
+	}}
 
 	resource.UnitTest(t, resource.TestCase{
 		ProviderFactories: functionalFactories(fake),
 		Steps: []resource.TestStep{
 			{
-				Config:      checklistAliasConfig(functionalChecklistNRN, true),
-				ExpectError: regexp.MustCompile(`(?s)activating alias live of workflow wf_\d+ on revision 1 failed`),
+				Config: workflowAliasURLConfig("first", false),
+				Check:  resource.TestCheckOutput("url", "none"),
+			},
+			{
+				Config:           workflowAliasURLConfig("first", true),
+				ConfigPlanChecks: unknown,
+				Check:            resource.TestMatchOutput("url", regexp.MustCompile(`/workflows/webhooks/wf_\d+-payments-gate/live/[0-9a-f]+$`)),
+			},
+			{
+				Config:           workflowAliasURLConfig("first", false),
+				ConfigPlanChecks: unknown,
+				Check:            resource.TestCheckOutput("url", "none"),
 			},
 		},
 	})
 }
 
-// A deactivation that cannot release a channel keeps the alias: the apply
-// fails, and the plan after it shows what is left to do.
-func TestFunctionalWorkflowAlias_ReleaseFailureKeepsTheAlias(t *testing.T) {
-	fake, engine := newWorkflowFake(t, fakeplatform.WorkflowEngine{
-		ReportReleaseFailures:   true,
-		UnreleasableChannelNRNs: []string{functionalChecklistNRN},
-	})
+// A checklist trigger's activation registers exactly one channel, at the
+// trigger's NRN, however often the alias is activated; destroying releases it.
+func TestFunctionalWorkflowAlias_ChecklistTriggerOwnsOneChannel(t *testing.T) {
+	fake := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
 
 	resource.UnitTest(t, resource.TestCase{
 		ProviderFactories: functionalFactories(fake),
+		CheckDestroy: func(*terraform.State) error {
+			return channelCountIs(fake, 0)(nil)
+		},
 		Steps: []resource.TestStep{
 			{
 				Config: checklistAliasConfig(functionalChecklistNRN, true),
-				Check: func(*terraform.State) error {
-					if n := len(fakeplatform.WorkflowChannels(fake)); n != 1 {
-						return fmt.Errorf("%d channels after the activation, want 1", n)
-					}
-					return nil
-				},
+				Check: resource.ComposeTestCheckFunc(
+					channelCountIs(fake, 1),
+					func(*terraform.State) error {
+						if nrn := fakeplatform.Str(fakeplatform.WorkflowChannels(fake)[0], "nrn"); nrn != functionalChecklistNRN {
+							return fmt.Errorf("the channel is at %q, want %q", nrn, functionalChecklistNRN)
+						}
+						return nil
+					},
+				),
 			},
 			{
-				Config:      checklistAliasConfig(functionalChecklistNRN, false),
-				ExpectError: regexp.MustCompile(`(?s)could not release all its\s+triggers`),
+				Config: checklistAliasConfig(functionalChecklistNRN, false),
+				Check:  channelCountIs(fake, 0),
 			},
 			{
-				// The release is allowed again: the same apply now deactivates.
-				PreConfig: func() { engine.UnreleasableChannelNRNs = nil },
-				Config:    checklistAliasConfig(functionalChecklistNRN, false),
-				Check: func(*terraform.State) error {
-					if n := len(fakeplatform.WorkflowChannels(fake)); n != 0 {
-						return fmt.Errorf("%d channels after the deactivation, want 0", n)
-					}
-					return nil
-				},
+				Config: checklistAliasConfig(functionalChecklistNRN, true),
+				Check:  channelCountIs(fake, 1),
 			},
 		},
 	})
 }
 
-// The API refuses the delete of an alias that was activated again after the
-// deactivation: the provider deactivates once more and deletes.
-func TestFunctionalWorkflowAlias_DestroyDeactivatesAgainWhenReactivated(t *testing.T) {
-	fake, _ := newWorkflowFake(t, fakeplatform.WorkflowEngine{RefuseActiveAliasDelete: true})
+// Import blocks (plannable import): the import plans no change, by the
+// workflow's id and by its key.
+func TestFunctionalWorkflowAlias_ImportBlock(t *testing.T) {
+	fake := newWorkflowFake(t, fakeplatform.WorkflowEngine{})
 
 	resource.UnitTest(t, resource.TestCase{
-		ProviderFactories: functionalFactories(fake),
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{tfversion.SkipBelow(tfversion.Version1_5_0)},
+		ProviderFactories:      functionalFactories(fake),
 		Steps: []resource.TestStep{
 			{Config: workflowAliasConfig("first", true)},
+			{
+				ResourceName:    "nullplatform_workflow_alias.live",
+				ImportState:     true,
+				ImportStateKind: resource.ImportBlockWithID,
+				ImportStateIdFunc: func(s *terraform.State) (string, error) {
+					return workflowIDOf(s, "nullplatform_workflow.gate") + "/live", nil
+				},
+			},
+			{
+				ResourceName:    "nullplatform_workflow_alias.live",
+				ImportState:     true,
+				ImportStateKind: resource.ImportBlockWithID,
+				ImportStateId:   "payments-gate/live",
+			},
 		},
 	})
 }

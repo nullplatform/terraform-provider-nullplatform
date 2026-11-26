@@ -156,20 +156,21 @@ func validateWorkflowDefinition(v any, path cty.Path) diag.Diagnostics {
 
 // workflowDefinitionsEquivalent reports whether a stored definition is the
 // written one: the same JSON once the keys the API adds or keeps beside it are
-// left out, and a step's type where the written step has none (the API fills
-// it in from the plugin).
+// left out, and a step's type where the same step on the other side has none
+// (the API fills it in from the plugin, so writing it down or leaving it out
+// saves the same definition).
 func workflowDefinitionsEquivalent(written, stored string) bool {
 	var w, s map[string]any
 	if json.Unmarshal([]byte(written), &w) != nil || json.Unmarshal([]byte(stored), &s) != nil {
 		return false
 	}
-	return reflect.DeepEqual(workflowDefinitionAsWritten(w, w), workflowDefinitionAsWritten(s, w))
+	return reflect.DeepEqual(workflowDefinitionAsWritten(w, s), workflowDefinitionAsWritten(s, w))
 }
 
 // workflowDefinitionAsWritten is definition without the record's and the
-// API's keys, and without the type of each step whose step in written has
-// none. It copies what it changes.
-func workflowDefinitionAsWritten(definition, written map[string]any) map[string]any {
+// API's keys, and without the type of each step whose step in other has none.
+// It copies what it changes.
+func workflowDefinitionAsWritten(definition, other map[string]any) map[string]any {
 	out := map[string]any{}
 	for key, value := range definition {
 		out[key] = value
@@ -181,12 +182,12 @@ func workflowDefinitionAsWritten(definition, written map[string]any) map[string]
 	if !ok {
 		return out
 	}
-	writtenSteps, _ := written["steps"].(map[string]any)
+	otherSteps, _ := other["steps"].(map[string]any)
 	stepsOut := map[string]any{}
 	for id, step := range steps {
 		stepOut, isObject := step.(map[string]any)
-		writtenStep, _ := writtenSteps[id].(map[string]any)
-		if _, typed := writtenStep["type"]; !isObject || writtenStep == nil || typed {
+		otherStep, _ := otherSteps[id].(map[string]any)
+		if _, typed := otherStep["type"]; !isObject || otherStep == nil || typed {
 			stepsOut[id] = step
 			continue
 		}

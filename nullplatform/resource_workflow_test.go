@@ -87,9 +87,11 @@ func TestWorkflowDefinitionsEquivalent(t *testing.T) {
 		{"a step type the user wrote and the API changed",
 			`{"steps":{"a":{"type":"trigger","pluginType":"webhook"}}}`,
 			`{"steps":{"a":{"type":"action","pluginType":"webhook"}}}`, false},
-		{"a step type the user wrote and the API dropped",
+		// The API fills the type from the plugin: writing it down where the state
+		// has none saves the same definition.
+		{"a step type now written that the state has not",
 			`{"steps":{"a":{"type":"trigger","pluginType":"webhook"}}}`,
-			`{"steps":{"a":{"pluginType":"webhook"}}}`, false},
+			`{"steps":{"a":{"pluginType":"webhook"}}}`, true},
 		{"a changed config", written,
 			`{"steps":{"a":{"id":"a","pluginType":"webhook","config":{"path":"/y"}}},"connections":[]}`, false},
 		{"an extra step in the stored one", written,
