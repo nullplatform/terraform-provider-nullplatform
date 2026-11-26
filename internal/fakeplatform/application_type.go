@@ -16,13 +16,16 @@ package fakeplatform
 //   - a deleted type answers 404 with its code, gives its name back, and is
 //     refused while an application that is not deleted, or any template,
 //     still points at it;
-//   - a new application of a type takes a type only when it is active, starts
-//     on the type's last snapshot, and is `pending_hook` until the type's
-//     workflow answers its creation hook, which takes it more than one read.
-//     Until then every edit of it is refused. When no hook is configured for
-//     the creation of applications, it is stored `failed`, with a message;
-//   - a new application with no type is `pending`, and the built-in workflow
-//     makes it `creating`, then `active`, one read at a time;
+//   - a new application of a type takes a type only when it is active, and
+//     starts on the type's last snapshot;
+//   - a new application, typed or not, is `pending_hook` while a hook for its
+//     creation is configured, until that hook is answered, which takes more
+//     than one read; until then every edit of it is refused. The answer makes
+//     one of a type `active` (its type's workflow created it) and one with no
+//     type `pending`. With no hook configured, one of a type is stored
+//     `failed`, with a message, and one with no type is `pending`;
+//   - the built-in workflow makes a `pending` application `creating`, then
+//     `active`, one read at a time;
 //   - an application's status moves only along the API's transitions, and a
 //     DELETE is refused unless it is `deleting`. A `deleting` one is left
 //     `deleted` by its workflow, and keeps its name: no new application of
@@ -227,7 +230,6 @@ func RegisterApplicationTypes(s *Server) {
 			}
 			attributes, _ := item["attributes"].(Item)
 			typeID := strings.ToLower(Str(item, "application_type_id"))
-			item["status"] = "pending"
 			if typeID == "" {
 				if len(attributes) > 0 {
 					return apiError(http.StatusBadRequest, "APPLICATION.INVALID_ATTRIBUTES", "The attributes do not pass the schema of the application's type",
@@ -245,15 +247,22 @@ func RegisterApplicationTypes(s *Server) {
 					return refusal
 				}
 				item["application_type_snapshot_id"] = snapshotID
-				// The type's workflow creates it, once the hook reaches it.
+			}
+			// A hook to send for its creation decides, typed or not: the
+			// application waits for its answer. With none, one with no type
+			// goes to the built-in workflow, and one of a type has nothing to
+			// create it.
+			switch {
+			case len(s.collections[EntityHookAction].items) > 0:
 				item["status"] = "pending_hook"
-				if len(s.collections[EntityHookAction].items) == 0 {
-					item["status"] = "failed"
-					item["messages"] = []any{Item{
-						"level":   "ERROR",
-						"message": "No hook could be delivered to create this application: its type has no hook action or no channel that takes it. Retry once there is one.",
-					}}
-				}
+			case typeID == "":
+				item["status"] = "pending"
+			default:
+				item["status"] = "failed"
+				item["messages"] = []any{Item{
+					"level":   "ERROR",
+					"message": "No hook could be delivered to create this application: its type has no hook action or no channel that takes it. Retry once there is one.",
+				}}
 			}
 			item["attributes"] = mergePatch(Item{}, attributes)
 			item["desired_application_type_snapshot_id"] = nil
@@ -266,8 +275,9 @@ func RegisterApplicationTypes(s *Server) {
 			return nil
 		},
 		// The application's workflow, one read at a time: the type's answers
-		// the creation hook with the repository it made, the built-in one
-		// creates one with no type, and either finishes a delete.
+		// the creation hook with the repository it made; the answer to one
+		// with no type hands it to the built-in workflow, which creates it;
+		// either finishes a delete.
 		OnGet: func(_ *Server, item Item) {
 			id := fmt.Sprint(item["id"])
 			reads[id]++
@@ -277,6 +287,10 @@ func RegisterApplicationTypes(s *Server) {
 			}
 			switch Str(item, "status") {
 			case "pending_hook":
+				if Str(item, "application_type_id") == "" {
+					setStatus(item, "pending")
+					break
+				}
 				setStatus(item, "active")
 				if Str(item, "repository_url") == "" {
 					item["repository_url"] = "https://github.com/acme/" + Str(item, "name")

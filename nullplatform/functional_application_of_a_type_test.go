@@ -213,6 +213,41 @@ resource "nullplatform_application" "api" {
 	})
 }
 
+// The hook decides, not the type: with a hook for the creation of
+// applications, one with no type waits for it too, and its answer hands it to
+// the built-in workflow (pending, creating, active). With none, it goes to
+// that workflow at once.
+func TestFunctionalApplication_WithNoTypeWaitsForACreationHookToo(t *testing.T) {
+	config := `
+resource "nullplatform_application" "api" {
+  name           = "my-api"
+  namespace_id   = 3
+  repository_url = "https://github.com/my-org/my-api"
+}
+`
+	for _, c := range []struct {
+		name  string
+		fake  func(*testing.T) *fakeplatform.Server
+		first string
+	}{
+		{"with a hook", newApplicationTypeFake, "pending_hook"},
+		{"with none", newApplicationTypeFakeWithoutHooks, "pending"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			fake := c.fake(t)
+			resource.UnitTest(t, resource.TestCase{
+				ProviderFactories: functionalFactories(fake),
+				Steps: []resource.TestStep{
+					{Config: config, Check: resource.TestCheckResourceAttr("nullplatform_application.api", "status", c.first)},
+					{Config: config},
+					{Config: config},
+					{Config: config, Check: resource.TestCheckResourceAttr("nullplatform_application.api", "status", "active")},
+				},
+			})
+		})
+	}
+}
+
 func TestFunctionalApplication_TypeRefusalsCarryTheAPIMessage(t *testing.T) {
 	fake := newApplicationTypeFake(t)
 
