@@ -16,6 +16,7 @@ nullplatform/resource_link.go:250-251    # d.Set(archived_at, string) arm in rea
 nullplatform/resource_link.go:354-355    # d.Set(status, string) arm after wait
 nullplatform/resource_link.go:357-358    # d.Set(archived_at, string) arm after wait
 nullplatform/resource_link_specification.go:291-292  # d.Set(use_managed_actions, bool) arm
+nullplatform/resource_link_specification.go:339-340  # d.Set(external, string) arm
 nullplatform/resource_link_specification.go:366-367  # d.Set(selectors, list) arm
 nullplatform/data_source_accounts.go:128-129  # d.Set(organization_id, int) arm
 nullplatform/data_source_accounts.go:131-132  # d.Set(accounts, list of schema-typed rows) arm
