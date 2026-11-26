@@ -40,9 +40,15 @@ func TestFunctionalApplication_DestroyGoesThroughDeleting(t *testing.T) {
 		},
 		Steps: []resource.TestStep{
 			{
+				// The create does not wait for the type's workflow.
+				Config: snapshotConfig(agentSchema, "", lowAutonomy),
+				Check:  resource.TestCheckResourceAttr("nullplatform_application.bot", "status", "pending_hook"),
+			},
+			{
 				Config: snapshotConfig(agentSchema, "", lowAutonomy),
 				Check: resource.ComposeTestCheckFunc(
-					// The type's workflow created it, and reported its repository.
+					// The type's workflow created it, and reported its repository:
+					// read, with nothing to plan.
 					resource.TestCheckResourceAttr("nullplatform_application.bot", "status", "active"),
 					resource.TestCheckResourceAttr("nullplatform_application.bot", "repository_url", "https://github.com/acme/support-bot"),
 				),

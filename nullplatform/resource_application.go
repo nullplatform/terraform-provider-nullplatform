@@ -30,8 +30,11 @@ func resourceApplication() *schema.Resource {
 		},
 
 		Timeouts: &schema.ResourceTimeout{
-			// Delete waits for the platform to finish deleting the application;
-			// create and update are single requests and never wait.
+			// Create waits only for an application configured for a snapshot of
+			// its type other than the last: it cannot be moved before its type's
+			// workflow has answered its creation. Any other create is one request.
+			Create: schema.DefaultTimeout(10 * time.Minute),
+			// Delete waits for the platform to finish deleting the application.
 			Delete: schema.DefaultTimeout(10 * time.Minute),
 		},
 
@@ -57,7 +60,7 @@ func resourceApplication() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Computed:    true,
-				Description: "The status of the application. Possible values: [`pending`, `creating`, `updating`, `active`, `inactive`, `failed`]. An application of a type starts as `pending_hook` and its type's workflow makes it `active`.",
+				Description: "The status of the application. Possible values: [`pending`, `creating`, `updating`, `active`, `inactive`, `failed`]. An application of a type starts as `pending_hook` and its type's workflow makes it `active`; until then the platform refuses every edit of it.",
 			},
 			"slug": {
 				Type:        schema.TypeString,
@@ -137,6 +140,7 @@ func resourceApplication() *schema.Resource {
 					"A change of the type's schema cuts a new snapshot and leaves the application on the one it has. " +
 					"Set it to move the application: to `nullplatform_application_type.<name>.last_snapshot_id` to keep it on the type's latest schema, or to an earlier snapshot of the type to go back. " +
 					"The move is one request together with `attributes`, and it is refused, changing nothing, when the attributes do not pass the destination's schema. " +
+					"A new application is created on the type's last snapshot; one configured for another is moved there once its type's workflow has answered its creation, which the create waits for (`create` timeout). " +
 					"When not set, the application stays on its snapshot and this reads it.",
 			},
 		},
@@ -194,12 +198,48 @@ func ApplicationCreate(ctx context.Context, d *schema.ResourceData, m interface{
 	// A new application is on its type's last snapshot; one configured for
 	// another is moved there.
 	if wanted := configuredString(d, "application_type_snapshot_id"); wanted != "" && wanted != app.ApplicationTypeSnapshotId {
+		created, err := waitForApplicationCreationAnswered(ctx, nullOps, d.Id(), d.Timeout(schema.TimeoutCreate))
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		if created.Status == "failed" {
+			return diag.Errorf("application %s could not be moved to snapshot %s of its type: its creation failed: %s",
+				d.Id(), wanted, summarizeMessages(created.Messages))
+		}
 		if err := moveApplicationToSnapshot(nullOps, d.Id(), &Application{}, wanted); err != nil {
 			return diag.FromErr(err)
 		}
 	}
 
 	return ApplicationRead(ctx, d, m)
+}
+
+// waitForApplicationCreationAnswered polls an application of a type until its
+// type's workflow has answered its creation hook. Until then it is
+// `pending_hook`, and the platform refuses every edit of it and its delete.
+func waitForApplicationCreationAnswered(ctx context.Context, nullOps NullOps, appId string, timeout time.Duration) (*Application, error) {
+	stateConf := &retry.StateChangeConf{
+		Pending: []string{"pending_hook"},
+		Target:  []string{"answered"},
+		Refresh: func() (interface{}, string, error) {
+			app, err := nullOps.GetApplication(appId)
+			if err != nil {
+				return nil, "", err
+			}
+			if app.Status == "pending_hook" {
+				return app, app.Status, nil
+			}
+			return app, "answered", nil
+		},
+		Timeout:    timeout,
+		Delay:      0,
+		MinTimeout: statusPollInterval,
+	}
+	raw, err := stateConf.WaitForStateContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("application %s is still waiting for its type's workflow to answer its creation: %w", appId, err)
+	}
+	return raw.(*Application), nil
 }
 
 // moveApplicationToSnapshot sends `edit` with the move to `snapshotID`, and
@@ -419,6 +459,13 @@ func ApplicationDelete(ctx context.Context, d *schema.ResourceData, m interface{
 			return nil
 		}
 		return diag.FromErr(err)
+	}
+
+	// One still being created cannot be deleted before its creation is answered.
+	if app.Status == "pending_hook" {
+		if app, err = waitForApplicationCreationAnswered(ctx, nullOps, appId, d.Timeout(schema.TimeoutDelete)); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	switch app.Status {

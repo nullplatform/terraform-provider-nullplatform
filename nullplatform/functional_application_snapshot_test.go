@@ -141,3 +141,68 @@ func TestFunctionalApplication_CreatedOnASnapshotThatIsNotOfItsTypeIsAnError(t *
 		}},
 	})
 }
+
+// An application whose creation failed is not moved: the reason it failed is
+// what the apply says.
+func TestFunctionalApplication_CreatedOnAnEarlierSnapshotFailsWithItsCreation(t *testing.T) {
+	fake := newApplicationTypeFake(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactoriesWith(failedCreationOps{newTestClient(fake.HTTP())}),
+		Steps: []resource.TestStep{
+			{Config: applicationTypeConfig("AI Agent", agentSchema, "")},
+			{Config: applicationTypeConfig("AI Agent", agentSchemaReordered, "")},
+			{
+				Config:      snapshotConfig(agentSchemaReordered, `  application_type_snapshot_id = "snapshot-1"`+"\n", lowAutonomy),
+				ExpectError: regexp.MustCompile(`its creation failed(.|\s)*no channel takes it`),
+			},
+		},
+	})
+}
+
+// failedCreationOps is the fake's client with applications whose type's
+// workflow answered their creation with a failure.
+type failedCreationOps struct {
+	*NullClient
+}
+
+func (o failedCreationOps) GetApplication(id string) (*Application, error) {
+	app, err := o.NullClient.GetApplication(id)
+	if err == nil && app.Status == "active" {
+		app.Status = "failed"
+		app.Messages = []interface{}{map[string]interface{}{"level": "ERROR", "message": "no channel takes it"}}
+	}
+	return app, err
+}
+
+// The wait for the creation's answer reads the application; a read that fails
+// ends it, and the application stays in the state to be dealt with.
+func TestFunctionalApplication_CreatedOnAnEarlierSnapshotFailsWhenItCannotBeRead(t *testing.T) {
+	fake := newApplicationTypeFake(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactoriesWith(&unreadableOnceOps{NullClient: newTestClient(fake.HTTP())}),
+		Steps: []resource.TestStep{
+			{Config: applicationTypeConfig("AI Agent", agentSchema, "")},
+			{Config: applicationTypeConfig("AI Agent", agentSchemaReordered, "")},
+			{
+				Config:      snapshotConfig(agentSchemaReordered, `  application_type_snapshot_id = "snapshot-1"`+"\n", lowAutonomy),
+				ExpectError: regexp.MustCompile(`still waiting for its type's workflow to answer its creation(.|\s)*unreadable`),
+			},
+		},
+	})
+}
+
+// unreadableOnceOps is the fake's client whose first read of an application fails.
+type unreadableOnceOps struct {
+	*NullClient
+	failed bool
+}
+
+func (o *unreadableOnceOps) GetApplication(id string) (*Application, error) {
+	if !o.failed {
+		o.failed = true
+		return nil, fmt.Errorf("unreadable")
+	}
+	return o.NullClient.GetApplication(id)
+}

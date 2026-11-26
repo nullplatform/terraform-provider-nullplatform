@@ -63,6 +63,8 @@ func TestApplicationDelete(t *testing.T) {
 		{"takes one that is gone after the wait as deleted", []string{`{"id":7,"status":"failed"}`, "status 404"},
 			`GET|PATCH {"status":"deleting"}|GET`},
 		{"sends the DELETE it always sent for one already deleting", []string{`{"id":7,"status":"deleting"}`}, `GET|DELETE`},
+		{"waits for one still being created, then deletes it", []string{`{"id":7,"status":"pending_hook"}`, `{"id":7,"status":"pending_hook"}`, `{"id":7,"status":"active"}`, `{"id":7,"status":"deleted"}`},
+			`GET|GET|GET|PATCH {"status":"deleting"}|GET`},
 		{"asks nothing of one already deleted", []string{`{"id":7,"status":"deleted"}`}, `GET`},
 		{"asks nothing of one that is gone", []string{"status 404"}, `GET`},
 	}
@@ -93,6 +95,7 @@ func TestApplicationDelete_Failures(t *testing.T) {
 			[]string{`{"id":7,"status":"active"}`, `{"id":7,"status":"failed","messages":[{"level":"ERROR","message":"the repository could not be removed"}]}`},
 			"the repository could not be removed"},
 		{"an application that cannot be read", []string{"status 500"}, "got 500"},
+		{"one still being created that cannot be read", []string{`{"id":7,"status":"pending_hook"}`, "status 500"}, "still waiting for its type's workflow"},
 		{"an application that cannot be read while it waits", []string{`{"id":7,"status":"active"}`, "status 500"}, "did not finish"},
 	}
 	for _, c := range cases {

@@ -147,6 +147,12 @@ func RegisterApplicationTypes(s *Server) {
 		OnGet: func(_ *Server, item Item) {
 			switch Str(item, "status") {
 			case "pending_hook":
+				// It takes the workflow a moment: the first read still waits.
+				if _, seen := item[observedMember]; !seen {
+					item[observedMember] = true
+					return
+				}
+				delete(item, observedMember)
 				item["status"] = "active"
 				if Str(item, "repository_url") == "" {
 					item["repository_url"] = "https://github.com/acme/" + Str(item, "name")
@@ -156,6 +162,13 @@ func RegisterApplicationTypes(s *Server) {
 			}
 		},
 		OnPatch: func(_ *Server, existing, patch Item) *Refusal {
+			// Nothing edits an application whose creation hook is not answered.
+			if Str(existing, "status") == "pending_hook" {
+				return &Refusal{Status: http.StatusForbidden, Body: Item{
+					"message": "It's not possible to modify the entity as there's a pending creation hook for this entity for this user.",
+					"detail":  "Can't update the entity while it's waiting for a hook",
+				}}
+			}
 			typed := Str(existing, "application_type_id") != ""
 			sent, namesAttributes := patch["attributes"].(Item)
 			asked, namesDestination := patch["desired_application_type_snapshot_id"].(string)
@@ -215,6 +228,10 @@ func RegisterApplicationTypes(s *Server) {
 		},
 	})
 }
+
+// observedMember marks, on an application waiting for its creation hook, that
+// it was read once.
+const observedMember = "fake_observed"
 
 // pointingAt counts the items of a collection whose application_type_id is
 // this type's id; an application that was deleted no longer counts.
