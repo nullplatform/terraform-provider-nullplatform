@@ -1,0 +1,19 @@
+# Starts when a POST reaches the webhook published by an alias, then logs it.
+steps:
+  start:
+    id: start
+    name: On release
+    pluginType: webhook
+    config:
+      path: /release
+      mode: start
+  announce:
+    id: announce
+    name: Announce
+    pluginType: log
+    config:
+      message: A release was announced
+connections:
+  - id: c1
+    from: start
+    to: announce

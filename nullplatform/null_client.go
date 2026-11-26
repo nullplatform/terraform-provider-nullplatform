@@ -276,6 +276,19 @@ type NullOps interface {
 	SetPackageTag(packageID, name string, body *PackageTagSet) error
 	DeletePackageTag(packageID, name string) error
 	GetLatestSnapshotID(kind, id string) (string, error)
+
+	CreateWorkflow(body map[string]json.RawMessage) (*WorkflowWithRevision, error)
+	GetWorkflow(ref string) (*WorkflowWithRevision, error)
+	GetWorkflowRevision(id string, revision int) (*WorkflowWithRevision, error)
+	PutWorkflowRevision(id string, definition map[string]json.RawMessage) (*WorkflowWithRevision, error)
+	PatchWorkflow(id string, patch map[string]any) (*Workflow, error)
+	DeleteWorkflow(id string) error
+	CreateWorkflowAlias(id, name string, revision int) (*WorkflowAlias, error)
+	GetWorkflowAlias(ref, name string) (*WorkflowAlias, error)
+	MoveWorkflowAlias(id, name string, revision int) (*WorkflowAlias, error)
+	ActivateWorkflowAlias(id, name string) (*WorkflowActivation, error)
+	DeactivateWorkflowAlias(id, name string) (*WorkflowDeactivation, error)
+	DeleteWorkflowAlias(id, name string) error
 }
 
 // secretFieldRegex matches the JSON credential fields /token and /api_key exchange.
