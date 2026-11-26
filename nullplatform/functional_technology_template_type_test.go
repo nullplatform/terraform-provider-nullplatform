@@ -4,7 +4,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/nullplatform/terraform-provider-nullplatform/internal/fakeplatform"
 	"net/http"
 	"strings"
 	"testing"
@@ -87,8 +89,16 @@ func TestFunctionalTechnologyTemplate_OfAType(t *testing.T) {
 				),
 			},
 			{
-				// Taken out of its type: null is how the API is told.
+				// Left out, it keeps the type the platform holds: no change.
 				Config: templateConfig(""),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+				Check: resource.TestCheckResourceAttr("nullplatform_technology_template.agent", "application_type_id", "type-1"),
+			},
+			{
+				// Taken out of its type with an empty one: null is how the API is told.
+				Config: templateConfig(`  application_type_id = ""`),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("nullplatform_technology_template.agent", "application_type_id", ""),
 					func(*terraform.State) error {
@@ -124,5 +134,39 @@ func TestFunctionalTechnologyTemplate_CreatedInAType(t *testing.T) {
 				},
 			),
 		}},
+	})
+}
+
+// A template put in a type outside Terraform stays in it: a configuration
+// that does not name a type plans no change.
+func TestFunctionalTechnologyTemplate_ATypeSetOutsideTerraformIsKept(t *testing.T) {
+	fake := newApplicationTypeFake(t)
+	client := newTestClient(fake.HTTP())
+	client.Token.AccessToken = tokenOfOrganization("1")
+	// The type is outside Terraform too: nothing here orders its destroy.
+	fake.Seed("application_type", "type-1", fakeplatform.Item{"nrn": "organization=1", "name": "AI Agent", "status": "active"})
+	config := strings.Replace(templateConfig(""), applicationTypeConfig("AI Agent", agentSchema, ""), "", 1)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactoriesWith(client),
+		Steps: []resource.TestStep{
+			{Config: config},
+			{
+				PreConfig: func() { fake.Items("template")[0]["application_type_id"] = "type-1" },
+				Config:    config,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("nullplatform_technology_template.agent", "application_type_id", "type-1"),
+					func(*terraform.State) error {
+						if patches := requestsTo(fake, http.MethodPatch, "/template/1"); len(patches) != 0 {
+							return fmt.Errorf("want no edit of the template, got %v", patches)
+						}
+						return nil
+					},
+				),
+			},
+		},
 	})
 }

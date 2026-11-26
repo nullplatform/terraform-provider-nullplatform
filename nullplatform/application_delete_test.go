@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
 // applicationServer answers GET /application/7 with each of `reads` in turn
@@ -62,9 +63,14 @@ func TestApplicationDelete(t *testing.T) {
 			`GET|PATCH {"status":"deleting"}|GET|GET`},
 		{"takes one that is gone after the wait as deleted", []string{`{"id":7,"status":"failed"}`, "status 404"},
 			`GET|PATCH {"status":"deleting"}|GET`},
-		{"sends the DELETE it always sent for one already deleting", []string{`{"id":7,"status":"deleting"}`}, `GET|DELETE`},
+		{"waits for one already deleting, and sends no DELETE", []string{`{"id":7,"status":"deleting"}`, `{"id":7,"status":"deleting"}`, `{"id":7,"status":"deleted"}`},
+			`GET|GET|GET`},
 		{"waits for one still being created, then deletes it", []string{`{"id":7,"status":"pending_hook"}`, `{"id":7,"status":"pending_hook"}`, `{"id":7,"status":"active"}`, `{"id":7,"status":"deleted"}`},
 			`GET|GET|GET|PATCH {"status":"deleting"}|GET`},
+		{"waits for one with no type its workflow is still creating", []string{`{"id":7,"status":"pending"}`, `{"id":7,"status":"creating"}`, `{"id":7,"status":"active"}`, `{"id":7,"status":"deleted"}`},
+			`GET|GET|GET|PATCH {"status":"deleting"}|GET`},
+		{"waits for one its workflow is updating", []string{`{"id":7,"status":"updating"}`, `{"id":7,"status":"inactive"}`, `{"id":7,"status":"deleted"}`},
+			`GET|GET|PATCH {"status":"deleting"}|GET`},
 		{"asks nothing of one already deleted", []string{`{"id":7,"status":"deleted"}`}, `GET`},
 		{"asks nothing of one that is gone", []string{"status 404"}, `GET`},
 	}
@@ -95,8 +101,9 @@ func TestApplicationDelete_Failures(t *testing.T) {
 			[]string{`{"id":7,"status":"active"}`, `{"id":7,"status":"failed","messages":[{"level":"ERROR","message":"the repository could not be removed"}]}`},
 			"the repository could not be removed"},
 		{"an application that cannot be read", []string{"status 500"}, "got 500"},
-		{"one still being created that cannot be read", []string{`{"id":7,"status":"pending_hook"}`, "status 500"}, "still waiting for its type's workflow"},
+		{"one still being created that cannot be read", []string{`{"id":7,"status":"pending_hook"}`, "status 500"}, "still being created or updated by its workflow"},
 		{"an application that cannot be read while it waits", []string{`{"id":7,"status":"active"}`, "status 500"}, "did not finish"},
+		{"one already deleting that cannot be read while it waits", []string{`{"id":7,"status":"deleting"}`, "status 500"}, "did not finish"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -112,20 +119,17 @@ func TestApplicationDelete_Failures(t *testing.T) {
 	}
 }
 
-// refusingOps is a client whose edits and deletes are refused.
+// refusingOps is a client whose edits are refused.
 type refusingOps struct {
 	NullOps
 }
 
 func (refusingOps) PatchApplication(string, *Application) error { return fmt.Errorf("edit refused") }
-func (refusingOps) DeleteApplication(string) error              { return fmt.Errorf("delete refused") }
 
 func TestApplicationDelete_ARefusalIsReturned(t *testing.T) {
-	for status, want := range map[string]string{"active": "edit refused", "deleting": "delete refused"} {
-		client, _ := applicationServer(t, fmt.Sprintf(`{"id":7,"status":%q}`, status))
-		if _, err := deleteApplication(t, refusingOps{client}); err == nil || !strings.Contains(err.Error(), want) {
-			t.Errorf("%s: want %q, got %v", status, want, err)
-		}
+	client, _ := applicationServer(t, `{"id":7,"status":"active"}`)
+	if _, err := deleteApplication(t, refusingOps{client}); err == nil || !strings.Contains(err.Error(), "edit refused") {
+		t.Errorf("want the refusal, got %v", err)
 	}
 }
 
@@ -189,5 +193,62 @@ func TestApplicationUpdate_ARefusalIsReturned(t *testing.T) {
 	diags := ApplicationUpdate(context.Background(), d, refusingOps{})
 	if !diags.HasError() || !strings.Contains(diags[0].Summary, "edit refused") {
 		t.Errorf("want the refusal, got %v", diags)
+	}
+}
+
+// updateApplication runs an update that changes nothing of an application
+// whose state holds `status`.
+func updateApplication(t *testing.T, client NullOps, status string) error {
+	t.Helper()
+	shortenPolling(t)
+	d := resourceApplication().Data(&terraform.InstanceState{ID: "7", Attributes: map[string]string{"id": "7", "status": status}})
+	if diags := ApplicationUpdate(context.Background(), d, client); diags.HasError() {
+		return fmt.Errorf("%s", diags[0].Summary)
+	}
+	return nil
+}
+
+func TestApplicationUpdate_WaitsForTheAnswerToItsCreation(t *testing.T) {
+	client, asked := applicationServer(t, `{"id":7,"status":"pending_hook"}`, `{"id":7,"status":"active"}`)
+	if err := updateApplication(t, client, "pending_hook"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, want := strings.Join(*asked, "|"), `GET|GET|PATCH {}|GET`; got != want {
+		t.Errorf("requests: got %s, want %s", got, want)
+	}
+}
+
+func TestApplicationUpdate_SendsAtOnceForOneNotWaiting(t *testing.T) {
+	client, asked := applicationServer(t, `{"id":7,"status":"active"}`)
+	if err := updateApplication(t, client, "active"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, want := strings.Join(*asked, "|"), `PATCH {}|GET`; got != want {
+		t.Errorf("requests: got %s, want %s", got, want)
+	}
+}
+
+func TestApplicationUpdate_Failures(t *testing.T) {
+	cases := []struct {
+		name  string
+		reads []string
+		want  string
+	}{
+		{"one whose creation failed", []string{`{"id":7,"status":"failed","messages":[{"level":"ERROR","message":"the repository could not be made"}]}`},
+			"its creation failed: the repository could not be made"},
+		{"one that cannot be read while it waits", []string{"status 500"}, "still being created or updated by its workflow"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			client, asked := applicationServer(t, c.reads...)
+			if err := updateApplication(t, client, "pending_hook"); err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("want an error with %q, got %v", c.want, err)
+			}
+			for _, request := range *asked {
+				if strings.HasPrefix(request, http.MethodPatch) {
+					t.Errorf("want no edit sent, got %v", *asked)
+				}
+			}
+		})
 	}
 }

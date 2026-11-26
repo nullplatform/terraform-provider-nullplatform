@@ -120,18 +120,18 @@ output "application_type_snapshot" {
 
 ### Required
 
-- `name` (String) The name of the application type, up to 120 characters. No two types visible in the same organization share a name. Renaming a type does not change its `slug`.
+- `name` (String) The name of the application type, up to 120 characters. No two types visible in the same organization share a name. Renaming a type does not change its `slug`, and cuts a new snapshot (`last_snapshot_id`).
 - `nrn` (String) The NRN that owns the application type, for example `organization=1:account=2`. It cannot be changed: a different NRN is a different type, so changing it deletes this one and creates another, which the platform refuses while applications or templates use this one.
-- `schema` (String) The JSON Schema (draft-07, 2019-09 or 2020-12, root `type` `object`) that the `attributes` of an application of this type must pass, as a JSON string. The platform shows its properties as a form **in the order they are written**, so that order is kept: the properties are sent in the order written, and reordering them is a change. `jsonencode()` writes the keys of every object in alphabetical order; to choose the order, write the schema as JSON with `file()` or a heredoc. A change of schema cuts a new snapshot (`last_snapshot_id`); applications stay on the snapshot they are on until they are moved.
+- `schema` (String) The JSON Schema (draft-07, 2019-09 or 2020-12, root `type` `object`) that the `attributes` of an application of this type must pass, as a JSON string. The platform shows its properties as a form **in the order they are written**, so that order is kept: the properties are sent in the order written, and reordering them is a change. `jsonencode()` writes the keys of every object in alphabetical order; to choose the order, write the schema as JSON with `file()` or a heredoc. The one exception is keys that read as integers (`"0"`, `"1"`): the platform keeps those first, in ascending order, so a reorder among them is no change. A change of schema cuts a new snapshot (`last_snapshot_id`); applications stay on the snapshot they are on until they are moved.
 
 ### Optional
 
-- `description` (String) What the application type is for, up to 255 characters.
+- `description` (String) What the application type is for, up to 255 characters. A change of it cuts a new snapshot (`last_snapshot_id`).
 - `status` (String) `active` or `inactive`. Only an active type can be given to a new application; the applications that already have the type keep it either way. The platform creates a type `active` when this is not set.
 - `visible_to` (Set of String) The NRNs where the application type can be used: an application created at or below one of them may take it. When not set, the platform makes the type visible at its own `nrn`. It cannot be an empty list.
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-- `last_snapshot_id` (String) The ID of the snapshot that holds the current `schema`. New applications are created on it. It changes whenever `schema` does.
+- `last_snapshot_id` (String) The ID of the snapshot that holds the current `name`, `description` and `schema`. New applications are created on it. It changes whenever one of those three does, and not when `status` or `visible_to` do: so a rename also moves every application whose `application_type_snapshot_id` follows it.
 - `slug` (String) The slug of the application type, made from its name when it is created. It never changes.

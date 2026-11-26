@@ -6,35 +6,37 @@ import (
 	"reflect"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/nullplatform/terraform-provider-nullplatform/internal/jsonorder"
 )
 
 // jsonTokens is a JSON document as the sequence of its tokens: delimiters,
 // keys and values in the order they are written. Whitespace, the way a string
 // is escaped and the way a number is spelled are not part of it; the order of
-// an object's keys is.
-func jsonTokens(document string) ([]json.Token, bool) {
-	// The token reader stops quietly where a document is cut short.
-	if !json.Valid([]byte(document)) {
-		return nil, false
-	}
-	decoder := json.NewDecoder(bytes.NewReader([]byte(document)))
+// an object's keys is. The document is valid JSON: the token reader stops
+// quietly where one is cut short.
+func jsonTokens(document []byte) []json.Token {
+	decoder := json.NewDecoder(bytes.NewReader(document))
 	var tokens []json.Token
 	for {
 		token, err := decoder.Token()
 		if err != nil {
-			return tokens, true
+			return tokens
 		}
 		tokens = append(tokens, token)
 	}
 }
 
 // sameJSONInOrder reports whether two documents hold the same JSON with the
-// keys of every object in the same order. A document that is not JSON equals
-// nothing.
+// keys of every object in the same order, as the platform keeps them: it
+// parses a document into a JavaScript object, which puts the keys that read
+// as integers first. A document that is not JSON equals nothing.
 func sameJSONInOrder(a, b string) bool {
-	tokensA, okA := jsonTokens(a)
-	tokensB, okB := jsonTokens(b)
-	return okA && okB && reflect.DeepEqual(tokensA, tokensB)
+	orderedA, errA := jsonorder.JavaScript([]byte(a))
+	orderedB, errB := jsonorder.JavaScript([]byte(b))
+	if errA != nil || errB != nil {
+		return false
+	}
+	return reflect.DeepEqual(jsonTokens(orderedA), jsonTokens(orderedB))
 }
 
 // suppressSameJSONInOrder is suppressEquivalentJSON for a document whose key

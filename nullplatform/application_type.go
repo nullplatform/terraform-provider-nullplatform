@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 const APPLICATION_TYPE_PATH = "/application_type"
@@ -103,4 +105,10 @@ func (c *NullClient) DeleteApplicationType(applicationTypeId string) error {
 
 func (c *NullClient) PatchApplicationType(applicationTypeId string, applicationType *ApplicationType) (*ApplicationType, error) {
 	return c.sendApplicationType("PATCH", fmt.Sprintf("%s/%s", APPLICATION_TYPE_PATH, applicationTypeId), "update", applicationType)
+}
+
+// suppressSameID is no diff between two spellings of one id: the platform
+// reads the ids of application types and of their snapshots in lower case.
+func suppressSameID(_, old, new string, _ *schema.ResourceData) bool {
+	return strings.EqualFold(old, new)
 }

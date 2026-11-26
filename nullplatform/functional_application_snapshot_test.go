@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -187,7 +188,7 @@ func TestFunctionalApplication_CreatedOnAnEarlierSnapshotFailsWhenItCannotBeRead
 			{Config: applicationTypeConfig("AI Agent", agentSchemaReordered, "")},
 			{
 				Config:      snapshotConfig(agentSchemaReordered, `  application_type_snapshot_id = "snapshot-1"`+"\n", lowAutonomy),
-				ExpectError: regexp.MustCompile(`still waiting for its type's workflow to answer its creation(.|\s)*unreadable`),
+				ExpectError: regexp.MustCompile(`still being created or updated by its\s+workflow(.|\s)*unreadable`),
 			},
 		},
 	})
@@ -205,4 +206,54 @@ func (o *unreadableOnceOps) GetApplication(id string) (*Application, error) {
 		return nil, fmt.Errorf("unreadable")
 	}
 	return o.NullClient.GetApplication(id)
+}
+
+// A rename cuts a snapshot, as a change of schema does: an application that
+// follows the type's last snapshot moves in the same apply.
+func TestFunctionalApplication_FollowsARenameOfItsType(t *testing.T) {
+	fake := newApplicationTypeFake(t)
+	named := func(name string) string {
+		return strings.Replace(snapshotConfig(agentSchema, onTheLastSnapshot, lowAutonomy), `name   = "AI Agent"`, `name   = "`+name+`"`, 1)
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{
+			{Config: named("AI Agent"), Check: onSnapshot("snapshot-1")},
+			{
+				Config: named("Agent"),
+				Check: resource.ComposeTestCheckFunc(onSnapshot("snapshot-2"),
+					lastPatchIs(fake, 1, `{"desired_application_type_snapshot_id":"snapshot-2","attributes":{}}`)),
+			},
+		},
+	})
+}
+
+// A move the destination's schema refuses changes nothing, and the state
+// keeps the snapshot the application is on.
+func TestFunctionalApplication_AMoveTheDestinationRefusesChangesNothing(t *testing.T) {
+	fake := newApplicationTypeFake(t)
+	withTier := `{"type":"object","properties":{"model":{"type":"string"},"tier":{"type":"string"}},"required":["model","tier"]}`
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{
+			{Config: snapshotConfig(agentSchema, onTheLastSnapshot, `{ model = "fable" }`), Check: onSnapshot("snapshot-1")},
+			{
+				Config:      snapshotConfig(withTier, onTheLastSnapshot, `{ model = "fable" }`),
+				ExpectError: regexp.MustCompile(`Invalid attributes: data must have required property 'tier'`),
+			},
+			{
+				ResourceName:      "nullplatform_application.bot",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			{
+				// With the attribute, the same move goes through.
+				Config: snapshotConfig(withTier, onTheLastSnapshot, `{ model = "fable", tier = "gold" }`),
+				Check: resource.ComposeTestCheckFunc(onSnapshot("snapshot-2"),
+					lastPatchIs(fake, 2, `{"desired_application_type_snapshot_id":"snapshot-2","attributes":{"tier":"gold"}}`)),
+			},
+		},
+	})
 }

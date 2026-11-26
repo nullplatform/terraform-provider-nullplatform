@@ -22,6 +22,19 @@ import (
 
 func newApplicationTypeFake(t *testing.T) *fakeplatform.Server {
 	t.Helper()
+	fake := newApplicationTypeFakeWithoutHooks(t)
+	// The organization has a hook action for the creation of applications,
+	// which reaches the workflow of every type.
+	fake.Seed(fakeplatform.EntityHookAction, "hook-1", fakeplatform.Item{
+		"nrn": "organization=1", "entity": "application", "action": "application:create", "when": "before", "type": "hook",
+	})
+	return fake
+}
+
+// newApplicationTypeFakeWithoutHooks is a platform with no hook action: an
+// application of a type has nothing to create it.
+func newApplicationTypeFakeWithoutHooks(t *testing.T) *fakeplatform.Server {
+	t.Helper()
 	fake := fakeplatform.New()
 	fakeplatform.RegisterApplicationTypes(fake)
 	t.Cleanup(fake.Close)
@@ -109,9 +122,9 @@ func TestFunctionalApplicationType_Lifecycle(t *testing.T) {
 				ImportStateVerify: true,
 			},
 			{
-				// Everything but the schema: one PATCH naming only what changed, no new snapshot.
-				Config: applicationTypeConfig("Agent", agentSchema, `
-  description = "Runs a model"
+				// Status and visibility: one PATCH naming only what changed, and no new
+				// snapshot, which the plan knows.
+				Config: applicationTypeConfig("AI Agent", agentSchema, `
   status      = "inactive"
   visible_to  = ["organization=1:account=2", "organization=1:account=3"]
 `),
@@ -122,30 +135,56 @@ func TestFunctionalApplicationType_Lifecycle(t *testing.T) {
 					},
 				},
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("nullplatform_application_type.agent", "name", "Agent"),
-					// A slug is for life.
-					resource.TestCheckResourceAttr("nullplatform_application_type.agent", "slug", "ai-agent"),
-					resource.TestCheckResourceAttr("nullplatform_application_type.agent", "description", "Runs a model"),
 					resource.TestCheckResourceAttr("nullplatform_application_type.agent", "status", "inactive"),
 					resource.TestCheckResourceAttr("nullplatform_application_type.agent", "visible_to.#", "2"),
 					resource.TestCheckResourceAttr("nullplatform_application_type.agent", "last_snapshot_id", "snapshot-1"),
 					func(*terraform.State) error {
 						patches := requestsTo(fake, http.MethodPatch, "/application_type/type-1")
-						if len(patches) != 1 || strings.Contains(patches[0].Body, "schema") || strings.Contains(patches[0].Body, "nrn") {
-							return fmt.Errorf("want one patch without schema or nrn, got %v", patches)
+						if len(patches) != 1 || strings.Contains(patches[0].Body, "schema") || strings.Contains(patches[0].Body, "name") || strings.Contains(patches[0].Body, "nrn") {
+							return fmt.Errorf("want one patch of status and visible_to, got %v", patches)
 						}
 						return nil
 					},
 				),
 			},
 			{
-				// The description is cleared, not left behind.
+				// A rename and a description cut a snapshot, as a schema does: the plan
+				// says it is about to change.
+				Config: applicationTypeConfig("Agent", agentSchema, `
+  description = "Runs a model"
+  status      = "inactive"
+  visible_to  = ["organization=1:account=2", "organization=1:account=3"]
+`),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("nullplatform_application_type.agent", plancheck.ResourceActionUpdate),
+						plancheck.ExpectUnknownValue("nullplatform_application_type.agent", tfjsonpath.New("last_snapshot_id")),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("nullplatform_application_type.agent", "name", "Agent"),
+					// A slug is for life.
+					resource.TestCheckResourceAttr("nullplatform_application_type.agent", "slug", "ai-agent"),
+					resource.TestCheckResourceAttr("nullplatform_application_type.agent", "description", "Runs a model"),
+					resource.TestCheckResourceAttr("nullplatform_application_type.agent", "last_snapshot_id", "snapshot-2"),
+					func(*terraform.State) error {
+						patches := requestsTo(fake, http.MethodPatch, "/application_type/type-1")
+						if want := `{"name":"Agent","description":"Runs a model"}`; len(patches) != 2 || patches[1].Body != want {
+							return fmt.Errorf("want a second patch %s, got %v", want, patches)
+						}
+						return nil
+					},
+				),
+			},
+			{
+				// The description is cleared, not left behind, and that is a new snapshot too.
 				Config: applicationTypeConfig("Agent", agentSchema, `
   status     = "inactive"
   visible_to = ["organization=1:account=2", "organization=1:account=3"]
 `),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("nullplatform_application_type.agent", "description", ""),
+					resource.TestCheckResourceAttr("nullplatform_application_type.agent", "last_snapshot_id", "snapshot-3"),
 					func(*terraform.State) error {
 						patches := requestsTo(fake, http.MethodPatch, "/application_type/type-1")
 						if want := `{"description":""}`; patches[len(patches)-1].Body != want {
@@ -215,6 +254,32 @@ func TestFunctionalApplicationType_SchemaOrderIsKeptAndIsAChange(t *testing.T) {
 						return nil
 					},
 				),
+			},
+		},
+	})
+}
+
+// The platform reads a schema into a JavaScript object, which puts the keys
+// that read as integers first: it answers them so, and that is no change.
+func TestFunctionalApplicationType_SchemaKeysThatReadAsIntegersComeFirst(t *testing.T) {
+	fake := newApplicationTypeFake(t)
+	written := `{"type":"object","properties":{"tier":{"type":"string"},"2":{"type":"string"},"1":{"type":"string"}}}`
+	answered := `{"type":"object","properties":{"1":{"type":"string"},"2":{"type":"string"},"tier":{"type":"string"}}}`
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{
+			{
+				Config: applicationTypeConfig("Tiers", written, ""),
+				Check:  resource.TestCheckResourceAttr("nullplatform_application_type.agent", "schema", answered),
+			},
+			{
+				// The reorder the platform makes is no change, and neither is
+				// writing it that way.
+				Config: applicationTypeConfig("Tiers", answered, ""),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
 			},
 		},
 	})

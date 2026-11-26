@@ -13,6 +13,8 @@ func TestSameJSONInOrder(t *testing.T) {
 		{"the order of an object's keys is", `{"a":1,"b":2}`, `{"b":2,"a":1}`, false},
 		{"the order of nested keys is", `{"p":{"a":1,"b":2}}`, `{"p":{"b":2,"a":1}}`, false},
 		{"a different value", `{"a":1}`, `{"a":2}`, false},
+		{"keys that read as integers come first, as the platform answers them", `{"b":1,"2":2,"1":3}`, `{"1":3,"2":2,"b":1}`, true},
+		{"and the others keep their order", `{"b":1,"a":2,"1":3}`, `{"1":3,"a":2,"b":1}`, false},
 		{"not JSON equals nothing", `{"a":`, `{"a":`, false},
 		{"nothing equals nothing", ``, ``, false},
 	}

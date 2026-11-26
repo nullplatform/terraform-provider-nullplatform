@@ -117,17 +117,25 @@ func TestFunctionalApplication_OfAType(t *testing.T) {
 				),
 			},
 			{
-				// The type of an application is for life: another type is another application.
-				Config: typedApplicationConfig("  application_type_id = nullplatform_application_type.job.id\n", ""),
+				// The type of an application is for life: another type is another
+				// application. The one deleted keeps its name, so the new one cannot
+				// take it.
+				Config: typedApplicationConfig("  application_type_id = nullplatform_application_type.job.id\n", `  attributes = jsonencode({ model = "opus" })`+"\n"),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction("nullplatform_application.bot", plancheck.ResourceActionDestroyBeforeCreate),
 					},
 				},
+				ExpectError: regexp.MustCompile(`Application support-bot with id: 1 is already using\s+name\s+support-bot`),
+			},
+			{
+				// Under another name it is created.
+				Config: strings.Replace(typedApplicationConfig("  application_type_id = nullplatform_application_type.job.id\n", `  attributes = jsonencode({ model = "opus" })`+"\n"),
+					`"support-bot"`, `"support-bot-2"`, 1),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("nullplatform_application.bot", "id", "2"),
 					resource.TestCheckResourceAttr("nullplatform_application.bot", "application_type_id", "type-2"),
-					resource.TestCheckResourceAttr("nullplatform_application.bot", "attributes", "{}"),
+					resource.TestCheckResourceAttr("nullplatform_application.bot", "attributes", `{"model":"opus"}`),
 				),
 			},
 		},
@@ -219,7 +227,7 @@ resource "nullplatform_application" "bot" {
   application_type_id = nullplatform_application_type.agent.id
 }
 `,
-				ExpectError: regexp.MustCompile(`The application type type-1 cannot be used in\s+namespace\s+3`),
+				ExpectError: regexp.MustCompile(`The application type cannot be used for this application:\s+The\s+application\s+type\s+type-1\s+cannot\s+be\s+used\s+in\s+namespace\s+3`),
 			},
 			{
 				Config: `
@@ -229,7 +237,7 @@ resource "nullplatform_application" "bot" {
   attributes   = jsonencode({ model = "fable" })
 }
 `,
-				ExpectError: regexp.MustCompile(`attributes belong to an application type, and this\s+application\s+has\s+none`),
+				ExpectError: regexp.MustCompile(`attributes\s+belong\s+to\s+an\s+application\s+type,\s+and\s+this\s+application\s+has\s+none`),
 			},
 			{
 				Config: `
@@ -263,6 +271,106 @@ resource "nullplatform_application" "bot" {
 		Steps: []resource.TestStep{
 			{Config: config(`{"model":"fable"}`)},
 			{Config: config(`not json`), ExpectError: regexp.MustCompile(`error parsing attributes JSON`)},
+		},
+	})
+}
+
+func TestFunctionalApplication_AttributesTheSchemaRefusesAreNotCreated(t *testing.T) {
+	fake := newApplicationTypeFake(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{{
+			Config: applicationTypeConfig("AI Agent", agentSchema, "") + `
+resource "nullplatform_application" "bot" {
+  name                = "support-bot"
+  namespace_id        = 3
+  application_type_id = nullplatform_application_type.agent.id
+  attributes          = jsonencode({ autonomy = "low" })
+}
+`,
+			ExpectError: regexp.MustCompile(`Invalid attributes: data must have required property 'model'`),
+		}},
+	})
+}
+
+// With no hook to send, the platform creates an application of a type as
+// failed: the create fails with its message, and leaves it in the state,
+// tainted, for the next apply to replace.
+func TestFunctionalApplication_CreatedWithNoHookToSendFails(t *testing.T) {
+	fake := newApplicationTypeFakeWithoutHooks(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{{
+			Config:      typedApplicationConfig("  application_type_id = nullplatform_application_type.agent.id\n", `  attributes = jsonencode({ model = "fable" })`+"\n"),
+			ExpectError: regexp.MustCompile(`application 1 was created as failed: No hook could be delivered to create this\s+application`),
+		}},
+	})
+}
+
+// An application of a type imported, or managed from before
+// application_type_id existed, keeps its type when the configuration does not
+// name one.
+func TestFunctionalApplication_ATypeNotConfiguredIsKept(t *testing.T) {
+	fake := newApplicationTypeFake(t)
+	fake.Seed("application_type", "type-1", fakeplatform.Item{"nrn": "organization=1", "name": "AI Agent", "status": "active", "last_snapshot_id": "snapshot-1"})
+	fake.Seed("application", "7", fakeplatform.Item{
+		"name": "support-bot", "namespace_id": 3, "status": "active", "repository_url": "https://github.com/acme/support-bot",
+		"application_type_id": "type-1", "application_type_snapshot_id": "snapshot-1", "attributes": fakeplatform.Item{"model": "fable"},
+		"settings": fakeplatform.Item{}, "tags": fakeplatform.Item{},
+	})
+	config := `
+resource "nullplatform_application" "bot" {
+  name         = "support-bot"
+  namespace_id = 3
+}
+`
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{
+			{
+				Config:             config,
+				ResourceName:       "nullplatform_application.bot",
+				ImportState:        true,
+				ImportStateId:      "7",
+				ImportStatePersist: true,
+			},
+			{
+				Config: config,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+				Check: resource.TestCheckResourceAttr("nullplatform_application.bot", "application_type_id", "type-1"),
+			},
+		},
+	})
+}
+
+// The platform reads the ids of a type and of a snapshot in lower case: an id
+// written in upper case is the same id.
+func TestFunctionalApplication_AnIDInUpperCaseIsTheSameID(t *testing.T) {
+	fake := newApplicationTypeFake(t)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: functionalFactories(fake),
+		Steps: []resource.TestStep{
+			{
+				Config: applicationTypeConfig("AI Agent", agentSchema, "") + `
+resource "nullplatform_application" "bot" {
+  name                         = "support-bot"
+  namespace_id                 = 3
+  application_type_id          = upper(nullplatform_application_type.agent.id)
+  application_type_snapshot_id = upper(nullplatform_application_type.agent.last_snapshot_id)
+  attributes                   = jsonencode({ model = "fable" })
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("nullplatform_application.bot", "application_type_id", "type-1"),
+					resource.TestCheckResourceAttr("nullplatform_application.bot", "application_type_snapshot_id", "snapshot-1"),
+				),
+			},
 		},
 	})
 }

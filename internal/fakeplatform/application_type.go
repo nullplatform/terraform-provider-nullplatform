@@ -8,19 +8,42 @@ package fakeplatform
 //   - no two types of an organization share a name, and an inactive type
 //     still holds its own;
 //   - the schema is kept and answered with its keys in the order they were
-//     sent, and a schema that differs from the stored one in anything but
-//     whitespace — key order included — cuts a new snapshot;
-//   - a type is never deleted: the API has no such route;
-//   - a new application takes a type only when it is active, starts on the
-//     type's last snapshot, and the attributes it is sent are a JSON Merge
-//     Patch (RFC 7396) of the ones it has: a null removes a member, an object
-//     is merged, any other value replaces; an application with no type has
-//     none;
+//     sent, except that keys that read as integers come first, in ascending
+//     order, as the API's JavaScript objects keep them;
+//   - a change of the name, the description or the schema cuts a new
+//     snapshot; a schema that differs from the stored one only in whitespace
+//     is no change, and one that differs in key order is one;
+//   - a deleted type answers 404 with its code, gives its name back, and is
+//     refused while an application that is not deleted, or any template,
+//     still points at it;
+//   - a new application of a type takes a type only when it is active, starts
+//     on the type's last snapshot, and is `pending_hook` until the type's
+//     workflow answers its creation hook, which takes it more than one read.
+//     Until then every edit of it is refused. When no hook is configured for
+//     the creation of applications, it is stored `failed`, with a message;
+//   - a new application with no type is `pending`, and the built-in workflow
+//     makes it `creating`, then `active`, one read at a time;
+//   - an application's status moves only along the API's transitions, and a
+//     DELETE is refused unless it is `deleting`. A `deleting` one is left
+//     `deleted` by its workflow, and keeps its name: no new application of
+//     the namespace can take it;
+//   - the attributes an application is sent are a JSON Merge Patch (RFC 7396)
+//     of the ones it has: a null removes a member, an object is merged, any
+//     other value replaces. They are checked against the schema of the
+//     snapshot the application is on, or is moving to. An application with
+//     no type has none, and an empty object sent to it is none;
+//   - the ids of a type and of a snapshot are read in lower case;
 //   - a template is edited member by member, a null or empty one meaning
 //     "leave it", except its type, which a null clears.
 //
-// The API also checks attributes against the snapshot's schema; the fake does
-// not, so no test here speaks for that message.
+// Refusals carry the API's whole error body: the error's static description
+// as `message`, the specific text as `detail` only for the errors the API
+// makes public, and a UUID string as `id`.
+//
+// Simplifications: the check of the attributes knows `required` only; the
+// creation hook is looked for anywhere, not at the application's NRN; a type's
+// visibility at the application's namespace is not checked; slugs are not
+// numbered; a template's type is not checked against its application's.
 
 import (
 	"bytes"
@@ -28,22 +51,89 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/nullplatform/terraform-provider-nullplatform/internal/jsonorder"
 )
 
-// RegisterApplicationTypes mounts /application_type, /application and
-// /template.
+// EntityHookAction is the collection of the platform's entity hook actions.
+// An application of a type is created by its type's workflow through the hook
+// of `application:create`; a test declares that hook by seeding it.
+const EntityHookAction = "entity_hook/action"
+
+// errorID stands for the UUID the API gives each error it can answer.
+const errorID = "5f3c1e2a-9b7d-4c1e-8a2f-6d4b3c2a1e0f"
+
+// apiError is the API's error body for one of its business errors.
+func apiError(status int, code, message string, detail any) *Refusal {
+	return &Refusal{Status: status, Body: Item{
+		"type":    "urn:nullplatform:error:" + strings.ToLower(strings.ReplaceAll(code, "_", "-")),
+		"title":   message,
+		"status":  status,
+		"code":    code,
+		"detail":  detail,
+		"message": message,
+		"id":      errorID,
+	}}
+}
+
+// The API's application statuses, and where each one may go: for an
+// application with no type, and for one of a type.
+var (
+	untypedTransitions = map[string][]string{
+		"pending_hook": {"pending", "failed"},
+		"pending":      {"creating", "updating"},
+		"creating":     {"active", "failed"},
+		"updating":     {"active", "failed"},
+		"active":       {"pending", "deleting", "failed"},
+		"inactive":     {"pending", "deleting"},
+		"failed":       {"pending", "deleting"},
+		"deleting":     {"deleted", "failed"},
+	}
+	typedTransitions = map[string][]string{
+		"pending_hook": {"active", "failed"},
+		"active":       {"deleting", "failed"},
+		"inactive":     {"deleting"},
+		"failed":       {"deleting"},
+		"deleting":     {"deleted", "failed"},
+	}
+)
+
+// RegisterApplicationTypes mounts /application_type, /application, /template
+// and /entity_hook/action.
 func RegisterApplicationTypes(s *Server) {
-	snapshots := 0
-	cutOf := map[string]Item{}
+	// Every snapshot cut: the type it was cut of, and the schema it holds,
+	// which stays as it was when the type's changes.
+	type snapshot struct {
+		of     Item
+		schema json.RawMessage
+	}
+	snapshots := map[string]snapshot{}
 	cut := func(item Item) {
-		snapshots++
-		item["last_snapshot_id"] = fmt.Sprintf("snapshot-%d", snapshots)
-		cutOf[Str(item, "last_snapshot_id")] = item
+		id := fmt.Sprintf("snapshot-%d", len(snapshots)+1)
+		item["last_snapshot_id"] = id
+		snapshots[id] = snapshot{of: item, schema: item["schema"].(json.RawMessage)}
 	}
 	// Whether a snapshot was cut of a type.
 	snapshotOf := func(typeID, snapshotID string) bool {
-		owner, cut := cutOf[snapshotID]
-		return cut && Str(owner, "id") == typeID
+		cut, held := snapshots[snapshotID]
+		return held && Str(cut.of, "id") == typeID
+	}
+	// The attributes refused by a snapshot's schema, as the API says it.
+	refusedBy := func(snapshotID string, attributes Item) *Refusal {
+		var typeSchema struct {
+			Required []string `json:"required"`
+		}
+		_ = json.Unmarshal(snapshots[snapshotID].schema, &typeSchema)
+		var failures []string
+		for _, name := range typeSchema.Required {
+			if _, held := attributes[name]; !held {
+				failures = append(failures, fmt.Sprintf("data must have required property '%s'", name))
+			}
+		}
+		if len(failures) == 0 {
+			return nil
+		}
+		return apiError(http.StatusBadRequest, "APPLICATION.INVALID_ATTRIBUTES", "Invalid attributes: "+strings.Join(failures, ", "), nil)
 	}
 
 	deleted := map[string]bool{}
@@ -62,7 +152,7 @@ func RegisterApplicationTypes(s *Server) {
 			if _, set := item["description"]; !set {
 				item["description"] = nil
 			}
-			item["schema"] = s.sentRaw("schema")
+			item["schema"] = inJavaScriptKeyOrder(s.sentRaw("schema"))
 			cut(item)
 			return nil
 		},
@@ -72,10 +162,16 @@ func RegisterApplicationTypes(s *Server) {
 					return refusal
 				}
 			}
+			changes := false
+			for _, member := range []string{"name", "description"} {
+				if value, sent := patch[member]; sent && value != existing[member] {
+					changes = true
+				}
+			}
 			if _, sent := patch["schema"]; sent {
-				schema := s.sentRaw("schema")
+				schema := inJavaScriptKeyOrder(s.sentRaw("schema"))
 				if !sameCompact(existing["schema"].(json.RawMessage), schema) {
-					cut(existing)
+					changes = true
 				}
 				patch["schema"] = schema
 			}
@@ -84,16 +180,16 @@ func RegisterApplicationTypes(s *Server) {
 			for key, value := range patch {
 				existing[key] = value
 			}
+			if changes {
+				cut(existing)
+			}
 			return nil
 		},
 		// A deleted type answers 404 with the API's code; an id the API never
 		// had answers like one the caller may not see.
 		OnMissing: func(_ *Server, id string) *Refusal {
 			if deleted[id] {
-				return &Refusal{Status: http.StatusNotFound, Body: Item{
-					"code":    "APPLICATION_TYPE.NOT_FOUND",
-					"message": "The application type was deleted",
-				}}
+				return apiError(http.StatusNotFound, "APPLICATION_TYPE.NOT_FOUND", "The application type was deleted", nil)
 			}
 			return &Refusal{Status: http.StatusForbidden, Message: "Forbidden"}
 		},
@@ -113,23 +209,51 @@ func RegisterApplicationTypes(s *Server) {
 		},
 	})
 
-	s.RegisterWith("application", "app", Options{NumericIDs: true}, Hooks{
+	s.Register(EntityHookAction, "hook", Hooks{})
+
+	// How many times each application was read since its status last changed:
+	// its workflow moves it on one read at a time. (The engine's Gets is keyed
+	// by bare id, and an application and a template can share one.)
+	reads := map[string]int{}
+	setStatus := func(item Item, status string) {
+		item["status"] = status
+		reads[fmt.Sprint(item["id"])] = 0
+	}
+
+	s.RegisterWith("application", "app", Options{NumericIDs: true, PatchStatus: http.StatusNoContent}, Hooks{
 		OnCreate: func(s *Server, item Item) *Refusal {
+			if refusal := nameHeld(s, item, Str(item, "name")); refusal != nil {
+				return refusal
+			}
 			attributes, _ := item["attributes"].(Item)
-			typeID := Str(item, "application_type_id")
-			item["status"] = "active"
+			typeID := strings.ToLower(Str(item, "application_type_id"))
+			item["status"] = "pending"
 			if typeID == "" {
 				if len(attributes) > 0 {
-					return Refuse("attributes belong to an application type, and this application has none")
+					return apiError(http.StatusBadRequest, "APPLICATION.INVALID_ATTRIBUTES", "The attributes do not pass the schema of the application's type",
+						"attributes belong to an application type, and this application has none")
 				}
 			} else {
+				item["application_type_id"] = typeID
 				applicationType, held := s.collections["application_type"].items[typeID]
 				if !held || Str(applicationType, "status") != "active" {
-					return Refuse("The application type %s cannot be used in namespace %v", typeID, item["namespace_id"])
+					return apiError(http.StatusBadRequest, "APPLICATION.INVALID_APPLICATION_TYPE", "The application type cannot be used for this application",
+						fmt.Sprintf("The application type %s cannot be used in namespace %v", typeID, item["namespace_id"]))
 				}
-				item["application_type_snapshot_id"] = applicationType["last_snapshot_id"]
-				// The type's workflow creates it: it waits for the hook's answer.
+				snapshotID := Str(applicationType, "last_snapshot_id")
+				if refusal := refusedBy(snapshotID, mergePatch(Item{}, attributes)); refusal != nil {
+					return refusal
+				}
+				item["application_type_snapshot_id"] = snapshotID
+				// The type's workflow creates it, once the hook reaches it.
 				item["status"] = "pending_hook"
+				if len(s.collections[EntityHookAction].items) == 0 {
+					item["status"] = "failed"
+					item["messages"] = []any{Item{
+						"level":   "ERROR",
+						"message": "No hook could be delivered to create this application: its type has no hook action or no channel that takes it. Retry once there is one.",
+					}}
+				}
 			}
 			item["attributes"] = mergePatch(Item{}, attributes)
 			item["desired_application_type_snapshot_id"] = nil
@@ -141,61 +265,117 @@ func RegisterApplicationTypes(s *Server) {
 			}
 			return nil
 		},
-		// The application's workflow, one observation at a time: the type's
-		// answers the creation hook with the repository it made, and the
-		// type's or the built-in one finishes a delete.
+		// The application's workflow, one read at a time: the type's answers
+		// the creation hook with the repository it made, the built-in one
+		// creates one with no type, and either finishes a delete.
 		OnGet: func(_ *Server, item Item) {
+			id := fmt.Sprint(item["id"])
+			reads[id]++
+			// It takes a workflow a moment: the first read still finds it.
+			if reads[id] < 2 {
+				return
+			}
 			switch Str(item, "status") {
 			case "pending_hook":
-				// It takes the workflow a moment: the first read still waits.
-				if _, seen := item[observedMember]; !seen {
-					item[observedMember] = true
-					return
-				}
-				delete(item, observedMember)
-				item["status"] = "active"
+				setStatus(item, "active")
 				if Str(item, "repository_url") == "" {
 					item["repository_url"] = "https://github.com/acme/" + Str(item, "name")
 				}
+			case "pending":
+				setStatus(item, "creating")
+			case "creating":
+				setStatus(item, "active")
 			case "deleting":
-				item["status"] = "deleted"
+				setStatus(item, "deleted")
 			}
 		},
-		OnPatch: func(_ *Server, existing, patch Item) *Refusal {
+		OnPatch: func(s *Server, existing, patch Item) *Refusal {
 			// Nothing edits an application whose creation hook is not answered.
 			if Str(existing, "status") == "pending_hook" {
-				return &Refusal{Status: http.StatusForbidden, Body: Item{
-					"message": "It's not possible to modify the entity as there's a pending creation hook for this entity for this user.",
-					"detail":  "Can't update the entity while it's waiting for a hook",
-				}}
+				return apiError(http.StatusForbidden, "ENTITY_HOOKS.ENTITY_CREATION_HOOK_PENDING",
+					"It's not possible to modify the entity as there's a pending creation hook for this entity for this user.", nil)
 			}
 			typed := Str(existing, "application_type_id") != ""
 			sent, namesAttributes := patch["attributes"].(Item)
+			if !typed && namesAttributes && len(sent) == 0 {
+				// An empty object is none.
+				namesAttributes = false
+			}
 			asked, namesDestination := patch["desired_application_type_snapshot_id"].(string)
+			asked = strings.ToLower(asked)
 			if !typed && (namesAttributes || namesDestination) {
-				member := "desired_application_type_snapshot_id"
+				member, code, message := "desired_application_type_snapshot_id", "APPLICATION.INVALID_TYPE_SNAPSHOT", "The application cannot move to that snapshot of its type"
 				if namesAttributes {
-					member = "attributes"
+					member, code, message = "attributes", "APPLICATION.INVALID_ATTRIBUTES", "The attributes do not pass the schema of the application's type"
 				}
-				return Refuse("%s belongs to an application type, and this application has none", member)
+				return apiError(http.StatusBadRequest, code, message, member+" belongs to an application type, and this application has none")
 			}
 			if namesDestination && !snapshotOf(Str(existing, "application_type_id"), asked) {
-				return Refuse("%s is not a snapshot of the application's type", asked)
+				return apiError(http.StatusBadRequest, "APPLICATION.INVALID_TYPE_SNAPSHOT", "The application cannot move to that snapshot of its type",
+					asked+" is not a snapshot of the application's type")
 			}
+			if status, changes := patch["status"].(string); changes && status != Str(existing, "status") {
+				transitions := untypedTransitions
+				if typed {
+					transitions = typedTransitions
+				}
+				allowed := false
+				for _, next := range transitions[Str(existing, "status")] {
+					allowed = allowed || next == status
+				}
+				if !allowed {
+					return apiError(http.StatusBadRequest, "APPLICATION.INVALID_APP_STATUS", "The application status is invalid", nil)
+				}
+			}
+			if name, renamed := patch["name"].(string); renamed && name != Str(existing, "name") {
+				if refusal := nameHeld(s, existing, name); refusal != nil {
+					return refusal
+				}
+			}
+
+			// Naming the destination stores it; an edit of the application
+			// moves it there, once the attributes pass the destination's
+			// schema. Naming it alone is not one.
+			destination := Str(existing, "desired_application_type_snapshot_id")
+			if namesDestination {
+				destination = asked
+			}
+			others := 0
+			for key := range patch {
+				if key != "attributes" && key != "desired_application_type_snapshot_id" {
+					others++
+				}
+			}
+			moves := destination != "" && (namesAttributes || others > 0 || destination == Str(existing, "application_type_snapshot_id"))
+			attributes, _ := existing["attributes"].(Item)
 			if namesAttributes {
-				existing["attributes"] = mergePatch(existing["attributes"], sent)
+				attributes = mergePatch(existing["attributes"], sent)
+			}
+			if typed && (namesAttributes || moves) {
+				held := Str(existing, "application_type_snapshot_id")
+				if moves {
+					held = destination
+				}
+				if refusal := refusedBy(held, attributes); refusal != nil {
+					return refusal
+				}
+			}
+
+			if namesAttributes {
+				existing["attributes"] = attributes
 			}
 			delete(patch, "attributes")
 			delete(patch, "desired_application_type_snapshot_id")
-			// Naming the destination stores it; an edit of the application
-			// moves it there. Naming it alone is not one.
 			if namesDestination {
 				existing["desired_application_type_snapshot_id"] = asked
 			}
-			destination := Str(existing, "desired_application_type_snapshot_id")
-			if destination != "" && (namesAttributes || len(patch) > 0 || destination == Str(existing, "application_type_snapshot_id")) {
+			if moves {
 				existing["application_type_snapshot_id"] = destination
 				existing["desired_application_type_snapshot_id"] = nil
+			}
+			if status, changes := patch["status"].(string); changes && status != Str(existing, "status") {
+				setStatus(existing, status)
+				delete(patch, "status")
 			}
 			for key, value := range patch {
 				existing[key] = value
@@ -205,22 +385,28 @@ func RegisterApplicationTypes(s *Server) {
 		// The API deletes only what was first moved to `deleting`.
 		OnDelete: func(_ *Server, item Item) *Refusal {
 			if Str(item, "status") != "deleting" {
-				return &Refusal{Status: http.StatusBadRequest, Body: Item{
-					"code":    "APPLICATION.INVALID_APP_STATUS",
-					"message": "The application status is invalid",
-				}}
+				return apiError(http.StatusBadRequest, "APPLICATION.INVALID_APP_STATUS", "The application status is invalid", nil)
 			}
 			return nil
 		},
 	})
 
 	s.RegisterWith("template", "template", Options{NumericIDs: true}, Hooks{
+		OnCreate: func(_ *Server, item Item) *Refusal {
+			if typeID, typed := item["application_type_id"].(string); typed {
+				item["application_type_id"] = strings.ToLower(typeID)
+			}
+			return nil
+		},
 		// A member sent null or empty is left as it is; only the type of a
 		// template takes a null, which is how a template leaves its type.
 		OnPatch: func(_ *Server, existing, patch Item) *Refusal {
 			for key, value := range patch {
 				if (value == nil || value == "") && key != "application_type_id" {
 					continue
+				}
+				if typeID, typed := value.(string); typed && key == "application_type_id" {
+					value = strings.ToLower(typeID)
 				}
 				existing[key] = value
 			}
@@ -229,9 +415,21 @@ func RegisterApplicationTypes(s *Server) {
 	})
 }
 
-// observedMember marks, on an application waiting for its creation hook, that
-// it was read once.
-const observedMember = "fake_observed"
+// nameHeld refuses a name another application of the namespace holds,
+// whatever its status: a deleted application keeps its name.
+func nameHeld(s *Server, asking Item, name string) *Refusal {
+	for _, other := range s.collections["application"].items {
+		if fmt.Sprint(other["namespace_id"]) != fmt.Sprint(asking["namespace_id"]) || Str(other, "name") != name {
+			continue
+		}
+		if asking["id"] != nil && fmt.Sprint(other["id"]) == fmt.Sprint(asking["id"]) {
+			continue
+		}
+		return apiError(http.StatusBadRequest, "APPLICATION.DUPLICATE_APPLICATION", "The application already exists",
+			fmt.Sprintf("Application %s with id: %v is already using name %s", name, other["id"], name))
+	}
+	return nil
+}
 
 // pointingAt counts the items of a collection whose application_type_id is
 // this type's id; an application that was deleted no longer counts.
@@ -258,11 +456,8 @@ func counted(count int, noun string) string {
 
 // stillUsed is the API's 409 for a type that cannot be deleted yet.
 func stillUsed(code, why, detail string) *Refusal {
-	return &Refusal{Status: http.StatusConflict, Body: Item{
-		"code":    "APPLICATION_TYPE." + code,
-		"message": "The application type cannot be deleted " + why,
-		"detail":  "The application type cannot be deleted: " + detail,
-	}}
+	return apiError(http.StatusConflict, "APPLICATION_TYPE."+code, "The application type cannot be deleted "+why,
+		"The application type cannot be deleted: "+detail)
 }
 
 // nameTaken refuses a name another type of the same organization holds,
@@ -294,6 +489,16 @@ func sameCompact(a, b json.RawMessage) bool {
 	_ = json.Compact(&compactA, a)
 	_ = json.Compact(&compactB, b)
 	return compactA.String() == compactB.String()
+}
+
+// inJavaScriptKeyOrder is a document as the API answers it once it has been
+// a JavaScript object (see jsonorder), compact.
+func inJavaScriptKeyOrder(document json.RawMessage) json.RawMessage {
+	ordered, err := jsonorder.JavaScript(document)
+	if err != nil {
+		return document
+	}
+	return ordered
 }
 
 // mergePatch applies `patch` to `target` as a JSON Merge Patch (RFC 7396).

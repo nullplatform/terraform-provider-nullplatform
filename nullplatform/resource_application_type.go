@@ -41,13 +41,13 @@ func resourceApplicationType() *schema.Resource {
 				Type:         schema.TypeString,
 				Required:     true,
 				ValidateFunc: validation.StringLenBetween(1, 120),
-				Description:  "The name of the application type, up to 120 characters. No two types visible in the same organization share a name. Renaming a type does not change its `slug`.",
+				Description:  "The name of the application type, up to 120 characters. No two types visible in the same organization share a name. Renaming a type does not change its `slug`, and cuts a new snapshot (`last_snapshot_id`).",
 			},
 			"description": {
 				Type:         schema.TypeString,
 				Optional:     true,
 				ValidateFunc: validation.StringLenBetween(0, 255),
-				Description:  "What the application type is for, up to 255 characters.",
+				Description:  "What the application type is for, up to 255 characters. A change of it cuts a new snapshot (`last_snapshot_id`).",
 			},
 			"status": {
 				Type:         schema.TypeString,
@@ -72,6 +72,7 @@ func resourceApplicationType() *schema.Resource {
 				Description: "The JSON Schema (draft-07, 2019-09 or 2020-12, root `type` `object`) that the `attributes` of an application of this type must pass, as a JSON string. " +
 					"The platform shows its properties as a form **in the order they are written**, so that order is kept: the properties are sent in the order written, and reordering them is a change. " +
 					"`jsonencode()` writes the keys of every object in alphabetical order; to choose the order, write the schema as JSON with `file()` or a heredoc. " +
+					"The one exception is keys that read as integers (`\"0\"`, `\"1\"`): the platform keeps those first, in ascending order, so a reorder among them is no change. " +
 					"A change of schema cuts a new snapshot (`last_snapshot_id`); applications stay on the snapshot they are on until they are moved.",
 			},
 			"slug": {
@@ -80,9 +81,10 @@ func resourceApplicationType() *schema.Resource {
 				Description: "The slug of the application type, made from its name when it is created. It never changes.",
 			},
 			"last_snapshot_id": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The ID of the snapshot that holds the current `schema`. New applications are created on it. It changes whenever `schema` does.",
+				Type:     schema.TypeString,
+				Computed: true,
+				Description: "The ID of the snapshot that holds the current `name`, `description` and `schema`. New applications are created on it. " +
+					"It changes whenever one of those three does, and not when `status` or `visible_to` do: so a rename also moves every application whose `application_type_snapshot_id` follows it.",
 			},
 		},
 	}
@@ -98,11 +100,15 @@ func validateJSONObject(value any, key string) ([]string, []error) {
 }
 
 // applicationTypeSnapshotDiff marks last_snapshot_id as unknown when the
-// schema changes: the platform cuts a new snapshot for it, and whatever reads
-// the id in the same plan must see that it is about to change.
+// name, the description or the schema changes: the platform cuts a new
+// snapshot for any of them, and whatever reads the id in the same plan must
+// see that it is about to change.
 func applicationTypeSnapshotDiff(_ context.Context, d *schema.ResourceDiff, _ any) error {
 	if d.Id() == "" {
 		return nil
+	}
+	if d.HasChange("name") || d.HasChange("description") {
+		return d.SetNewComputed("last_snapshot_id")
 	}
 	// HasChange also reports a change of whitespace, which cuts no snapshot.
 	if held, planned := d.GetChange("schema"); !sameJSONInOrder(held.(string), planned.(string)) {
@@ -217,6 +223,8 @@ func ApplicationTypeUpdate(_ context.Context, d *schema.ResourceData, m any) dia
 
 	updated, err := nullOps.PatchApplicationType(d.Id(), patch)
 	if err != nil {
+		// Refused: the state keeps what the platform has, not what was asked.
+		d.Partial(true)
 		return diag.FromErr(err)
 	}
 
