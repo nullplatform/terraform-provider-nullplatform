@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -117,14 +119,7 @@ func WorkflowAliasCreate(ctx context.Context, d *schema.ResourceData, m any) dia
 			return workflowAliasFailed(ctx, d, m, err, revision, false)
 		}
 	}
-	diags := WorkflowAliasRead(ctx, d, m)
-	for i := range diags {
-		if diags[i].Severity == diag.Error {
-			diags[i].Severity = diag.Warning
-			diags[i].Summary = fmt.Sprintf("alias %s was created, but reading it back failed: %s", d.Id(), diags[i].Summary)
-		}
-	}
-	return diags
+	return warnInstead(WorkflowAliasRead(ctx, d, m), fmt.Sprintf("alias %s was created, but reading it back failed: ", d.Id()))
 }
 
 // activateWorkflowAlias publishes revision under the alias: it moves the alias
@@ -149,12 +144,13 @@ func activateWorkflowAlias(nullOps NullOps, workflowID, name string, revision, f
 // the revision, with no trigger failed and no activation error.
 func workflowActivationFailure(activation *WorkflowActivation, workflowID, name string, revision int) error {
 	var reasons []string
-	reported := map[string]bool{}
 	for _, trigger := range activation.FailedTriggers {
 		reasons = append(reasons, fmt.Sprintf("trigger %s (%s): %s", trigger.Id, trigger.PluginType, trigger.Error))
-		reported[trigger.Error] = true
 	}
-	if activation.ActivationError != "" && !reported[activation.ActivationError] {
+	reported := slices.ContainsFunc(activation.FailedTriggers, func(t WorkflowTriggerResult) bool {
+		return t.Error == activation.ActivationError
+	})
+	if activation.ActivationError != "" && !reported {
 		reasons = append(reasons, activation.ActivationError)
 	}
 	if !activation.Alias.Active {
@@ -195,14 +191,7 @@ func workflowAliasFailed(ctx context.Context, d *schema.ResourceData, m any, fai
 	diags := diag.FromErr(failure)
 	diags = append(diags, diag.FromErr(d.Set("revision", revision))...)
 	diags = append(diags, diag.FromErr(d.Set("active", active))...)
-	for _, read := range WorkflowAliasRead(ctx, d, m) {
-		if read.Severity == diag.Error {
-			read.Severity = diag.Warning
-			read.Summary = fmt.Sprintf("reading alias %s after the failure: %s", d.Id(), read.Summary)
-		}
-		diags = append(diags, read)
-	}
-	return diags
+	return append(diags, warnInstead(WorkflowAliasRead(ctx, d, m), fmt.Sprintf("reading alias %s after the failure: ", d.Id()))...)
 }
 
 // WorkflowAliasRead reads where the alias points and whether it is active,
@@ -266,7 +255,7 @@ func workflowRevisionTriggers(nullOps NullOps, workflowID string, revision int) 
 		triggers = append(triggers, trigger.Id)
 	}
 	if definition.Triggers == nil {
-		for _, id := range sortedKeys(definition.Steps) {
+		for _, id := range slices.Sorted(maps.Keys(definition.Steps)) {
 			if definition.Steps[id].Type == "trigger" {
 				triggers = append(triggers, id)
 			}
@@ -280,24 +269,25 @@ func workflowRevisionTriggers(nullOps NullOps, workflowID string, revision int) 
 func WorkflowAliasUpdate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
 	nullOps := m.(NullOps)
 	workflowID, name, revision := d.Get("workflow_id").(string), d.Get("name").(string), d.Get("revision").(int)
-	from, _ := d.GetChange("revision")
-	wasActive, _ := d.GetChange("active")
+	oldRevision, _ := d.GetChange("revision")
+	oldActive, _ := d.GetChange("active")
+	from, wasActive := oldRevision.(int), oldActive.(bool)
 
 	var err error
 	if d.Get("active").(bool) {
 		// Every move activates again: activation is what registers the new
 		// revision's triggers.
-		err = activateWorkflowAlias(nullOps, workflowID, name, revision, from.(int))
+		err = activateWorkflowAlias(nullOps, workflowID, name, revision, from)
 	} else {
-		if wasActive.(bool) {
+		if wasActive {
 			err = deactivateWorkflowAlias(nullOps, workflowID, name)
 		}
-		if err == nil && from.(int) != revision {
+		if err == nil && from != revision {
 			_, err = nullOps.MoveWorkflowAlias(workflowID, name, revision)
 		}
 	}
 	if err != nil {
-		return workflowAliasFailed(ctx, d, m, err, from.(int), wasActive.(bool))
+		return workflowAliasFailed(ctx, d, m, err, from, wasActive)
 	}
 	return WorkflowAliasRead(ctx, d, m)
 }

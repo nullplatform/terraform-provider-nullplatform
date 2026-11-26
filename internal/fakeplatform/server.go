@@ -236,8 +236,8 @@ func (s *Server) Gets(id string) int  { return s.gets[id] }
 func (s *Server) ResetGets(id string) { s.gets[id] = 0 }
 
 // route resolves a path to the longest registered collection it starts with
-// and the segments after it: [], [id] or [id, sub[, subID]].
-func (s *Server) route(path string) (string, []string) {
+// and what follows it, without the separating /.
+func (s *Server) route(path string) (string, string) {
 	name := ""
 	for registered := range s.collections {
 		if (path == registered || strings.HasPrefix(path, registered+"/")) && len(registered) > len(name) {
@@ -246,13 +246,18 @@ func (s *Server) route(path string) (string, []string) {
 	}
 	if name == "" {
 		name, _, _ = strings.Cut(path, "/")
-		return name, nil
+		return name, ""
 	}
-	rest := strings.TrimPrefix(strings.TrimPrefix(path, name), "/")
+	return name, strings.TrimPrefix(strings.TrimPrefix(path, name), "/")
+}
+
+// splitPath is rest cut at its first n-1 slashes (n < 0: at every one); an
+// empty rest has no segments.
+func splitPath(rest string, n int) []string {
 	if rest == "" {
-		return name, nil
+		return nil
 	}
-	return name, strings.SplitN(rest, "/", 3)
+	return strings.SplitN(rest, "/", n)
 }
 
 func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
@@ -264,18 +269,16 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	s.query = r.URL.Query()
 	body := func(v any) { _ = json.NewDecoder(bytes.NewReader(raw)).Decode(v) }
 
-	name, segments := s.route(strings.TrimPrefix(r.URL.Path, "/"))
+	name, rest := s.route(strings.TrimPrefix(r.URL.Path, "/"))
+	// [], [id] or [id, sub[, subID]] for the generic routes.
+	segments := splitPath(rest, 3)
 	col, ok := s.collections[name]
 	if !ok {
 		http.Error(w, fmt.Sprintf(`{"message":"fakeplatform: no collection %q registered"}`, name), http.StatusInternalServerError)
 		return
 	}
 	if col.hooks.OnRequest != nil {
-		var all []string
-		if rest := strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, "/"), name), "/"); rest != "" {
-			all = strings.Split(rest, "/")
-		}
-		if answer := col.hooks.OnRequest(s, r.Method, all, raw); answer != nil {
+		if answer := col.hooks.OnRequest(s, r.Method, splitPath(rest, -1), raw); answer != nil {
 			if answer.Body == nil {
 				w.WriteHeader(answer.Status)
 			} else {

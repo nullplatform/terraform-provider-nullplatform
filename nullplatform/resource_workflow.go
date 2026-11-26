@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/hashicorp/go-cty/cty"
@@ -27,6 +26,9 @@ var workflowRecordKeys = []string{"name", "key", "description", "path", "nrn"}
 
 // workflowDerivedKeys are what the API adds to every definition it saves.
 var workflowDerivedKeys = []string{"id", "triggers", "pinnedDescriptors"}
+
+// workflowOwnedKeys are both: never part of the definition as written.
+var workflowOwnedKeys = append(append([]string{}, workflowRecordKeys...), workflowDerivedKeys...)
 
 func resourceWorkflow() *schema.Resource {
 	return &schema.Resource{
@@ -175,7 +177,7 @@ func workflowDefinitionAsWritten(definition, other map[string]any) map[string]an
 	for key, value := range definition {
 		out[key] = value
 	}
-	for _, key := range append(append([]string{}, workflowRecordKeys...), workflowDerivedKeys...) {
+	for _, key := range workflowOwnedKeys {
 		delete(out, key)
 	}
 	steps, ok := out["steps"].(map[string]any)
@@ -249,14 +251,8 @@ func WorkflowCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Dia
 	// refresh completes the state.
 	d.SetId(created.Workflow.Id)
 	diags := diag.FromErr(d.Set("revision", created.Revision.Revision))
-	for _, read := range WorkflowRead(ctx, d, m) {
-		if read.Severity == diag.Error {
-			read.Severity = diag.Warning
-			read.Summary = fmt.Sprintf("workflow %s was created, but reading it back failed: %s", d.Id(), read.Summary)
-		}
-		diags = append(diags, read)
-	}
-	return diags
+	return append(diags, warnInstead(WorkflowRead(ctx, d, m),
+		fmt.Sprintf("workflow %s was created, but reading it back failed: ", d.Id()))...)
 }
 
 // WorkflowRead reads the record and the latest revision, the one the API
@@ -365,14 +361,4 @@ func importWorkflow(_ context.Context, d *schema.ResourceData, m any) ([]*schema
 	}
 	d.SetId(read.Workflow.Id)
 	return []*schema.ResourceData{d}, nil
-}
-
-// sortedKeys is m's keys in order.
-func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }

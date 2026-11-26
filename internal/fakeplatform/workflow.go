@@ -15,9 +15,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,13 +30,13 @@ const (
 	// wf_ id; each item holds its record ("workflow"), its revisions
 	// ("revisions", []Item) and its aliases ("aliases", map[string]Item).
 	WorkflowDefinitions = "workflows/definitions"
-	// NotificationChannels is the collection a checklist trigger's channel
+	// notificationChannels is the collection a checklist trigger's channel
 	// lives in (numeric ids).
-	NotificationChannels = "notification/channel"
+	notificationChannels = "notification/channel"
 )
 
-// WorkflowTimestamp is every timestamp the fake answers.
-const WorkflowTimestamp = "2026-01-01T00:00:00.000Z"
+// workflowTimestamp is every timestamp the fake answers.
+const workflowTimestamp = "2026-01-01T00:00:00.000Z"
 
 const (
 	errorsBase        = "https://workflow-system.dev/errors/"
@@ -82,7 +84,7 @@ type workflowFake struct{ engine *WorkflowEngine }
 func RegisterWorkflows(s *Server, engine WorkflowEngine) {
 	w := &workflowFake{engine: &engine}
 	s.RegisterWith(WorkflowDefinitions, "wf", Options{IDFormat: "wf_%012d"}, Hooks{OnRequest: w.onRequest})
-	s.RegisterWith(NotificationChannels, "ch", Options{NumericIDs: true, CreateStatus: http.StatusCreated}, Hooks{OnList: listChannels})
+	s.RegisterWith(notificationChannels, "ch", Options{NumericIDs: true, CreateStatus: http.StatusCreated}, Hooks{OnList: listChannels})
 	s.workflow = w
 }
 
@@ -97,7 +99,7 @@ func SetWorkflowEngine(s *Server, change func(*WorkflowEngine)) {
 
 // WorkflowChannels returns the channels that exist now, by id.
 func WorkflowChannels(s *Server) []Item {
-	items := s.Items(NotificationChannels)
+	items := s.Items(notificationChannels)
 	sort.Slice(items, func(i, j int) bool { return numericID(items[i]) < numericID(items[j]) })
 	return items
 }
@@ -136,7 +138,7 @@ func WorkflowAlias(s *Server, workflowID, name string) (Item, bool) {
 func listChannels(s *Server) (any, *Refusal) {
 	q := s.Query()
 	var matching []Item
-	for _, item := range s.collections[NotificationChannels].items {
+	for _, item := range s.collections[notificationChannels].items {
 		if nrn := q.Get("nrn"); nrn == "" || Str(item, "nrn") == nrn {
 			matching = append(matching, item)
 		}
@@ -342,7 +344,7 @@ func (w *workflowFake) create(col *collection, body Item, forcedKey, instance st
 	if refusal != nil {
 		return refusal
 	}
-	rec := Item{"id": id, "name": name, "nrn": nrn, "organizationId": org, "createdAt": WorkflowTimestamp, "updatedAt": WorkflowTimestamp}
+	rec := Item{"id": id, "name": name, "nrn": nrn, "organizationId": org, "createdAt": workflowTimestamp, "updatedAt": workflowTimestamp}
 	for _, k := range []string{"key", "description", "path"} {
 		if value, ok := body[k].(string); ok {
 			rec[k] = value
@@ -363,14 +365,14 @@ func organizationOf(nrn string) int {
 }
 
 func revisionOf(id string, n int, definition Item) Item {
-	return Item{"workflowId": id, "revision": n, "definition": definition, "createdAt": WorkflowTimestamp, "createdBy": "fake-user"}
+	return Item{"workflowId": id, "revision": n, "definition": definition, "createdAt": workflowTimestamp, "createdBy": "fake-user"}
 }
 
 // refreshLatest keeps the "latest" alias at the highest revision (observed
 // against the API: the engine maintains it).
 func refreshLatest(item Item) {
 	revs := revisions(item)
-	aliases(item)["latest"] = Item{"workflowId": Str(record(item), "id"), "name": "latest", "revision": len(revs), "active": false, "updatedAt": WorkflowTimestamp, "updatedBy": "fake-user"}
+	aliases(item)["latest"] = Item{"workflowId": Str(record(item), "id"), "name": "latest", "revision": len(revs), "active": false, "updatedAt": workflowTimestamp, "updatedBy": "fake-user"}
 }
 
 // isTriggerPlugin approximates the API's plugin registry: the fake knows no
@@ -607,7 +609,7 @@ func (w *workflowFake) aliasRoute(s *Server, item Item, method string, rest []st
 		if _, exists := aliases(item)[name]; exists {
 			return problemAnswer(409, "alias-already-exists", "Conflict", fmt.Sprintf("alias '%s' already exists on workflow '%s'", name, id), instance)
 		}
-		alias := Item{"workflowId": id, "name": name, "revision": n, "active": false, "updatedAt": WorkflowTimestamp, "updatedBy": "fake-user"}
+		alias := Item{"workflowId": id, "name": name, "revision": n, "active": false, "updatedAt": workflowTimestamp, "updatedBy": "fake-user"}
 		aliases(item)[name] = alias
 		return &Answer{Status: http.StatusCreated, Body: alias}
 	}
@@ -679,7 +681,7 @@ func webhookURL(s *Server, item Item, revision Item, alias, trigger string) stri
 func channelIDsOf(alias Item) []int {
 	states, _ := alias["triggerStates"].(Item)
 	var ids []int
-	for _, triggerID := range sortedKeys(states) {
+	for _, triggerID := range slices.Sorted(maps.Keys(states)) {
 		state, _ := states[triggerID].(Item)
 		pluginState, _ := state["pluginState"].(Item)
 		if n, ok := toInt(pluginState["channelId"]); ok {
@@ -689,17 +691,8 @@ func channelIDsOf(alias Item) []int {
 	return ids
 }
 
-func sortedKeys(m Item) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
 func channelExists(s *Server, id int) (Item, bool) {
-	item, ok := s.collections[NotificationChannels].items[strconv.Itoa(id)]
+	item, ok := s.collections[notificationChannels].items[strconv.Itoa(id)]
 	return item, ok
 }
 
@@ -707,15 +700,6 @@ func channelExists(s *Server, id int) (Item, bool) {
 func holdsChannels(s *Server, alias Item) bool {
 	for _, id := range channelIDsOf(alias) {
 		if _, ok := channelExists(s, id); ok {
-			return true
-		}
-	}
-	return false
-}
-
-func containsString(list []string, v string) bool {
-	for _, item := range list {
-		if item == v {
 			return true
 		}
 	}
@@ -734,7 +718,7 @@ func (w *workflowFake) activate(s *Server, item, alias Item, instance string) *A
 	// duplicates (what the engine does is the fake's choice; the fake also
 	// releases leftovers of a deactivation that could not).
 	for _, n := range channelIDsOf(alias) {
-		delete(s.collections[NotificationChannels].items, strconv.Itoa(n))
+		delete(s.collections[notificationChannels].items, strconv.Itoa(n))
 	}
 	delete(alias, "triggerStates")
 
@@ -751,15 +735,15 @@ func (w *workflowFake) activate(s *Server, item, alias Item, instance string) *A
 		plugin, _ := trigger["pluginType"].(string)
 		config, _ := trigger["config"].(map[string]any)
 		hook := webhookURL(s, item, revision, name, triggerID)
-		state := Item{"status": "live", "activatedAt": WorkflowTimestamp, "runtimeMetadata": Item{"webhookUrl": hook}}
+		state := Item{"status": "live", "activatedAt": workflowTimestamp, "runtimeMetadata": Item{"webhookUrl": hook}}
 		if nrn, _ := config["nrn"].(string); plugin == checklistTrigger && nrn != "" {
-			if containsString(w.engine.DeniedChannelNRNs, nrn) {
+			if slices.Contains(w.engine.DeniedChannelNRNs, nrn) {
 				failure, failedID = fmt.Sprintf("Nullplatform API error (403): cannot create a notification channel at %s", nrn), triggerID // text: fake's choice
 				break
 			}
 			channel := checklistChannel(config, hook)
 			channel["nrn"] = nrn
-			s.collections[NotificationChannels].store(channel)
+			s.collections[notificationChannels].store(channel)
 			created = append(created, numericID(channel))
 			state["pluginState"] = Item{"channelId": channel["id"]}
 		}
@@ -787,7 +771,7 @@ func (w *workflowFake) activate(s *Server, item, alias Item, instance string) *A
 		// The alias is left inactive, and what the failed attempt created is
 		// released (fake's choice: the engine's own rollback is not known).
 		for _, c := range created {
-			delete(s.collections[NotificationChannels].items, strconv.Itoa(c))
+			delete(s.collections[notificationChannels].items, strconv.Itoa(c))
 		}
 		alias["active"] = false
 		body := Item{"alias": alias, "activatedTriggers": []any{}, "failedTriggers": failed, "triggerResults": results}
@@ -812,7 +796,7 @@ func (w *workflowFake) activate(s *Server, item, alias Item, instance string) *A
 func checklistChannel(config map[string]any, hook string) Item {
 	pathPrefix, _ := config["pathPrefix"].(string)
 	kind, _ := config["kind"].(string)
-	actions := []any{}
+	var actions []any
 	if list, ok := config["channelActions"].([]any); ok && len(list) > 0 {
 		actions = list
 	} else if action, _ := config["action"].(string); action != "" {
@@ -841,20 +825,20 @@ func (w *workflowFake) deactivate(s *Server, alias Item) *Answer {
 	states, _ := alias["triggerStates"].(Item)
 	released := []any{}
 	var failures []string
-	for _, triggerID := range sortedKeys(states) {
+	for _, triggerID := range slices.Sorted(maps.Keys(states)) {
 		state, _ := states[triggerID].(Item)
 		pluginState, _ := state["pluginState"].(Item)
 		if n, ok := toInt(pluginState["channelId"]); ok {
 			if channel, held := channelExists(s, n); held {
 				nrn := Str(channel, "nrn")
-				if containsString(w.engine.UnreleasableChannelNRNs, nrn) {
+				if slices.Contains(w.engine.UnreleasableChannelNRNs, nrn) {
 					if w.engine.ReportReleaseFailures {
 						failures = append(failures, fmt.Sprintf("trigger '%s': cannot delete channel %d at %s", triggerID, n, nrn)) // text: fake's choice
 						continue
 					}
 					continue // silently kept
 				}
-				delete(s.collections[NotificationChannels].items, strconv.Itoa(n))
+				delete(s.collections[notificationChannels].items, strconv.Itoa(n))
 			}
 		}
 		released = append(released, triggerID)

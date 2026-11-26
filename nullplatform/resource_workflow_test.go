@@ -1,7 +1,6 @@
 package nullplatform
 
 import (
-	"reflect"
 	"strings"
 	"testing"
 
@@ -51,7 +50,7 @@ func TestValidateWorkflowDefinition(t *testing.T) {
 			t.Errorf("%s: accepted %s", name, def)
 		}
 	}
-	for _, key := range append(append([]string{}, workflowRecordKeys...), workflowDerivedKeys...) {
+	for _, key := range workflowOwnedKeys {
 		def := `{"steps":{},"` + key + `":"x"}`
 		diags := validateWorkflowDefinition(def, path)
 		if len(diags) != 1 || !diags.HasError() || !strings.Contains(diags[0].Summary, `"`+key+`"`) {
@@ -142,13 +141,4 @@ func TestWorkflowStateDefinition(t *testing.T) {
 			}
 		}
 	})
-}
-
-func TestSortedKeys(t *testing.T) {
-	if got, want := sortedKeys(map[string]int{"b": 1, "c": 2, "a": 3}), []string{"a", "b", "c"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("sortedKeys = %v, want %v", got, want)
-	}
-	if got := sortedKeys(map[string]bool(nil)); len(got) != 0 {
-		t.Errorf("sortedKeys(nil) = %v, want empty", got)
-	}
 }
