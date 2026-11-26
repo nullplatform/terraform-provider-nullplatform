@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -123,4 +124,16 @@ func valueToString(v interface{}) string {
 	default:
 		return fmt.Sprintf("%v", val)
 	}
+}
+
+// warnInstead turns the errors of diags into warnings, their summary after
+// prefix: for a best-effort read that must not fail the operation it follows.
+func warnInstead(diags diag.Diagnostics, prefix string) diag.Diagnostics {
+	for i := range diags {
+		if diags[i].Severity == diag.Error {
+			diags[i].Severity = diag.Warning
+			diags[i].Summary = prefix + diags[i].Summary
+		}
+	}
+	return diags
 }

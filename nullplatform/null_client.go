@@ -276,6 +276,19 @@ type NullOps interface {
 	SetPackageTag(packageID, name string, body *PackageTagSet) error
 	DeletePackageTag(packageID, name string) error
 	GetLatestSnapshotID(kind, id string) (string, error)
+
+	CreateWorkflow(body map[string]json.RawMessage) (*WorkflowWithRevision, error)
+	GetWorkflow(ref string) (*WorkflowWithRevision, error)
+	GetWorkflowRevision(id string, revision int) (*WorkflowWithRevision, error)
+	PutWorkflowRevision(id string, definition map[string]json.RawMessage) (*WorkflowWithRevision, error)
+	PatchWorkflow(id string, patch map[string]any) (*Workflow, error)
+	DeleteWorkflow(id string) error
+	CreateWorkflowAlias(id, name string, revision int) (*WorkflowAlias, error)
+	GetWorkflowAlias(ref, name string) (*WorkflowAlias, error)
+	MoveWorkflowAlias(id, name string, revision int) (*WorkflowAlias, error)
+	ActivateWorkflowAlias(id, name string) (*WorkflowActivation, error)
+	DeactivateWorkflowAlias(id, name string) (*WorkflowDeactivation, error)
+	DeleteWorkflowAlias(id, name string) error
 }
 
 // secretFieldRegex matches the JSON credential fields /token and /api_key exchange.
@@ -305,11 +318,17 @@ var credentialRegex = regexp.MustCompile(`(?i)(\bauthorization\s*:\s*(?:(?:beare
 // three base64url segments, the first a JSON header, which encodes to "eyJ".
 var bareJWTRegex = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`)
 
+// webhookTokenRegex matches the token that ends a workflow webhook URL
+// (/workflows/webhooks/<workflow>/<alias>/<token>): the capability to start the
+// workflow.
+var webhookTokenRegex = regexp.MustCompile(`(/workflows/webhooks/[^/\s"]+/[^/\s"]+/)[^/\s"?#]+`)
+
 // redactCredentials is the logs' redaction for text that may echo the
-// request: the Authorization line, a credential anywhere, a bare JWT and the
-// token fields.
+// request: the Authorization line, a credential anywhere, a bare JWT, the
+// token fields and a webhook URL's token.
 func redactCredentials(body []byte) []byte {
 	body = authHeaderRegex.ReplaceAll(body, authHeaderReplacement)
+	body = webhookTokenRegex.ReplaceAll(body, []byte("${1}REDACTED"))
 	body = credentialRegex.ReplaceAll(body, []byte("${1}${2}REDACTED"))
 	return redactSecrets(bareJWTRegex.ReplaceAll(body, []byte("REDACTED")))
 }
