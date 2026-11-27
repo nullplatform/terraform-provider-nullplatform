@@ -244,3 +244,14 @@ func TestSummarizeMessages_MalformedEntries(t *testing.T) {
 		t.Errorf("got %q, want %q", got, "ok")
 	}
 }
+
+// Application messages say how bad they are in `level`.
+func TestSummarizeMessages_PrefersAnErrorLevel(t *testing.T) {
+	msgs := []interface{}{
+		map[string]interface{}{"level": "ERROR", "message": "the repository could not be made"},
+		map[string]interface{}{"level": "INFO", "message": "retrying"},
+	}
+	if got := summarizeMessages(msgs); got != "the repository could not be made" {
+		t.Errorf("got %q, want the error", got)
+	}
+}

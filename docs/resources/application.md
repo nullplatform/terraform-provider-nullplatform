@@ -3,12 +3,12 @@
 page_title: "nullplatform_application Resource - nullplatform"
 subcategory: ""
 description: |-
-  The application resource allows you to manage a nullplatform Application
+  The application resource allows you to manage a nullplatform Application. Destroying it asks the platform to delete the application (status deleting) and waits, up to the delete timeout, until the application's workflow has removed what it created. An application still being created (pending_hook, pending, creating) or updated (updating) cannot be deleted yet: destroy first waits for that to end, within the same timeout. One already deleting is waited for the same way.
 ---
 
 # nullplatform_application (Resource)
 
-The application resource allows you to manage a nullplatform Application
+The application resource allows you to manage a nullplatform Application. Destroying it asks the platform to delete the application (status `deleting`) and waits, up to the `delete` timeout, until the application's workflow has removed what it created. An application still being created (`pending_hook`, `pending`, `creating`) or updated (`updating`) cannot be deleted yet: destroy first waits for that to end, within the same timeout. One already `deleting` is waited for the same way.
 
 ## Example Usage
 
@@ -55,18 +55,31 @@ output "application_nrn" {
 
 ### Optional
 
+- `application_type_id` (String) The ID of the application type of this application (see `nullplatform_application_type`). The type must be active and visible in the application's namespace. It is set when the application is created and cannot be changed: a different type is a different application, and the platform does not give the name of a deleted application to a new one. When not set, it reads the type the platform holds: an application of a type imported, or managed from before this attribute, keeps its type. With a type, `repository_url` may be left out and arrive later from the type's workflow.
+- `application_type_snapshot_id` (String) The ID of the snapshot of its type the application is on: its `attributes` pass that snapshot's schema. Empty for an application with no type. A change of the type's name, description or schema cuts a new snapshot and leaves the application on the one it has. Set it to move the application: to `nullplatform_application_type.<name>.last_snapshot_id` to keep it on the type's latest schema, or to an earlier snapshot of the type to go back. The move is one request together with `attributes`, and it is refused, changing nothing, when the attributes do not pass the destination's schema. A new application is created on the type's last snapshot, and the `attributes` it is created with must pass that snapshot's schema; one configured for another snapshot is moved there once its type's workflow has answered its creation, which the create waits for (`create` timeout). When not set, the application stays on its snapshot and this reads it.
+- `attributes` (String) JSON string with the values of the fields of the application's type, checked against the type's schema. Only for an application with `application_type_id`. When set, it is the whole of them: only what changed is sent, and a key that is no longer here is removed from the application, also one that was set outside Terraform. A key written as `null` is a key left out, and a key the platform holds as `null` is removed. When not set, it reads what the platform holds (`{}` for an application with no type).
 - `auto_deploy_on_creation` (Boolean) `True` if the application must be deployed immediately after being created, `false` otherwise.
 - `is_mono_repo` (Boolean) `True` if the application shares the repository with other apps, `false` otherwise.
 - `repository_app_path` (String) The folder where the application is located inside a monorepo.
-- `repository_url` (String) The URL of the repository that holds this application.
+- `repository_url` (String) The URL of the repository that holds this application. When not set, it reads what the platform holds: for an application of a type, the one the type's workflow reported when it created the application.
 - `settings` (String) JSON string containing settings for the application.
 - `slug` (String) A namespace-wide unique slug for the application.
-- `status` (String) The status of the application. Possible values: [`pending`, `creating`, `updating`, `active`, `inactive`, `failed`].
+- `status` (String) The status of the application. Possible values: [`pending_hook`, `pending`, `creating`, `updating`, `active`, `inactive`, `failed`, `deleting`, `deleted`]. An application with no type starts as `pending`, and the platform's workflow makes it `creating`, then `active`. An application of a type starts as `pending_hook` and its type's workflow makes it `active` (or `failed`); until then the platform refuses every edit of it, and an update waits for it (`update` timeout). When the platform has no hook to send for the creation of an application of a type, it refuses the create, which fails with the platform's message.
 - `tags` (String) JSON string containing tags for the application.
 - `template_id` (Number) The ID of the template that was used to create this application.
+- `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
 - `messages` (String) JSON string containing status messages for the application.
 - `nrn` (String) The Nullplatform Resource Name (NRN) for the application.
+
+<a id="nestedblock--timeouts"></a>
+### Nested Schema for `timeouts`
+
+Optional:
+
+- `create` (String)
+- `delete` (String)
+- `update` (String)

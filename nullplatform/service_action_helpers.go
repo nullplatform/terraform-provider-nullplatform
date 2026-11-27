@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 func findActionSpecByType(specs []*ActionSpecification, actionType string) (*ActionSpecification, error) {
@@ -132,7 +133,11 @@ func summarizeMessages(messages []interface{}) string {
 			continue
 		}
 		lastAny = text
-		if sev, _ := m["severity"].(string); sev == "error" {
+		// Services say how bad a message is in `severity`, applications in
+		// `level` ("ERROR").
+		sev, _ := m["severity"].(string)
+		level, _ := m["level"].(string)
+		if sev == "error" || strings.EqualFold(level, "error") {
 			lastError = text
 		}
 	}

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 const APPLICATION_PATH = "/application"
@@ -25,6 +27,18 @@ type Application struct {
 	Settings             map[string]interface{} `json:"settings,omitempty"`
 	Messages             []interface{}          `json:"messages,omitempty"`
 	Nrn                  string                 `json:"nrn,omitempty"`
+	// The type of the application, the snapshot of it the application is on,
+	// and the values of the type's fields. All three stay out of a request
+	// that does not set them.
+	ApplicationTypeId         string `json:"application_type_id,omitempty"`
+	ApplicationTypeSnapshotId string `json:"application_type_snapshot_id,omitempty"`
+	// The snapshot of its type the application is asked to move to. The
+	// platform moves it with the edit that carries it, once the attributes pass
+	// that snapshot's schema, and reads it back empty.
+	DesiredApplicationTypeSnapshotId string `json:"desired_application_type_snapshot_id,omitempty"`
+	// Left out when nil. An empty object is sent: it is the edit that changes
+	// no attribute, which a move to another snapshot goes with.
+	Attributes map[string]interface{} `json:"attributes,omitzero"`
 }
 
 func (c *NullClient) CreateApplication(application *Application) (*Application, error) {
@@ -40,11 +54,7 @@ func (c *NullClient) CreateApplication(application *Application) (*Application, 
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
-		var nErr NullErrors
-		if err := json.NewDecoder(res.Body).Decode(&nErr); err != nil {
-			return nil, fmt.Errorf("failed to decode null error response: %w", err)
-		}
-		return nil, fmt.Errorf("error creating application resource, got status code: %d, message: %s", res.StatusCode, nErr.Message)
+		return nil, fmt.Errorf("error creating application resource, got status code: %d, message: %s", res.StatusCode, applicationRefusal(res))
 	}
 
 	app := &Application{}
@@ -70,11 +80,7 @@ func (c *NullClient) PatchApplication(appId string, application *Application) er
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
-		var nErr NullErrors
-		if err := json.NewDecoder(res.Body).Decode(&nErr); err != nil {
-			return fmt.Errorf("failed to decode null error response: %w", err)
-		}
-		return fmt.Errorf("error updating application resource, got status code: %d, message: %s", res.StatusCode, nErr.Message)
+		return fmt.Errorf("error updating application resource, got status code: %d, message: %s", res.StatusCode, applicationRefusal(res))
 	}
 
 	return nil
@@ -90,11 +96,7 @@ func (c *NullClient) DeleteApplication(appId string) error {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusNotFound {
-		var nErr NullErrors
-		if err := json.NewDecoder(res.Body).Decode(&nErr); err != nil {
-			return fmt.Errorf("failed to decode error response: %w", err)
-		}
-		return fmt.Errorf("error deleting application, got status code: %d, message: %s", res.StatusCode, nErr.Message)
+		return fmt.Errorf("error deleting application, got status code: %d, message: %s", res.StatusCode, applicationRefusal(res))
 	}
 
 	return nil
@@ -113,13 +115,12 @@ func (c *NullClient) GetApplication(appId string) (*Application, error) {
 	// "status" that does not fit Application.Status, which used to hide the
 	// real response (e.g. a 404 for an application deleted outside Terraform).
 	if res.StatusCode != http.StatusOK {
-		var nErr NullErrors
-		_ = json.NewDecoder(res.Body).Decode(&nErr)
+		message := applicationRefusal(res)
 		if res.StatusCode == http.StatusNotFound {
 			id, _ := strconv.Atoi(appId)
-			return nil, &ResourceNotFoundError{ApiType: "application", ID: id, Message: nErr.Message}
+			return nil, &ResourceNotFoundError{ApiType: "application", ID: id, Message: message}
 		}
-		return nil, fmt.Errorf("error getting application resource, got %d for %s: %s", res.StatusCode, appId, nErr.Message)
+		return nil, fmt.Errorf("error getting application resource, got %d for %s: %s", res.StatusCode, appId, message)
 	}
 
 	app := &Application{}
@@ -128,4 +129,28 @@ func (c *NullClient) GetApplication(appId string) (*Application, error) {
 	}
 
 	return app, nil
+}
+
+// applicationRefusal is what the platform answered a refused application
+// request with: the error's message, followed by its `detail` when the
+// platform says more there. The platform's message is the error's static
+// description ("The application type cannot be used for this application");
+// what it refused (the type, the namespace, the attribute) is in `detail`.
+// Only those two members are read: the platform numbers its errors with a
+// UUID `id`, which NullErrors cannot hold. A body with no message (a
+// gateway's page) is the message as it came.
+func applicationRefusal(res *http.Response) string {
+	raw, _ := io.ReadAll(io.LimitReader(res.Body, 64<<10))
+	var refusal struct {
+		Message string `json:"message"`
+		Detail  string `json:"detail"`
+	}
+	if json.Unmarshal(raw, &refusal) != nil || refusal.Message == "" {
+		return redactMessage(strings.TrimSpace(string(raw)))
+	}
+	message := refusal.Message
+	if refusal.Detail != "" && refusal.Detail != refusal.Message {
+		message += ": " + refusal.Detail
+	}
+	return redactMessage(message)
 }

@@ -82,6 +82,11 @@ type NullOps interface {
 	PatchApplication(appId string, application *Application) error
 	DeleteApplication(appId string) error
 
+	CreateApplicationType(applicationType *ApplicationType) (*ApplicationType, error)
+	GetApplicationType(applicationTypeId string) (*ApplicationType, error)
+	PatchApplicationType(applicationTypeId string, applicationType *ApplicationType) (*ApplicationType, error)
+	DeleteApplicationType(applicationTypeId string) error
+
 	CreateCapability(capability *CapabilityEntity) (*CapabilityEntity, error)
 	GetCapability(capabilityId string) (*CapabilityEntity, error)
 	PatchCapability(capabilityId string, capability *CapabilityEntity) error

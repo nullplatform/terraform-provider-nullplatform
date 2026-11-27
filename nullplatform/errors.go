@@ -51,10 +51,15 @@ func IsResourceExistsError(err error) (*ResourceExistsError, bool) {
 type ResourceNotFoundError struct {
 	ApiType string
 	ID      int
+	// Key names a resource whose id is not a number; it is used when set.
+	Key     string
 	Message string
 }
 
 func (e *ResourceNotFoundError) Error() string {
+	if e.Key != "" {
+		return fmt.Sprintf("%s not found (%s): %s", e.ApiType, e.Key, e.Message)
+	}
 	return fmt.Sprintf("%s not found (%d): %s", e.ApiType, e.ID, e.Message)
 }
 

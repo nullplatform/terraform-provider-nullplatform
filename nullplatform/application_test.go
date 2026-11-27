@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -167,5 +168,50 @@ func TestGetApplication_InvalidBodyIsReturned(t *testing.T) {
 	c := newTestClient(server)
 	if _, err := c.GetApplication("7"); err == nil {
 		t.Fatal("expected decode error, got nil")
+	}
+}
+
+// The platform numbers its errors with a UUID, says which error in `message`,
+// and what it refused in `detail`.
+func TestApplicationRefusal(t *testing.T) {
+	cases := []struct{ name, body, want string }{
+		{"message and detail",
+			`{"type":"urn:nullplatform:error:application:invalid-application-type","status":400,"code":"APPLICATION.INVALID_APPLICATION_TYPE","detail":"The application type x cannot be used in namespace 3","message":"The application type cannot be used for this application","id":"5f3c1e2a-9b7d-4c1e-8a2f-6d4b3c2a1e0f"}`,
+			"The application type cannot be used for this application: The application type x cannot be used in namespace 3"},
+		{"a null detail", `{"status":400,"detail":null,"message":"The application status is invalid","id":"5f3c1e2a-9b7d-4c1e-8a2f-6d4b3c2a1e0f"}`, "The application status is invalid"},
+		{"a detail that repeats the message", `{"detail":"refused","message":"refused","id":0}`, "refused"},
+		{"a body with no message", "<html>Bad gateway</html>\n", "<html>Bad gateway</html>"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(c.body))
+			}))
+			defer server.Close()
+			client := newTestClient(server)
+
+			if _, err := client.CreateApplication(&Application{Name: "my-api"}); err == nil || !strings.HasSuffix(err.Error(), "message: "+c.want) {
+				t.Errorf("create: want %q, got %v", c.want, err)
+			}
+			if err := client.PatchApplication("7", &Application{Name: "my-api"}); err == nil || !strings.HasSuffix(err.Error(), "message: "+c.want) {
+				t.Errorf("patch: want %q, got %v", c.want, err)
+			}
+			if err := client.DeleteApplication("7"); err == nil || !strings.HasSuffix(err.Error(), "message: "+c.want) {
+				t.Errorf("delete: want %q, got %v", c.want, err)
+			}
+			if _, err := client.GetApplication("7"); err == nil || !strings.HasSuffix(err.Error(), ": "+c.want) {
+				t.Errorf("get: want %q, got %v", c.want, err)
+			}
+		})
+	}
+}
+
+func TestSuppressSameID(t *testing.T) {
+	if !suppressSameID("application_type_id", "0d0c2f0e-6c0b-4f1e-9d57-2f2f6d6a9b10", "0D0C2F0E-6C0B-4F1E-9D57-2F2F6D6A9B10", nil) {
+		t.Error("want two spellings of one id to be no diff")
+	}
+	if suppressSameID("application_type_id", "0d0c2f0e-6c0b-4f1e-9d57-2f2f6d6a9b10", "", nil) {
+		t.Error("want an id and none to be a diff")
 	}
 }

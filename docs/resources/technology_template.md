@@ -64,6 +64,7 @@ resource "nullplatform_technology_template" "golang_1_17" {
 ### Optional
 
 - `account` (String) Account ID the template belongs to. If not specified, it will be a global template
+- `application_type_id` (String) The ID of the application type the template belongs to. A template of a type serves applications of that type only, and a template with no type serves applications with no type. When not set, it reads the type the platform holds, so a template put in a type outside Terraform stays in it. Set it to `""` to take the template out of its type.
 - `metadata` (String) JSON string containing template metadata
 - `rules` (String) JSON string containing template rules
 - `tags` (List of String) List of tags associated with the template

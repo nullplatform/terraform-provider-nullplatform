@@ -24,8 +24,28 @@ type TechnologyTemplate struct {
 	Tags         []string                 `json:"tags,omitempty"`
 	Metadata     map[string]interface{}   `json:"metadata,omitempty"`
 	Rules        map[string]interface{}   `json:"rules,omitempty"`
-	CreatedAt    string                   `json:"created_at,omitempty"`
-	UpdatedAt    string                   `json:"updated_at,omitempty"`
+	// Nil leaves the type of the template out of the request; a non-nil
+	// empty one sends null, which is how a template is taken out of a type.
+	ApplicationTypeId *nullableString `json:"application_type_id,omitempty"`
+	CreatedAt         string          `json:"created_at,omitempty"`
+	UpdatedAt         string          `json:"updated_at,omitempty"`
+}
+
+// nullableString is a string the API answers, and takes, as null when empty.
+type nullableString string
+
+func (s *nullableString) String() string {
+	if s == nil {
+		return ""
+	}
+	return string(*s)
+}
+
+func (s nullableString) MarshalJSON() ([]byte, error) {
+	if s == "" {
+		return []byte("null"), nil
+	}
+	return json.Marshal(string(s))
 }
 
 func (t *TechnologyTemplate) GetId() string {

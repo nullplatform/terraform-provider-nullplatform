@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -17,6 +18,8 @@ func resourceTechnologyTemplate() *schema.Resource {
 		ReadContext:   TechnologyTemplateRead,
 		UpdateContext: TechnologyTemplateUpdate,
 		DeleteContext: TechnologyTemplateDelete,
+
+		CustomizeDiff: templateTypeRemovalDiff,
 
 		Importer: &schema.ResourceImporter{
 			StateContext: func(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
@@ -40,6 +43,14 @@ func resourceTechnologyTemplate() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "Account ID the template belongs to. If not specified, it will be a global template",
+			},
+			"application_type_id": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				Computed:         true,
+				DiffSuppressFunc: suppressSameID,
+				Description: "The ID of the application type the template belongs to. A template of a type serves applications of that type only, and a template with no type serves applications with no type. " +
+					"When not set, it reads the type the platform holds, so a template put in a type outside Terraform stays in it. Set it to `\"\"` to take the template out of its type.",
 			},
 			"provider_config": {
 				Type:     schema.TypeMap,
@@ -165,6 +176,10 @@ func TechnologyTemplateCreate(ctx context.Context, d *schema.ResourceData, m int
 		Rules:        rules,
 	}
 
+	if applicationTypeId := d.Get("application_type_id").(string); applicationTypeId != "" {
+		template.ApplicationTypeId = (*nullableString)(&applicationTypeId)
+	}
+
 	newTemplate, err := nullOps.CreateTechnologyTemplate(template)
 	if err != nil {
 		return diag.FromErr(err)
@@ -191,6 +206,9 @@ func TechnologyTemplateRead(ctx context.Context, d *schema.ResourceData, m inter
 		return diag.FromErr(err)
 	}
 	if err := d.Set("account", template.GetAccount()); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("application_type_id", template.ApplicationTypeId.String()); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := d.Set("provider_config", template.Provider); err != nil {
@@ -253,6 +271,15 @@ func TechnologyTemplateUpdate(ctx context.Context, d *schema.ResourceData, m int
 
 	if d.HasChange("provider_config") {
 		template.Provider = d.Get("provider_config").(map[string]interface{})
+	}
+
+	// An empty one is sent as null, which takes the template out of its type.
+	if configuresTypeRemoval(d.GetRawConfig(), d.Get("application_type_id").(string)) {
+		none := nullableString("")
+		template.ApplicationTypeId = &none
+	} else if d.HasChange("application_type_id") {
+		applicationTypeId := nullableString(d.Get("application_type_id").(string))
+		template.ApplicationTypeId = &applicationTypeId
 	}
 
 	if d.HasChange("components") {
@@ -323,4 +350,31 @@ func TechnologyTemplateDelete(ctx context.Context, d *schema.ResourceData, m int
 
 	d.SetId("")
 	return nil
+}
+
+// templateTypeRemovalDiff plans the removal of a template's type when the
+// configuration says `application_type_id = ""`. The attribute is Computed,
+// so the template keeps the type the platform holds when the configuration
+// does not name one; and to the SDK an empty string is no value, which would
+// keep it too. The raw configuration tells the two apart.
+func templateTypeRemovalDiff(_ context.Context, d *schema.ResourceDiff, _ any) error {
+	if d.Id() == "" {
+		return nil
+	}
+	if held, _ := d.GetChange("application_type_id"); !configuresTypeRemoval(d.GetRawConfig(), held.(string)) {
+		return nil
+	}
+	return d.SetNew("application_type_id", "")
+}
+
+// configuresTypeRemoval reports whether the configuration takes a template
+// out of the type it is in: it says `application_type_id = ""`, and the
+// template has one. The SDK drops a planned change to an empty string of a
+// Computed attribute before the update, so the update asks the same.
+func configuresTypeRemoval(config cty.Value, held string) bool {
+	if held == "" || config.IsNull() || !config.IsKnown() {
+		return false
+	}
+	configured := config.GetAttr("application_type_id")
+	return !configured.IsNull() && configured.IsKnown() && configured.AsString() == ""
 }
