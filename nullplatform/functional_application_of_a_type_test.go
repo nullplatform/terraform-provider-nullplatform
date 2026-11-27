@@ -329,9 +329,8 @@ resource "nullplatform_application" "bot" {
 	})
 }
 
-// With no hook to send, the platform creates an application of a type as
-// failed: the create fails with its message, and leaves it in the state,
-// tainted, for the next apply to replace.
+// With no hook to send, the platform refuses to create an application of a
+// type, and stores nothing: the create fails with its message.
 func TestFunctionalApplication_CreatedWithNoHookToSendFails(t *testing.T) {
 	fake := newApplicationTypeFakeWithoutHooks(t)
 
@@ -339,8 +338,14 @@ func TestFunctionalApplication_CreatedWithNoHookToSendFails(t *testing.T) {
 		ProviderFactories: functionalFactories(fake),
 		Steps: []resource.TestStep{{
 			Config:      typedApplicationConfig("  application_type_id = nullplatform_application_type.agent.id\n", `  attributes = jsonencode({ model = "fable" })`+"\n"),
-			ExpectError: regexp.MustCompile(`application 1 was created as failed: No hook could be delivered to create this\s+application`),
+			ExpectError: regexp.MustCompile(`got status code: 400, message: No hook can be delivered to create this\s+application: No hook can be delivered to create this application: its type has\s+no hook action or no channel that takes it`),
 		}},
+		CheckDestroy: func(*terraform.State) error {
+			if stored := fake.Items("application"); len(stored) != 0 {
+				return fmt.Errorf("the refused create stored %d application(s)", len(stored))
+			}
+			return nil
+		},
 	})
 }
 

@@ -71,7 +71,7 @@ func resourceApplication() *schema.Resource {
 				Description: "The status of the application. Possible values: [`pending_hook`, `pending`, `creating`, `updating`, `active`, `inactive`, `failed`, `deleting`, `deleted`]. " +
 					"An application with no type starts as `pending`, and the platform's workflow makes it `creating`, then `active`. " +
 					"An application of a type starts as `pending_hook` and its type's workflow makes it `active` (or `failed`); until then the platform refuses every edit of it, and an update waits for it (`update` timeout). " +
-					"When the platform has no hook to send for the creation of an application of a type, it creates it `failed`, and the create fails with the platform's message.",
+					"When the platform has no hook to send for the creation of an application of a type, it refuses the create, which fails with the platform's message.",
 			},
 			"slug": {
 				Type:        schema.TypeString,
@@ -211,12 +211,6 @@ func ApplicationCreate(ctx context.Context, d *schema.ResourceData, m interface{
 	}
 
 	d.SetId(strconv.Itoa(app.Id))
-
-	// With no hook to send for its creation, the platform stores an
-	// application of a type as failed: nothing is creating it.
-	if app.Status == "failed" {
-		return diag.Errorf("application %s was created as failed: %s", d.Id(), summarizeMessages(app.Messages))
-	}
 
 	// A new application is on its type's last snapshot; one configured for
 	// another is moved there.

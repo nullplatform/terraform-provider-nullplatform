@@ -22,8 +22,8 @@ package fakeplatform
 //     creation is configured, until that hook is answered, which takes more
 //     than one read; until then every edit of it is refused. The answer makes
 //     one of a type `active` (its type's workflow created it) and one with no
-//     type `pending`. With no hook configured, one of a type is stored
-//     `failed`, with a message, and one with no type is `pending`;
+//     type `pending`. With no hook configured, one of a type is refused
+//     (400, nothing stored), and one with no type is `pending`;
 //   - the built-in workflow makes a `pending` application `creating`, then
 //     `active`, one read at a time;
 //   - an application's status moves only along the API's transitions, and a
@@ -250,19 +250,16 @@ func RegisterApplicationTypes(s *Server) {
 			}
 			// A hook to send for its creation decides, typed or not: the
 			// application waits for its answer. With none, one with no type
-			// goes to the built-in workflow, and one of a type has nothing to
-			// create it.
+			// goes to the built-in workflow, and one of a type is refused:
+			// nothing would create it.
 			switch {
 			case len(s.collections[EntityHookAction].items) > 0:
 				item["status"] = "pending_hook"
 			case typeID == "":
 				item["status"] = "pending"
 			default:
-				item["status"] = "failed"
-				item["messages"] = []any{Item{
-					"level":   "ERROR",
-					"message": "No hook could be delivered to create this application: its type has no hook action or no channel that takes it. Retry once there is one.",
-				}}
+				return apiError(http.StatusBadRequest, "APPLICATION.NO_CREATION_HOOK", "No hook can be delivered to create this application",
+					"No hook can be delivered to create this application: its type has no hook action or no channel that takes it")
 			}
 			item["attributes"] = mergePatch(Item{}, attributes)
 			item["desired_application_type_snapshot_id"] = nil

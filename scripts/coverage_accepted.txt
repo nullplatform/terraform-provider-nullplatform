@@ -64,10 +64,10 @@ nullplatform/data_source_package.go:192-193  # d.Set(components, []map[string]in
 # visible_to, a []string into a set of strings) into an attribute of that exact
 # type. The json.Marshal arm encodes a map that json.Unmarshal just built from
 # the API's answer, which always encodes back.
-nullplatform/resource_application.go:351-352  # d.Set(application_type_id, string) arm
-nullplatform/resource_application.go:354-355  # d.Set(application_type_snapshot_id, string) arm
-nullplatform/resource_application.go:362-363  # json.Marshal(attributes decoded from JSON) arm
-nullplatform/resource_application.go:367-368  # d.Set(attributes, string) arm
+nullplatform/resource_application.go:345-346  # d.Set(application_type_id, string) arm
+nullplatform/resource_application.go:348-349  # d.Set(application_type_snapshot_id, string) arm
+nullplatform/resource_application.go:356-357  # json.Marshal(attributes decoded from JSON) arm
+nullplatform/resource_application.go:361-362  # d.Set(attributes, string) arm
 nullplatform/resource_application_type.go:148-149  # d.Set arm of setApplicationTypeState
 nullplatform/resource_technology_template.go:212-213  # d.Set(application_type_id, string) arm
 
